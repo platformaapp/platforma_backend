@@ -96,7 +96,7 @@ export class AuthController {
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? 'strict' : 'lax',
-      path: '/auth/refresh',
+      path: '/',
     });
   }
 }
