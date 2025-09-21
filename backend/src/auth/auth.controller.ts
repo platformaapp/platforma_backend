@@ -7,25 +7,30 @@ import {
   Res,
   Req,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import express from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/registration.dto';
 import { LoginDto } from './dto/login.dto';
 import { ConfigService } from '@nestjs/config';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { SMTP_HOST, SMTP_PASS, SMTP_PORT, SMTP_SECURE, SMTP_USER } from 'src/utils/constants';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService
   ) {}
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async register(
     @Body() registerDto: RegisterDto,
-    @Res({ passthrough: true }) res: express.Response,
+    @Res({ passthrough: true }) res: express.Response
   ) {
     const result = await this.authService.register(registerDto);
 
@@ -40,10 +45,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(
-    @Body() loginDto: LoginDto,
-    @Res({ passthrough: true }) res: express.Response,
-  ) {
+  async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: express.Response) {
     const result = await this.authService.login(loginDto);
 
     this.setRefreshTokenCookie(res, result.refresh_token);
@@ -57,24 +59,55 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refresh(
-    @Req() req: express.Request,
-    @Res({ passthrough: true }) res: express.Response,
-  ) {
+  async refresh(@Req() req: express.Request, @Res({ passthrough: true }) res: express.Response) {
     const cookies = (req.cookies ?? {}) as Record<string, string>;
     const refreshToken = cookies.refreshToken;
 
-    if (!refreshToken) {
-      throw new UnauthorizedException('Refresh token not found');
-    }
+    if (!refreshToken) throw new UnauthorizedException('Refresh token not found');
 
     const result = await this.authService.refresh(refreshToken);
-
     this.setRefreshTokenCookie(res, result.refresh_token);
 
     return {
       access_token: result.access_token,
     };
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  async logout(@Req() req: express.Request, @Res({ passthrough: true }) res: express.Response) {
+    try {
+      const cookies = (req.cookies ?? {}) as Record<string, string>;
+      const refreshToken = cookies.refreshToken;
+
+      if (refreshToken) await this.authService.logout(refreshToken);
+
+      this.clearRefreshTokenCookie(res);
+
+      return { message: 'Logged out successfully' };
+    } catch (error) {
+      console.error('Error in logout:', error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  @Post('forgot')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
+    const { email } = body;
+    try {
+      await this.authService.requestPasswordChange({ email });
+    } catch (error) {
+      console.error('Error message: ', (error as Error).message);
+    }
+    return { message: 'Password reset link sent to your email' };
+  }
+
+  @Post('reset')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    await this.authService.resetPassword(resetPasswordDto);
+    return { message: 'Password reset successfully' };
   }
 
   private setRefreshTokenCookie(res: express.Response, token: string) {
