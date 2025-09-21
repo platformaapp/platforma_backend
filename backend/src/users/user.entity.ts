@@ -1,4 +1,4 @@
-import { AuthSession } from 'src/auth/entities/auth.entity';
+import { AuthSession } from 'src/auth/auth.entity';
 import {
   Entity,
   Column,
@@ -13,35 +13,35 @@ export type UserRole = 'student' | 'tutor' | 'admin';
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
-  id!: string;
+  id: string;
 
   @Column({ type: 'varchar', length: 255, unique: true, nullable: false })
-  email!: string;
+  email: string;
 
   @Column({ type: 'varchar', length: 20, unique: true, nullable: true })
-  phone!: string | null;
+  phone: string | null;
 
   @Column({ type: 'text', name: 'password_hash' })
-  passwordHash!: string;
+  passwordHash: string;
 
   @Column({ type: 'varchar', length: 255, name: 'full_name', nullable: true })
-  fullName!: string | null;
+  fullName: string;
 
   @Column({ type: 'varchar', length: 20 })
-  role!: UserRole;
+  role: UserRole;
 
   @Column({ type: 'text', name: 'avatar_url', nullable: true })
-  avatarUrl!: string | null;
+  avatarUrl: string | null;
 
   @Column({ type: 'text', nullable: true })
-  bio!: string | null;
+  bio: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
-  createdAt!: Date;
+  createdAt: Date;
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamp' })
-  updatedAt!: Date;
+  updatedAt: Date;
 
   @OneToMany(() => AuthSession, (session) => session.user, { cascade: true })
-  sessions!: AuthSession[];
+  sessions: AuthSession[];
 }

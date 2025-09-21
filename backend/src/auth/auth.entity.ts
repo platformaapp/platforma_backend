@@ -1,29 +1,23 @@
-import {
-  Entity,
-  Column,
-  PrimaryGeneratedColumn,
-  ManyToOne,
-  CreateDateColumn,
-} from 'typeorm';
-import { User } from '../../users/user.entity';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, CreateDateColumn } from 'typeorm';
+import { User } from '../users/user.entity';
 
 @Entity('auth_sessions')
 export class AuthSession {
   @PrimaryGeneratedColumn('uuid')
-  id!: string;
+  id: string;
 
   @ManyToOne(() => User, (user) => user.sessions, { onDelete: 'CASCADE' })
-  user!: User;
+  user: User;
 
   @Column({ type: 'text', name: 'refresh_token' })
-  refreshToken!: string;
+  refreshToken: string;
 
   @Column({ type: 'timestamp', name: 'expires_at' })
-  expiresAt!: Date;
+  expiresAt: Date;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
-  createdAt!: Date;
+  createdAt: Date;
 
   @Column({ type: 'boolean', default: true })
-  isValid!: boolean;
+  isValid: boolean;
 }

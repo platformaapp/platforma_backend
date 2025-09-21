@@ -2,22 +2,42 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThanOrEqual, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from 'src/users/user.entity';
-import { AuthSession } from './entities/auth.entity';
+import { AuthSession } from './auth.entity';
 import { RegisterDto } from './dto/registration.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponse } from 'src/utils/helper';
 import { randomBytes } from 'crypto';
+import { sendPasswordResetEmail } from 'src/utils/sendEmail';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ConfigService } from '@nestjs/config';
+import { JWT_SECRET } from 'src/utils/constants';
 
 export interface JwtPayload {
   sub: string;
   email: string;
   role: string;
+}
+
+interface PasswordResetPayload extends JwtPayload {
+  type: 'password_reset';
+}
+
+interface JwtError extends Error {
+  name: 'TokenExpiredError' | 'JsonWebTokenError' | 'NotBeforeError';
+}
+
+function isJwtError(error: unknown): error is JwtError {
+  return (
+    error instanceof Error &&
+    ['TokenExpiredError', 'JsonWebTokenError', 'NotBeforeError'].includes(error.name)
+  );
 }
 
 @Injectable()
@@ -28,6 +48,7 @@ export class AuthService {
     @InjectRepository(AuthSession)
     private authSessionRepository: Repository<AuthSession>,
     private jwtService: JwtService,
+    private configService: ConfigService
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponse> {
@@ -37,6 +58,16 @@ export class AuthService {
 
     if (existingUser) {
       throw new ConflictException('User with this email already exists');
+    }
+
+    if (registerDto.phone) {
+      const existingUserByPhone = await this.usersRepository.findOne({
+        where: { phone: registerDto.phone },
+      });
+
+      if (existingUserByPhone) {
+        throw new ConflictException('User with this phone number already exists');
+      }
     }
 
     const saltRounds = 12;
@@ -65,7 +96,7 @@ export class AuthService {
 
     const authSession = this.authSessionRepository.create({
       user: savedUser,
-      refreshToken: await this.hashRefreshToken(refreshToken),
+      refreshToken: refreshToken,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       isValid: true,
     });
@@ -73,6 +104,7 @@ export class AuthService {
     await this.authSessionRepository.save(authSession);
 
     const { passwordHash: _, ...userWithoutPassword } = savedUser;
+    void _;
 
     return {
       user: userWithoutPassword,
@@ -90,10 +122,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const isPasswordValid = await bcrypt.compare(
-      loginDto.password,
-      user.passwordHash,
-    );
+    const isPasswordValid = await bcrypt.compare(loginDto.password, user.passwordHash);
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
@@ -106,16 +135,17 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload);
-    const refreshToken = this.generateRefreshToken();
 
     await this.authSessionRepository.update(
       { user: { id: user.id }, isValid: true },
-      { isValid: false },
+      { isValid: false }
     );
+
+    const refreshToken = this.generateRefreshToken();
 
     const authSession = this.authSessionRepository.create({
       user: user,
-      refreshToken: await this.hashRefreshToken(refreshToken),
+      refreshToken: refreshToken,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       isValid: true,
     });
@@ -123,6 +153,7 @@ export class AuthService {
     await this.authSessionRepository.save(authSession);
 
     const { passwordHash: _, ...userWithoutPassword } = user;
+    void _;
 
     return {
       user: userWithoutPassword,
@@ -132,52 +163,133 @@ export class AuthService {
   }
 
   async refresh(refreshToken: string) {
+    const session = await this.authSessionRepository.findOne({
+      where: {
+        refreshToken: refreshToken,
+        isValid: true,
+        expiresAt: MoreThanOrEqual(new Date()),
+      },
+      relations: ['user'],
+    });
+
+    if (!session) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    const user = session.user;
+    const newAccessToken = this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    const newRefreshToken = this.generateRefreshToken();
+
+    session.refreshToken = newRefreshToken;
+    session.expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await this.authSessionRepository.save(session);
+
+    return {
+      access_token: newAccessToken,
+      refresh_token: newRefreshToken,
+    };
+  }
+
+  async logout(refreshToken: string): Promise<void> {
+    const session = await this.authSessionRepository.findOne({
+      where: { refreshToken, isValid: true },
+    });
+
+    if (session) {
+      session.isValid = false;
+      await this.authSessionRepository.save(session);
+    }
+  }
+
+  async requestPasswordChange({ email }: { email: string }): Promise<void> {
+    const user = await this.usersRepository.findOne({
+      where: { email },
+    });
+
+    if (!user) return;
+
+    const resetToken = this.generatePasswordResetToken(user.id, user.email);
+
     try {
-      const authSessions = await this.authSessionRepository.find({
-        where: {
-          isValid: true,
-          expiresAt: MoreThanOrEqual(new Date()),
-        },
-        relations: ['user'],
-      });
-
-      let validSession: AuthSession | null = null;
-      for (const session of authSessions) {
-        const isTokenValid = await bcrypt.compare(
-          refreshToken,
-          session.refreshToken,
-        );
-        if (isTokenValid) {
-          validSession = session;
-          break;
-        }
-      }
-
-      if (!validSession) {
-        throw new UnauthorizedException('Invalid or expired refresh token');
-      }
-
-      const user = validSession.user;
-
-      const newAccessToken = this.jwtService.sign({
-        sub: user.id,
-        email: user.email,
-        role: user.role,
-      });
-
-      const newRefreshToken = this.generateRefreshToken();
-
-      validSession.refreshToken = await this.hashRefreshToken(newRefreshToken);
-      validSession.expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      await this.authSessionRepository.save(validSession);
-
-      return {
-        access_token: newAccessToken,
-        refresh_token: newRefreshToken,
-      };
+      return await sendPasswordResetEmail(user.email, resetToken, user.fullName);
     } catch (error) {
-      console.error('Refresh error:', error);
-      throw new UnauthorizedException('Invalid refresh token');
+      console.error(
+        'Failed to send password reset email:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+      throw new Error('Failed to send password reset email');
+    }
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<void> {
+    try {
+      const { token, password } = resetPasswordDto;
+
+      if (!token || typeof token !== 'string' || token.split('.').length !== 3) {
+        throw new UnauthorizedException('Invalid reset token format');
+      }
+
+      const jwtSecret = this.configService.get<string>('JWT_SECRET') || JWT_SECRET;
+
+      try {
+        const payload = this.jwtService.verify<PasswordResetPayload>(token, {
+          secret: jwtSecret,
+        });
+
+        if (payload.type !== 'password_reset') {
+          throw new UnauthorizedException('Invalid reset token type');
+        }
+
+        const user = await this.usersRepository.findOne({
+          where: { id: payload.sub },
+        });
+
+        if (!user) {
+          throw new UnauthorizedException('User not found');
+        }
+
+        const saltRounds = 12;
+        const newPasswordHash = await bcrypt.hash(password, saltRounds);
+
+        user.passwordHash = newPasswordHash;
+        await this.usersRepository.save(user);
+
+        await this.authSessionRepository.update(
+          { user: { id: user.id }, isValid: true },
+          { isValid: false }
+        );
+      } catch (jwtError: unknown) {
+        if (isJwtError(jwtError)) {
+          if (jwtError.name === 'TokenExpiredError') {
+            throw new UnauthorizedException('Reset token has expired');
+          }
+          if (jwtError.name === 'JsonWebTokenError') {
+            throw new UnauthorizedException('Invalid reset token');
+          }
+        }
+
+        if (jwtError instanceof UnauthorizedException) {
+          throw jwtError;
+        }
+        console.error(
+          'JWT verification error:',
+          jwtError instanceof Error ? jwtError.message : 'Unknown error'
+        );
+        throw new UnauthorizedException('Invalid reset token');
+      }
+    } catch (error) {
+      console.error(
+        'Error resetting password:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+
+      if (error instanceof UnauthorizedException) throw error;
+      throw new InternalServerErrorException('Failed to reset password');
     }
   }
 
@@ -185,7 +297,18 @@ export class AuthService {
     return randomBytes(64).toString('hex');
   }
 
-  private async hashRefreshToken(token: string): Promise<string> {
-    return bcrypt.hash(token, 10);
+  private generatePasswordResetToken(userId: string, email: string): string {
+    const payload = {
+      sub: userId,
+      email: email,
+      type: 'password_reset',
+    };
+
+    const jwtSecret = this.configService.get<string>('JWT_SECRET') || JWT_SECRET;
+
+    return this.jwtService.sign(payload, {
+      expiresIn: '1h',
+      secret: jwtSecret,
+    });
   }
 }

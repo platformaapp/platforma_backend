@@ -8,8 +8,8 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 9000);
 
-  app.setGlobalPrefix('api');
   app.use(cookieParser());
+  app.setGlobalPrefix('api');
 
   await app.listen(port);
   console.log(`Application started on port ${port}`);
