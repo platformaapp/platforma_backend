@@ -1,0 +1,411 @@
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { User } from 'src/users/user.entity';
+import { Event, EventStatus } from 'src/events/entities/event.entity';
+import { FindManyOptions, In, Not, Repository } from 'typeorm';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { Slot, SlotStatus } from 'src/slots/entities/slot.entity';
+import { GetSlotsFilterDto } from './dto/get-slots-filter.dto';
+import { CreateSlotDto } from './dto/create-slot.dto';
+import { UpdateSlotDto } from './dto/update-slot.dto';
+import { isUUID } from 'class-validator';
+import { CreateEventDto } from './dto/create-event.dto';
+import { Payment, PaymentStatus } from 'src/payments/entities/payment.entity';
+import { PaymentsSummary } from 'src/utils/types';
+
+@Injectable()
+export class TutorService {
+  constructor(
+    @InjectRepository(User)
+    private usersRepository: Repository<User>,
+
+    @InjectRepository(Slot)
+    private slotsRepository: Repository<Slot>,
+
+    @InjectRepository(Event)
+    private eventsRepository: Repository<Event>,
+
+    @InjectRepository(Payment)
+    private paymentsRepository: Repository<Payment>
+  ) {}
+
+  async getTutorProfile(userId: string): Promise<Partial<User>> {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+      select: [
+        'id',
+        'email',
+        'phone',
+        'fullName',
+        'role',
+        'avatarUrl',
+        'bio',
+        'createdAt',
+        'updatedAt',
+      ],
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    return user;
+  }
+
+  async updateTutorProfile(
+    userId: string,
+    updateProfileDto: UpdateProfileDto
+  ): Promise<Partial<User>> {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    if (updateProfileDto.phone && updateProfileDto.phone !== user.phone) {
+      const existingUserWithPhone = await this.usersRepository.findOne({
+        where: { phone: updateProfileDto.phone },
+      });
+      if (existingUserWithPhone) throw new ConflictException('Phone number already exists');
+    }
+
+    if (updateProfileDto.fullName !== undefined) user.fullName = updateProfileDto.fullName;
+    if (updateProfileDto.bio !== undefined) user.bio = updateProfileDto.bio;
+    if (updateProfileDto.avatarUrl !== undefined) user.avatarUrl = updateProfileDto.avatarUrl;
+    if (updateProfileDto.phone !== undefined) user.phone = updateProfileDto.phone;
+
+    user.updatedAt = new Date();
+    const updatedUser = await this.usersRepository.save(user);
+
+    const { passwordHash: _, ...userWithoutPassword } = updatedUser;
+    void _;
+    return userWithoutPassword;
+  }
+
+  async getTutorSlots(userId: string, filter: GetSlotsFilterDto): Promise<Slot[]> {
+    const query: FindManyOptions<Slot> = {
+      where: { tutor: { id: userId } },
+      relations: ['tutor'],
+      order: { date: 'ASC', time: 'ASC' },
+    };
+
+    if (filter.date) {
+      query.where = { ...query.where, date: filter.date };
+    }
+
+    if (filter.status) {
+      query.where = { ...query.where, status: filter.status };
+    }
+
+    return await this.slotsRepository.find(query);
+  }
+
+  async createSlot(userId: string, createSlotDto: CreateSlotDto): Promise<Slot> {
+    const slotDateTime = new Date(`${createSlotDto.date}T${createSlotDto.time}:00Z`);
+    if (slotDateTime < new Date()) {
+      throw new BadRequestException('Cannot create slot in the past');
+    }
+
+    const tutor = await this.usersRepository.findOne({
+      where: { id: userId, role: 'tutor' },
+    });
+    if (!tutor) throw new NotFoundException('Tutor not found');
+
+    const existingSlot = await this.slotsRepository.findOne({
+      where: {
+        tutor: { id: userId },
+        date: createSlotDto.date,
+        time: createSlotDto.time,
+      },
+    });
+    if (existingSlot) throw new ConflictException('Slot already exists at this date and time');
+
+    const slot = this.slotsRepository.create({
+      tutor,
+      date: createSlotDto.date,
+      time: createSlotDto.time,
+      status: SlotStatus.FREE,
+    });
+
+    const savedSlot = await this.slotsRepository.save(slot);
+
+    return await this.slotsRepository.findOne({
+      where: { id: savedSlot.id },
+      relations: ['tutor'],
+      select: ['id', 'date', 'time', 'status', 'createdAt', 'updatedAt', 'tutor'],
+    });
+  }
+
+  async updateSlot(userId: string, slotId: string, updateSlotDto: UpdateSlotDto): Promise<Slot> {
+    const slot = await this.slotsRepository.findOne({
+      where: { id: slotId },
+      relations: ['tutor'],
+    });
+
+    if (!slot) {
+      throw new NotFoundException('Slot not found');
+    }
+
+    if (slot.tutor.id !== userId) {
+      throw new ForbiddenException('You can only update your own slots');
+    }
+
+    if (updateSlotDto.date || updateSlotDto.time) {
+      const date = updateSlotDto.date || slot.date;
+      const time = updateSlotDto.time || slot.time;
+
+      const existingSlot = await this.slotsRepository.findOne({
+        where: {
+          tutor: { id: userId },
+          date: date,
+          time: time,
+          id: Not(slotId),
+        },
+      });
+
+      if (existingSlot) {
+        throw new ConflictException('Slot already exists at this date and time');
+      }
+    }
+
+    if (updateSlotDto.date !== undefined) slot.date = updateSlotDto.date;
+    if (updateSlotDto.time !== undefined) slot.time = updateSlotDto.time;
+    if (updateSlotDto.status !== undefined) slot.status = updateSlotDto.status;
+
+    slot.updatedAt = new Date();
+
+    const updatedSlot = await this.slotsRepository.save(slot);
+
+    return await this.slotsRepository.findOne({
+      where: { id: updatedSlot.id },
+      relations: ['tutor'],
+    });
+  }
+
+  async deleteSlot(userId: string, slotId: string): Promise<void> {
+    if (!isUUID(slotId)) {
+      throw new BadRequestException('Invalid slot ID format');
+    }
+
+    const slot = await this.slotsRepository.findOne({
+      where: { id: slotId },
+      relations: ['tutor'],
+    });
+
+    if (!slot) {
+      throw new NotFoundException('Slot not found');
+    }
+
+    if (slot.tutor.id !== userId) {
+      throw new ForbiddenException('You can only delete your own slots');
+    }
+
+    if (slot.status === SlotStatus.BOOKED) {
+      throw new ForbiddenException('Cannot delete a booked slot');
+    }
+
+    const eventCount = await this.eventsRepository.count({ where: { slot: { id: slotId } } });
+
+    if (eventCount > 0) {
+      throw new BadRequestException(
+        `Unable to delete slot: ${eventCount} event(s) are bound to it.`
+      );
+    }
+
+    await this.slotsRepository.remove(slot);
+  }
+
+  async deleteSlots(userId: string, slotIds: string[]): Promise<{ deletedCount: number }> {
+    if (slotIds.length === 0) {
+      throw new BadRequestException('Slot IDs array cannot be empty');
+    }
+    if (!slotIds || !Array.isArray(slotIds) || slotIds.length === 0) {
+      throw new BadRequestException('Slot IDs array is required');
+    }
+
+    const uniqueIds = [...new Set(slotIds)];
+    if (uniqueIds.length !== slotIds.length) {
+      throw new BadRequestException('Duplicate slot IDs are not allowed');
+    }
+
+    const invalidIds = slotIds.filter((id) => !isUUID(id));
+    if (invalidIds.length > 0) {
+      throw new BadRequestException(`Invalid slot ID format: ${invalidIds.join(', ')}`);
+    }
+
+    const slots = await this.slotsRepository.find({
+      where: {
+        id: In(slotIds),
+        tutor: { id: userId },
+      },
+      relations: ['tutor'],
+    });
+
+    if (slots.length === 0) {
+      throw new NotFoundException('No slots found for deletion');
+    }
+
+    const foundIds = slots.map((slot) => slot.id);
+    const notFoundIds = slotIds.filter((id) => !foundIds.includes(id));
+
+    if (notFoundIds.length > 0) {
+      throw new NotFoundException(
+        `Some slots not found or not owned by you: ${notFoundIds.join(', ')}`
+      );
+    }
+
+    const bookedSlots = slots.filter((slot) => slot.status === SlotStatus.BOOKED);
+    if (bookedSlots.length > 0) {
+      const bookedIds = bookedSlots.map((slot) => slot.id);
+      throw new ForbiddenException(`Cannot delete booked slots: ${bookedIds.join(', ')}`);
+    }
+
+    await this.slotsRepository.remove(slots);
+    return { deletedCount: slots.length };
+  }
+
+  //Events
+  async getTutorEvents(userId: string): Promise<Event[]> {
+    return await this.eventsRepository
+      .createQueryBuilder('event')
+      .leftJoinAndSelect('event.slot', 'slot')
+      .leftJoinAndSelect('slot.tutor', 'tutor')
+      .leftJoinAndSelect('event.student', 'student')
+      .where('tutor.id = :userId', { userId })
+      .orderBy('slot.date', 'ASC')
+      .addOrderBy('slot.time', 'ASC')
+      .getMany();
+  }
+
+  async createEvent(userId: string, createEventDto: CreateEventDto): Promise<Event> {
+    // Проверяем, что слот существует и принадлежит наставнику
+    const slot = await this.slotsRepository.findOne({
+      where: { id: createEventDto.slotId },
+      relations: ['tutor', 'events'],
+    });
+
+    if (!slot) {
+      throw new NotFoundException('Slot not found');
+    }
+
+    if (slot.tutor.id !== userId) {
+      throw new ForbiddenException('You can only create events for your own slots');
+    }
+
+    if (slot.status !== SlotStatus.FREE) {
+      throw new ConflictException('Slot is not available for booking');
+    }
+
+    if (slot.events && slot.events.length > 0) {
+      throw new ConflictException('Slot already has an event');
+    }
+
+    const student = await this.usersRepository.findOne({
+      where: { id: createEventDto.studentId, role: 'student' },
+    });
+
+    if (!student) {
+      throw new NotFoundException('Student not found');
+    }
+
+    // ИСПРАВЛЕННАЯ ЧАСТЬ - используем реальные сущности
+    const event = this.eventsRepository.create({
+      slot: { id: slot.id }, // <-- передаём только ID
+      student: { id: student.id },
+      status: createEventDto.status || EventStatus.PLANNED,
+      notes: createEventDto.notes || null,
+    });
+
+    const savedEvent = await this.eventsRepository.save(event);
+
+    // Подгружаем все отношения через QueryBuilder
+    return await this.eventsRepository
+      .createQueryBuilder('event')
+      .leftJoinAndSelect('event.slot', 'slot')
+      .leftJoinAndSelect('slot.tutor', 'tutor')
+      .leftJoinAndSelect('event.student', 'student')
+      .where('event.id = :id', { id: savedEvent.id })
+      .getOne();
+  }
+
+  async updateEventStatus(userId: string, eventId: string, status: EventStatus) {
+    if (!Object.values(EventStatus).includes(status)) {
+      throw new BadRequestException('Invalid event status');
+    }
+
+    // Находим событие с слотом и тьютором
+    const event = await this.eventsRepository.findOne({
+      where: { id: eventId },
+      relations: ['slot', 'slot.tutor', 'student'],
+    });
+
+    if (!event) throw new NotFoundException('Event not found');
+
+    // Проверяем, что пользователь — тьютор слота
+    if (event.slot.tutor.id !== userId) {
+      throw new ForbiddenException('You can only update your own events');
+    }
+
+    // Обновляем статус
+    event.status = status;
+    await this.eventsRepository.save(event);
+
+    // Возвращаем обновлённое событие с отношениями
+    return await this.eventsRepository.findOne({
+      where: { id: event.id },
+      relations: ['slot', 'slot.tutor', 'student'],
+    });
+  }
+
+  async getTutorPayments(userId: string): Promise<Payment[]> {
+    return this.paymentsRepository.find({
+      where: {
+        tutor: { id: userId },
+      },
+      order: { createdAt: 'DESC' },
+      select: ['id', 'amount', 'currency', 'status', 'createdAt'], // чтобы вернуть только нужные поля
+      relations: ['tutor'], // если нужно, можно убрать, чтобы не подтягивать всю сущность
+    });
+  }
+
+  async getPaymentsSummary(userId: string) {
+    const now = new Date();
+
+    // Начало месяца
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // Начало недели (понедельник)
+    const startOfWeek = new Date(now);
+    const day = startOfWeek.getDay();
+    const diff = day === 0 ? 6 : day - 1; // если воскресенье, сдвигаем на 6 дней
+    startOfWeek.setDate(startOfWeek.getDate() - diff);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    // Используем QueryBuilder для агрегации
+    const query = this.paymentsRepository
+      .createQueryBuilder('payment')
+      .select('SUM(CASE WHEN payment.status = :success THEN payment.amount ELSE 0 END)', 'total')
+      .addSelect(
+        'SUM(CASE WHEN payment.status = :success AND payment.created_at >= :month THEN payment.amount ELSE 0 END)',
+        'month'
+      )
+      .addSelect(
+        'SUM(CASE WHEN payment.status = :success AND payment.created_at >= :week THEN payment.amount ELSE 0 END)',
+        'week'
+      )
+      .addSelect('COUNT(CASE WHEN payment.status = :success THEN 1 END)', 'count')
+      .where('payment.tutor_Id = :userId', { userId })
+      .setParameters({ success: PaymentStatus.SUCCESS, month: startOfMonth, week: startOfWeek });
+
+    const result = await query.getRawOne<PaymentsSummary>();
+
+    return {
+      total: parseFloat(result.total) || 0,
+      month: parseFloat(result.month) || 0,
+      week: parseFloat(result.week) || 0,
+      count: parseInt(result.count, 10) || 0,
+    };
+  }
+}

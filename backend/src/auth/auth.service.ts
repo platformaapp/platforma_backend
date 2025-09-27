@@ -12,26 +12,13 @@ import { User } from 'src/users/user.entity';
 import { AuthSession } from './auth.entity';
 import { RegisterDto } from './dto/registration.dto';
 import { LoginDto } from './dto/login.dto';
-import { AuthResponse } from 'src/utils/helper';
+import { AuthResponse } from 'src/utils/types';
 import { randomBytes } from 'crypto';
 import { sendPasswordResetEmail } from 'src/utils/sendEmail';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { JWT_SECRET } from 'src/utils/constants';
-
-export interface JwtPayload {
-  sub: string;
-  email: string;
-  role: string;
-}
-
-interface PasswordResetPayload extends JwtPayload {
-  type: 'password_reset';
-}
-
-interface JwtError extends Error {
-  name: 'TokenExpiredError' | 'JsonWebTokenError' | 'NotBeforeError';
-}
+import { JwtError, PasswordResetPayload } from 'src/utils/types';
 
 function isJwtError(error: unknown): error is JwtError {
   return (
