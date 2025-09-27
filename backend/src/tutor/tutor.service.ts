@@ -280,7 +280,6 @@ export class TutorService {
   }
 
   async createEvent(userId: string, createEventDto: CreateEventDto): Promise<Event> {
-    // Проверяем, что слот существует и принадлежит наставнику
     const slot = await this.slotsRepository.findOne({
       where: { id: createEventDto.slotId },
       relations: ['tutor', 'events'],
@@ -310,9 +309,8 @@ export class TutorService {
       throw new NotFoundException('Student not found');
     }
 
-    // ИСПРАВЛЕННАЯ ЧАСТЬ - используем реальные сущности
     const event = this.eventsRepository.create({
-      slot: { id: slot.id }, // <-- передаём только ID
+      slot: { id: slot.id },
       student: { id: student.id },
       status: createEventDto.status || EventStatus.PLANNED,
       notes: createEventDto.notes || null,
@@ -320,7 +318,6 @@ export class TutorService {
 
     const savedEvent = await this.eventsRepository.save(event);
 
-    // Подгружаем все отношения через QueryBuilder
     return await this.eventsRepository
       .createQueryBuilder('event')
       .leftJoinAndSelect('event.slot', 'slot')
@@ -335,7 +332,6 @@ export class TutorService {
       throw new BadRequestException('Invalid event status');
     }
 
-    // Находим событие с слотом и тьютором
     const event = await this.eventsRepository.findOne({
       where: { id: eventId },
       relations: ['slot', 'slot.tutor', 'student'],
@@ -343,16 +339,13 @@ export class TutorService {
 
     if (!event) throw new NotFoundException('Event not found');
 
-    // Проверяем, что пользователь — тьютор слота
     if (event.slot.tutor.id !== userId) {
       throw new ForbiddenException('You can only update your own events');
     }
 
-    // Обновляем статус
     event.status = status;
     await this.eventsRepository.save(event);
 
-    // Возвращаем обновлённое событие с отношениями
     return await this.eventsRepository.findOne({
       where: { id: event.id },
       relations: ['slot', 'slot.tutor', 'student'],
@@ -365,25 +358,22 @@ export class TutorService {
         tutor: { id: userId },
       },
       order: { createdAt: 'DESC' },
-      select: ['id', 'amount', 'currency', 'status', 'createdAt'], // чтобы вернуть только нужные поля
-      relations: ['tutor'], // если нужно, можно убрать, чтобы не подтягивать всю сущность
+      select: ['id', 'amount', 'currency', 'status', 'createdAt'],
+      relations: ['tutor'],
     });
   }
 
   async getPaymentsSummary(userId: string) {
     const now = new Date();
 
-    // Начало месяца
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Начало недели (понедельник)
     const startOfWeek = new Date(now);
     const day = startOfWeek.getDay();
-    const diff = day === 0 ? 6 : day - 1; // если воскресенье, сдвигаем на 6 дней
+    const diff = day === 0 ? 6 : day - 1;
     startOfWeek.setDate(startOfWeek.getDate() - diff);
     startOfWeek.setHours(0, 0, 0, 0);
 
-    // Используем QueryBuilder для агрегации
     const query = this.paymentsRepository
       .createQueryBuilder('payment')
       .select('SUM(CASE WHEN payment.status = :success THEN payment.amount ELSE 0 END)', 'total')

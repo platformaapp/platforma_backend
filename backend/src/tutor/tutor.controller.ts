@@ -21,7 +21,6 @@ import { UpdateSlotDto } from './dto/update-slot.dto';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventStatusDto } from './dto/update-eventStatus.dto';
 import type { AuthenticatedRequest } from 'src/utils/types';
-//Профиль наставника
 
 @Controller('tutor')
 export class TutorController {
