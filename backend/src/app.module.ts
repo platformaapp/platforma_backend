@@ -5,6 +5,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { SlotsModule } from './slots/slots.module';
+import { PaymentsModule } from './payments/payments.module';
+import { EventsModule } from './events/events.module';
+import { TutorModule } from './tutor/tutor.module';
 
 @Module({
   imports: [
@@ -22,13 +26,17 @@ import { AuthModule } from './auth/auth.module';
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_NAME'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: false,
+        synchronize: configService.get('NODE_ENV') === 'development',
         logging: false,
       }),
       inject: [ConfigService],
     }),
     UsersModule,
     AuthModule,
+    SlotsModule,
+    PaymentsModule,
+    EventsModule,
+    TutorModule,
   ],
   controllers: [AppController],
   providers: [AppService],

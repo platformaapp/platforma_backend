@@ -1,4 +1,7 @@
 import { AuthSession } from 'src/auth/auth.entity';
+import { Event } from 'src/events/entities/event.entity';
+import { Payment } from 'src/payments/entities/payment.entity';
+import { Slot } from 'src/slots/entities/slot.entity';
 import {
   Entity,
   Column,
@@ -44,4 +47,13 @@ export class User {
 
   @OneToMany(() => AuthSession, (session) => session.user, { cascade: true })
   sessions: AuthSession[];
+
+  @OneToMany(() => Slot, (slot) => slot.tutor, { cascade: true })
+  tutorSlots: Slot[];
+
+  @OneToMany(() => Event, (event) => event.student)
+  studentBookings: Event[];
+
+  @OneToMany(() => Payment, (payment) => payment.tutor)
+  payments: Payment[];
 }

@@ -1,7 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JsonWebTokenError, JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { Request, Response } from 'express';
-import { AuthService, JwtPayload } from '../auth.service';
+import { AuthService } from '../auth.service';
+import { JwtPayload } from 'src/utils/types';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -24,11 +25,14 @@ export class JwtAuthGuard implements CanActivate {
       request.user = payload;
       return true;
     } catch (error) {
-      if (error) {
+      if (error instanceof TokenExpiredError) {
         return await this.handleExpiredToken(request, response);
       }
+      if (error instanceof JsonWebTokenError) {
+        throw new UnauthorizedException('Invalid token');
+      }
 
-      throw new UnauthorizedException('Invalid token');
+      throw new UnauthorizedException('Authentication failed');
     }
   }
 
@@ -59,7 +63,10 @@ export class JwtAuthGuard implements CanActivate {
 
       return true;
     } catch (refreshError) {
-      console.error('Token refresh failed:', refreshError);
+      console.error(
+        'Token refresh failed:',
+        refreshError instanceof Error ? refreshError.message : 'Unknown error'
+      );
       throw new UnauthorizedException('Token expired and refresh failed');
     }
   }
