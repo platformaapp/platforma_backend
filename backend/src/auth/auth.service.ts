@@ -202,6 +202,8 @@ export class AuthService {
 
     const resetToken = this.generatePasswordResetToken(user.id, user.email);
 
+    console.log('Reset Token:', resetToken);
+
     try {
       return await sendPasswordResetEmail(user.email, resetToken, user.fullName);
     } catch (error) {
@@ -215,16 +217,16 @@ export class AuthService {
 
   async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<void> {
     try {
-      const { token, password } = resetPasswordDto;
+      const { reset_token, password } = resetPasswordDto;
 
-      if (!token || typeof token !== 'string' || token.split('.').length !== 3) {
+      if (!reset_token || typeof reset_token !== 'string' || reset_token.split('.').length !== 3) {
         throw new UnauthorizedException('Invalid reset token format');
       }
 
       const jwtSecret = this.configService.get<string>('JWT_SECRET') || JWT_SECRET;
 
       try {
-        const payload = this.jwtService.verify<PasswordResetPayload>(token, {
+        const payload = this.jwtService.verify<PasswordResetPayload>(reset_token, {
           secret: jwtSecret,
         });
 

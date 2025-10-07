@@ -17,7 +17,16 @@ import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiBearerAuth,
+  ApiCookieAuth,
+} from '@nestjs/swagger';
 
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -27,28 +36,47 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Register new user' })
+  @ApiBody({ type: RegisterDto })
+  @ApiResponse({
+    status: 201,
+    description: 'User successfully registered (sets refreshToken cookie)',
+    schema: {
+      example: {
+        user: { id: 1, email: 'user@example.com', fullName: 'John Doe', role: 'student' },
+        access_token: 'jwt_token',
+      },
+    },
+  })
   async register(
     @Body() registerDto: RegisterDto,
     @Res({ passthrough: true }) res: express.Response
   ) {
     const result = await this.authService.register(registerDto);
-
     this.setRefreshTokenCookie(res, result.refresh_token);
-
     return {
       user: result.user,
       access_token: result.access_token,
-      refresh_token: result.refresh_token,
     };
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'User login' })
+  @ApiBody({ type: LoginDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully logged in (sets refreshToken cookie)',
+    schema: {
+      example: {
+        user: { id: 1, email: 'user@example.com', fullName: 'John Doe', role: 'student' },
+        access_token: 'jwt_token',
+      },
+    },
+  })
   async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: express.Response) {
     const result = await this.authService.login(loginDto);
-
     this.setRefreshTokenCookie(res, result.refresh_token);
-
     return {
       user: result.user,
       access_token: result.access_token,
@@ -58,6 +86,17 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refresh access token' })
+  @ApiCookieAuth('refreshToken')
+  @ApiResponse({
+    status: 200,
+    description: 'Token refreshed successfully',
+    schema: {
+      example: {
+        access_token: 'new_jwt_token',
+      },
+    },
+  })
   async refresh(@Req() req: express.Request, @Res({ passthrough: true }) res: express.Response) {
     const cookies = (req.cookies ?? {}) as Record<string, string>;
     const refreshToken = cookies.refreshToken;
@@ -75,6 +114,18 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'User logout' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiCookieAuth('refreshToken')
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully logged out',
+    schema: {
+      example: {
+        message: 'Logged out successfully',
+      },
+    },
+  })
   async logout(@Req() req: express.Request, @Res({ passthrough: true }) res: express.Response) {
     try {
       const cookies = (req.cookies ?? {}) as Record<string, string>;
@@ -92,6 +143,17 @@ export class AuthController {
 
   @Post('forgot')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request password reset' })
+  @ApiBody({ type: ForgotPasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset link sent',
+    schema: {
+      example: {
+        message: 'Password reset link sent to your email',
+      },
+    },
+  })
   async forgotPassword(@Body() body: ForgotPasswordDto) {
     const { email } = body;
     try {
@@ -104,6 +166,17 @@ export class AuthController {
 
   @Post('reset')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset password' })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset successfully',
+    schema: {
+      example: {
+        message: 'Password reset successfully',
+      },
+    },
+  })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     await this.authService.resetPassword(resetPasswordDto);
     return { message: 'Password reset successfully' };
