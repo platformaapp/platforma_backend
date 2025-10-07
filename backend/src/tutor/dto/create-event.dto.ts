@@ -3,9 +3,11 @@ import { EventStatus } from 'src/events/entities/event.entity';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateEventDto {
+  @ApiProperty()
   @IsUUID()
   slotId: string;
 
+  @ApiProperty()
   @IsUUID()
   studentId: string;
 
@@ -18,6 +20,7 @@ export class CreateEventDto {
   @IsEnum(EventStatus)
   status?: EventStatus;
 
+  @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
   notes?: string;
