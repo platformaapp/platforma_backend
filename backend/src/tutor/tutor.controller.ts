@@ -20,7 +20,7 @@ import { CreateSlotDto } from './dto/create-slot.dto';
 import { UpdateSlotDto } from './dto/update-slot.dto';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventStatusDto } from './dto/update-eventStatus.dto';
-import type { AuthenticatedRequest } from 'src/utils/types';
+import type { AuthenticatedRequest, BookingDetails } from 'src/utils/types';
 import {
   ApiTags,
   ApiOperation,
@@ -228,5 +228,44 @@ export class TutorController {
   async getPaymentsSummary(@Req() req: AuthenticatedRequest) {
     const userId = req.user.sub;
     return this.tutorService.getPaymentsSummary(userId);
+  }
+
+  @Get('bookings')
+  @UseGuards(TutorGuard)
+  @ApiOperation({ summary: 'Get bookings as a tutor' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking list got successfully',
+  })
+  async getMyBookings(@Req() req: AuthenticatedRequest): Promise<BookingDetails[]> {
+    const tutorId = req.user.sub;
+    return this.tutorService.getTutorBookings(tutorId);
+  }
+
+  @Put('bookings/:id/complete')
+  @UseGuards(TutorGuard)
+  @ApiOperation({ summary: 'End of session' })
+  @ApiParam({ name: 'id', description: 'Booking ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'The session ended successfully',
+    example: {
+      id: '123e45u67',
+      slotId: '98qee4dq3',
+      tutorId: 'ew83e4562',
+      studentId: '4q17e400p',
+      status: 'done',
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No bookings found',
+  })
+  async completeBooking(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') bookingId: string
+  ): Promise<BookingDetails> {
+    const tutorId = req.user.sub;
+    return this.tutorService.completeBooking(tutorId, bookingId);
   }
 }

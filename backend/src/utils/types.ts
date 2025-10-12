@@ -1,3 +1,4 @@
+import { BookingStatus } from 'src/student/entities/booking.entity';
 import { User } from 'src/users/user.entity';
 
 export interface JwtPayload {
@@ -33,4 +34,34 @@ export interface AuthResponse {
   user: Omit<User, 'passwordHash'>;
   access_token: string;
   refresh_token: string;
+}
+
+export interface BookingDetails {
+  id: string;
+  slotId: string;
+  tutorId: string;
+  studentId: string;
+  status: BookingStatus;
+  createdAt: Date;
+  updatedAt: Date;
+  slot?: {
+    id: string;
+    date: string;
+    time: string;
+    tutor?: {
+      id: string;
+      fullName: string;
+      email: string;
+    };
+  };
+  student?: {
+    id: string;
+    fullName: string;
+    email: string;
+  };
+  tutor?: {
+    id: string;
+    fullName: string;
+    email: string;
+  };
 }
