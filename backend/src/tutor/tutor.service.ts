@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -17,10 +18,14 @@ import { UpdateSlotDto } from './dto/update-slot.dto';
 import { isUUID } from 'class-validator';
 import { CreateEventDto } from './dto/create-event.dto';
 import { Payment, PaymentStatus } from 'src/payments/entities/payment.entity';
-import { PaymentsSummary } from 'src/utils/types';
+import { BookingDetails, PaymentsSummary } from 'src/utils/types';
+import { Booking, BookingStatus } from 'src/student/entities/booking.entity';
+import { BookingMapper } from 'src/mapper/booking.mapper';
 
 @Injectable()
 export class TutorService {
+  private readonly logger = new Logger(TutorService.name);
+
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
@@ -32,7 +37,11 @@ export class TutorService {
     private eventsRepository: Repository<Event>,
 
     @InjectRepository(Payment)
-    private paymentsRepository: Repository<Payment>
+    private paymentsRepository: Repository<Payment>,
+
+    @InjectRepository(Booking)
+    private readonly bookingRepository: Repository<Booking>,
+    private readonly bookingMapper: BookingMapper
   ) {}
 
   async getTutorProfile(userId: string): Promise<Partial<User>> {
@@ -397,5 +406,64 @@ export class TutorService {
       week: parseFloat(result.week) || 0,
       count: parseInt(result.count, 10) || 0,
     };
+  }
+
+  async getTutorBookings(tutorId: string): Promise<BookingDetails[]> {
+    const bookings = await this.bookingRepository.find({
+      where: { tutorId },
+      relations: ['slot', 'student'],
+      order: { createdAt: 'DESC' },
+    });
+
+    return this.bookingMapper.mapToBookingDetailsList(bookings);
+  }
+
+  async completeBooking(tutorId: string, bookingId: string): Promise<BookingDetails> {
+    this.logger.log(`End of session: tutorId=${tutorId}, bookingId=${bookingId}`);
+
+    const booking = await this.bookingRepository.findOne({
+      where: { id: bookingId },
+      relations: ['slot', 'student', 'tutor'],
+    });
+
+    if (!booking) {
+      this.logger.warn(`Booking not found: ${bookingId}`);
+      throw new NotFoundException('Booking not found');
+    }
+
+    // Проверяем, что наставник является владельцем сессии
+    if (booking.tutorId !== tutorId) {
+      this.logger.warn(
+        `Attempt to terminate someone else's session: tutorId=${tutorId}, booking.tutorId=${booking.tutorId}`
+      );
+      throw new ForbiddenException("You can't terminate someone else's session");
+    }
+
+    // Проверяем, что сессия подтверждена
+    if (booking.status !== BookingStatus.CONFIRMED) {
+      this.logger.warn(`Invalid status for completion: ${booking.status}`);
+      throw new BadRequestException('Only confirmed sessions can be terminated.');
+    }
+
+    // Проверяем, что слот уже прошел
+    const slotDateTime = new Date(`${booking.slot.date}T${booking.slot.time}`);
+    const now = new Date();
+
+    if (slotDateTime > now) {
+      // ✅ Исправленные строки - преобразуем Date в строку
+      this.logger.warn(
+        `Attempt to complete a future session: ${slotDateTime.toISOString()}, now: ${now.toISOString()}`
+      );
+      throw new BadRequestException('You cannot end a session before it starts.');
+    }
+
+    // Обновляем статус
+    booking.status = BookingStatus.DONE;
+    const updatedBooking = await this.bookingRepository.save(booking);
+
+    this.logger.log(`The session has ended.: ${bookingId}`);
+
+    // Используем маппер (выберите один из вариантов)
+    return this.bookingMapper.mapToBookingDetailsList([updatedBooking])[0];
   }
 }

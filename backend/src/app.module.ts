@@ -9,6 +9,7 @@ import { SlotsModule } from './slots/slots.module';
 import { PaymentsModule } from './payments/payments.module';
 import { EventsModule } from './events/events.module';
 import { TutorModule } from './tutor/tutor.module';
+import { StudentModule } from './student/student.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { TutorModule } from './tutor/tutor.module';
     PaymentsModule,
     EventsModule,
     TutorModule,
+    StudentModule,
   ],
   controllers: [AppController],
   providers: [AppService],

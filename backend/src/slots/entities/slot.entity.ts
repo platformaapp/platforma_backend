@@ -9,7 +9,9 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   JoinColumn,
+  OneToOne,
 } from 'typeorm';
+import { Booking } from 'src/student/entities/booking.entity';
 
 export enum SlotStatus {
   FREE = 'free',
@@ -47,4 +49,7 @@ export class Slot {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @OneToOne(() => Booking, (booking) => booking.slot)
+  booking: Booking;
 }
