@@ -2,6 +2,7 @@ import { AuthSession } from 'src/auth/auth.entity';
 import { Event } from 'src/events/entities/event.entity';
 import { Payment } from 'src/payments/entities/payment.entity';
 import { Slot } from 'src/slots/entities/slot.entity';
+import { Booking } from 'src/student/entities/booking.entity';
 import {
   Entity,
   Column,
@@ -52,8 +53,14 @@ export class User {
   tutorSlots: Slot[];
 
   @OneToMany(() => Event, (event) => event.student)
-  studentBookings: Event[];
+  studentEvents: Event[];
 
   @OneToMany(() => Payment, (payment) => payment.tutor)
   payments: Payment[];
+
+  @OneToMany(() => Booking, (booking) => booking.tutor)
+  tutorBookings: Booking[];
+
+  @OneToMany(() => Booking, (booking) => booking.student)
+  studentBookings: Booking[];
 }
