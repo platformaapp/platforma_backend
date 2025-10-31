@@ -9,9 +9,17 @@ import { SlotsModule } from '../slots/slots.module';
 import { UsersModule } from '../users/users.module';
 import { AuthModule } from 'src/auth/auth.module';
 import { BookingMapper } from 'src/mapper/booking.mapper';
+import { SessionModule } from '../session/session.module';
+import { Session } from '../session/entities/session.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Booking, Slot, User]), SlotsModule, UsersModule, AuthModule],
+  imports: [
+    TypeOrmModule.forFeature([Booking, Slot, User, Session]),
+    SessionModule,
+    SlotsModule,
+    UsersModule,
+    AuthModule,
+  ],
   controllers: [StudentController],
   providers: [StudentService, BookingMapper],
   exports: [StudentService, BookingMapper],

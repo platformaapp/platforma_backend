@@ -3,6 +3,8 @@ import { Event } from 'src/events/entities/event.entity';
 import { Payment } from 'src/payments/entities/payment.entity';
 import { Slot } from 'src/slots/entities/slot.entity';
 import { Booking } from 'src/student/entities/booking.entity';
+import { PaymentMethod } from '../payments/entities/payment-method.entity';
+import { Session } from '../session/entities/session.entity';
 import {
   Entity,
   Column,
@@ -63,4 +65,16 @@ export class User {
 
   @OneToMany(() => Booking, (booking) => booking.student)
   studentBookings: Booking[];
+
+  @OneToMany(() => PaymentMethod, (paymentMethod) => paymentMethod.user)
+  paymentMethods: PaymentMethod[];
+
+  @Column({ name: 'default_payment_method_id', nullable: true })
+  defaultPaymentMethodId: string | null;
+
+  @OneToMany(() => Session, (session) => session.tutor)
+  tutorSessions: Session[];
+
+  @OneToMany(() => Session, (session) => session.student)
+  studentSessions: Session[];
 }
