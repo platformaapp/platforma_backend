@@ -65,3 +65,11 @@ export interface BookingDetails {
     email: string;
   };
 }
+
+export interface CardDetails {
+  first6: string;
+  last4: string;
+  cardType: string;
+  expiryMonth: string;
+  expiryYear: string;
+}

@@ -3,6 +3,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -14,6 +15,8 @@ import {
 } from './entities/payment-method.entity';
 import { User } from '../users/user.entity';
 import { YookassaService } from './yookassa.service';
+import { Payment } from './entities/payment.entity';
+import { CardDetails } from '../utils/types';
 
 @Injectable()
 export class PaymentMethodsService {
@@ -24,6 +27,8 @@ export class PaymentMethodsService {
     private paymentMethodRepository: Repository<PaymentMethod>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Payment)
+    private paymentRepository: Repository<Payment>,
     private yookassaService: YookassaService,
     private configService: ConfigService
   ) {}
@@ -134,7 +139,7 @@ export class PaymentMethodsService {
   private async updatePaymentMethodOnSuccess(
     paymentMethod: PaymentMethod,
     yookassaPaymentMethodId: string,
-    cardDetails?: any
+    cardDetails?: CardDetails
   ): Promise<void> {
     paymentMethod.cardToken = yookassaPaymentMethodId;
     paymentMethod.yookassaPaymentId = paymentMethod.cardToken;
@@ -175,5 +180,67 @@ export class PaymentMethodsService {
     await this.paymentMethodRepository.save(paymentMethod);
 
     this.logger.warn(`Payment method ${paymentMethod.id} failed with status: ${status}`);
+  }
+
+  async deletePaymentMethod(
+    userId: string,
+    paymentMethodId: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    defaultPaymentMethodUpdated: boolean;
+  }> {
+    const paymentMethod = await this.paymentMethodRepository.findOne({
+      where: {
+        id: paymentMethodId,
+        userId,
+        status: PaymentMethodStatus.ACTIVE,
+      },
+      relations: ['user'],
+    });
+
+    if (!paymentMethod) {
+      throw new NotFoundException('Payment method not found or already deleted');
+    }
+
+    const hasActivePayments = await this.checkPaymentMethodUsage(paymentMethodId);
+    if (hasActivePayments) {
+      throw new BadRequestException('Cannot delete payment method with active payments');
+    }
+
+    let defaultPaymentMethodUpdated = false;
+
+    if (paymentMethod.user.defaultPaymentMethodId === paymentMethodId) {
+      await this.userRepository.update(userId, {
+        defaultPaymentMethodId: null,
+      });
+      defaultPaymentMethodUpdated = true;
+      this.logger.log(`Default payment method reset for user ${userId}`);
+    }
+
+    paymentMethod.status = PaymentMethodStatus.DELETED;
+    await this.paymentMethodRepository.save(paymentMethod);
+
+    this.logger.log(`Payment method ${paymentMethodId} deleted for user ${userId}`);
+
+    return {
+      success: true,
+      message: 'Payment method successfully deleted',
+      defaultPaymentMethodUpdated,
+    };
+  }
+
+  private async checkPaymentMethodUsage(paymentMethodId: string): Promise<boolean> {
+    const activePayments = await this.paymentRepository
+      .createQueryBuilder('payment')
+      .innerJoin('payment.user', 'user')
+      .innerJoin('user.paymentMethods', 'paymentMethod')
+      .where('paymentMethod.id = :paymentMethodId', { paymentMethodId })
+      .andWhere('payment.status IN (:...activeStatuses)', {
+        activeStatuses: ['pending', 'processing'],
+      })
+      .getCount();
+
+    return activePayments > 0;
   }
 }
