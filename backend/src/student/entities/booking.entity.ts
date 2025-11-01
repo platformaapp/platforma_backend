@@ -1,4 +1,3 @@
-// src/bookings/entities/booking.entity.ts
 import {
   Entity,
   Column,

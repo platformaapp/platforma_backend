@@ -27,7 +27,7 @@ export class Payment {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column({ name: 'user_id' })
+  @Column({ name: 'user_id', nullable: true })
   userId: string;
 
   @ManyToOne(() => User)

@@ -18,6 +18,7 @@ export enum PaymentProvider {
 export enum PaymentMethodStatus {
   ACTIVE = 'active',
   DELETED = 'deleted',
+  PENDING = 'pending',
 }
 
 @Entity('payment_methods')
@@ -45,10 +46,22 @@ export class PaymentMethod {
   @Column({ name: 'card_token', type: 'text' })
   cardToken: string;
 
+  @Column({ name: 'card_type', type: 'varchar', nullable: true })
+  cardType: string;
+
+  @Column({ name: 'expiry_month', type: 'varchar', length: 2, nullable: true })
+  expiryMonth: string;
+
+  @Column({ name: 'expiry_year', type: 'varchar', length: 4, nullable: true })
+  expiryYear: string;
+
+  @Column({ name: 'yookassa_payment_id', type: 'varchar', nullable: true })
+  yookassaPaymentId: string;
+
   @Column({
     type: 'enum',
     enum: PaymentMethodStatus,
-    default: PaymentMethodStatus.ACTIVE,
+    default: PaymentMethodStatus.PENDING,
   })
   status: PaymentMethodStatus;
 

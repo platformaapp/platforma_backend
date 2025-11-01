@@ -11,6 +11,7 @@ import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import { Session } from '../session/entities/session.entity';
 import { YookassaService } from './yookassa.service';
+import { WebhooksController } from './webhooks.controller';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { YookassaService } from './yookassa.service';
     AuthModule,
     JwtModule,
   ],
-  controllers: [PaymentMethodsController, PaymentsController],
+  controllers: [PaymentMethodsController, PaymentsController, WebhooksController],
   providers: [PaymentMethodsService, PaymentsService, YookassaService],
   exports: [PaymentMethodsService, YookassaService],
 })

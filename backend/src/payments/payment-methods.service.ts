@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -12,6 +17,8 @@ import { YookassaService } from './yookassa.service';
 
 @Injectable()
 export class PaymentMethodsService {
+  private readonly logger = new Logger(PaymentMethodsService.name);
+
   constructor(
     @InjectRepository(PaymentMethod)
     private paymentMethodRepository: Repository<PaymentMethod>,
@@ -40,10 +47,14 @@ export class PaymentMethodsService {
       provider,
       cardMasked: 'pending',
       cardToken: paymentId,
-      status: PaymentMethodStatus.ACTIVE,
+      status: PaymentMethodStatus.PENDING,
     });
 
     await this.paymentMethodRepository.save(paymentMethod);
+
+    this.logger.log(
+      `Payment method attachment initiated for user ${userId}, payment ID: ${paymentId}`
+    );
 
     return {
       confirmationUrl,
@@ -77,5 +88,92 @@ export class PaymentMethodsService {
     await this.userRepository.update(userId, {
       defaultPaymentMethodId: paymentMethodId,
     });
+
+    this.logger.log(`Default payment method set to ${paymentMethodId} for user ${userId}`);
+  }
+
+  async handleWebhook(webhookData: any): Promise<void> {
+    try {
+      const webhookResult = await this.yookassaService.handlePaymentMethodWebhook(webhookData);
+
+      const paymentMethod = await this.paymentMethodRepository.findOne({
+        where: {
+          cardToken: webhookResult.paymentId,
+          status: PaymentMethodStatus.PENDING,
+        },
+        relations: ['user'],
+      });
+
+      if (!paymentMethod) {
+        this.logger.warn(`Payment method not found for payment ID: ${webhookResult.paymentId}`);
+        return;
+      }
+
+      if (webhookResult.status === 'succeeded' && webhookResult.paymentMethodId) {
+        await this.updatePaymentMethodOnSuccess(
+          paymentMethod,
+          webhookResult.paymentMethodId,
+          webhookResult.cardDetails
+        );
+      } else {
+        await this.updatePaymentMethodOnFailure(paymentMethod, webhookResult.status);
+      }
+    } catch (error) {
+      this.logger.error('Error handling webhook', error);
+      throw new InternalServerErrorException('Failed to process webhook');
+    }
+  }
+
+  async getPaymentMethodById(id: string): Promise<PaymentMethod> {
+    return this.paymentMethodRepository.findOne({
+      where: { id },
+      relations: ['user'],
+    });
+  }
+
+  private async updatePaymentMethodOnSuccess(
+    paymentMethod: PaymentMethod,
+    yookassaPaymentMethodId: string,
+    cardDetails?: any
+  ): Promise<void> {
+    paymentMethod.cardToken = yookassaPaymentMethodId;
+    paymentMethod.yookassaPaymentId = paymentMethod.cardToken;
+    paymentMethod.status = PaymentMethodStatus.ACTIVE;
+
+    if (cardDetails) {
+      paymentMethod.cardMasked = `${cardDetails.first6}******${cardDetails.last4}`;
+      paymentMethod.cardType = cardDetails.cardType;
+      paymentMethod.expiryMonth = cardDetails.expiryMonth;
+      paymentMethod.expiryYear = cardDetails.expiryYear;
+    }
+
+    await this.paymentMethodRepository.save(paymentMethod);
+
+    const userPaymentMethods = await this.paymentMethodRepository.find({
+      where: {
+        userId: paymentMethod.userId,
+        status: PaymentMethodStatus.ACTIVE,
+      },
+    });
+
+    if (userPaymentMethods.length === 1) {
+      await this.userRepository.update(paymentMethod.userId, {
+        defaultPaymentMethodId: paymentMethod.id,
+      });
+    }
+
+    this.logger.log(
+      `Payment method ${paymentMethod.id} successfully activated for user ${paymentMethod.userId}`
+    );
+  }
+
+  private async updatePaymentMethodOnFailure(
+    paymentMethod: PaymentMethod,
+    status: string
+  ): Promise<void> {
+    paymentMethod.status = PaymentMethodStatus.DELETED;
+    await this.paymentMethodRepository.save(paymentMethod);
+
+    this.logger.warn(`Payment method ${paymentMethod.id} failed with status: ${status}`);
   }
 }

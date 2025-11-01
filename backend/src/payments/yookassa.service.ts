@@ -1,6 +1,12 @@
-import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+  BadRequestException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
+import * as crypto from 'crypto';
 
 interface YookassaConfig {
   shopId: string;
@@ -94,5 +100,53 @@ export class YookassaService {
         'Failed to initiate card attachment: ' + error.message
       );
     }
+  }
+
+  verifyWebhookSignature(body: string, signature: string): boolean {
+    const secretKey = this.config.secretKey;
+    const computedSignature = crypto.createHmac('sha256', secretKey).update(body).digest('base64');
+
+    return computedSignature === signature;
+  }
+
+  async handlePaymentMethodWebhook(webhookData: any): Promise<{
+    paymentId: string;
+    status: string;
+    paymentMethodId?: string;
+    cardDetails?: {
+      first6: string;
+      last4: string;
+      cardType: string;
+      expiryMonth: string;
+      expiryYear: string;
+    };
+  }> {
+    const { object } = webhookData;
+
+    if (object.status === 'succeeded' && object.payment_method?.saved) {
+      return {
+        paymentId: object.id,
+        status: 'succeeded',
+        paymentMethodId: object.payment_method.id,
+        cardDetails: object.payment_method.card
+          ? {
+              first6: object.payment_method.card.first6,
+              last4: object.payment_method.card.last4,
+              cardType: object.payment_method.card.card_type,
+              expiryMonth: object.payment_method.card.expiry_month,
+              expiryYear: object.payment_method.card.expiry_year,
+            }
+          : undefined,
+      };
+    }
+
+    if (object.status === 'canceled' || object.status === 'failed') {
+      return {
+        paymentId: object.id,
+        status: object.status,
+      };
+    }
+
+    throw new BadRequestException('Unhandled webhook type');
   }
 }
