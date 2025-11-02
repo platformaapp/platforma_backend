@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'crypto';
+import { YookassaWebhook } from '../utils/types';
 
 interface YookassaConfig {
   shopId: string;
@@ -109,7 +110,7 @@ export class YookassaService {
     return computedSignature === signature;
   }
 
-  async handlePaymentMethodWebhook(webhookData: any): Promise<{
+  handlePaymentMethodWebhook(webhookData: YookassaWebhook): {
     paymentId: string;
     status: string;
     paymentMethodId?: string;
@@ -120,7 +121,7 @@ export class YookassaService {
       expiryMonth: string;
       expiryYear: string;
     };
-  }> {
+  } {
     const { object } = webhookData;
 
     if (object.status === 'succeeded' && object.payment_method?.saved) {
@@ -147,6 +148,14 @@ export class YookassaService {
       };
     }
 
-    throw new BadRequestException('Unhandled webhook type');
+    if (object.status === 'waiting_for_capture' || object.status === 'pending') {
+      return {
+        paymentId: object.id,
+        status: object.status,
+      };
+    }
+
+    this.logger.warn(`Unhandled webhook event: ${webhookData.event}`);
+    throw new BadRequestException(`Unhandled webhook type: ${webhookData.event}`);
   }
 }

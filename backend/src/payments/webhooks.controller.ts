@@ -1,4 +1,5 @@
-import { Controller, Post, Body, Headers, HttpCode, HttpStatus, Logger } from '@nestjs/common';
+import { Controller, Post, Body, Headers, HttpCode, HttpStatus, Logger, Req } from '@nestjs/common';
+import express from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiExcludeController } from '@nestjs/swagger';
 import { PaymentMethodsService } from './payment-methods.service';
 import { YookassaService } from './yookassa.service';
@@ -21,9 +22,13 @@ export class WebhooksController {
   @ApiResponse({ status: 200, description: 'Webhook успешно обработан' })
   async handleYookassaWebhook(
     @Body() webhookData: YookassaWebhookDto,
-    @Headers('yookassa-signature') signature: string
+    @Headers() signature: string,
+    @Req() request: express.Request
   ) {
-    this.logger.log('Received Yookassa webhook', webhookData);
+    console.log('=== YOOKASSA WEBHOOK RECEIVED ===');
+    console.log(`Headers: ${JSON.stringify(request.headers)}`);
+    console.log(`Signature header: ${signature}`);
+    console.log(`Webhook data: ${JSON.stringify(webhookData)}`);
 
     try {
       const isValid = this.yookassaService.verifyWebhookSignature(
@@ -36,13 +41,14 @@ export class WebhooksController {
         return { status: 'error', message: 'Invalid signature' };
       }
 
+      this.logger.log('Webhook signature verified successfully');
+
       await this.paymentMethodsService.handleWebhook(webhookData);
 
       this.logger.log('Webhook processed successfully');
       return { status: 'success' };
     } catch (error) {
       this.logger.error('Error processing webhook', error);
-      return { status: 'error', message: error.message };
     }
   }
 }

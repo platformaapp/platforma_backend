@@ -77,7 +77,15 @@ export class PaymentMethodsService {
     });
   }
 
-  async setDefaultPaymentMethod(userId: string, paymentMethodId: string): Promise<void> {
+  async setDefaultPaymentMethod(
+    userId: string,
+    paymentMethodId: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    paymentMethodId: string;
+    isDefault: boolean;
+  }> {
     const paymentMethod = await this.paymentMethodRepository.findOne({
       where: {
         id: paymentMethodId,
@@ -87,7 +95,7 @@ export class PaymentMethodsService {
     });
 
     if (!paymentMethod) {
-      throw new NotFoundException('Payment method not found');
+      throw new NotFoundException('Payment method not found or not active');
     }
 
     await this.userRepository.update(userId, {
@@ -95,6 +103,13 @@ export class PaymentMethodsService {
     });
 
     this.logger.log(`Default payment method set to ${paymentMethodId} for user ${userId}`);
+
+    return {
+      success: true,
+      message: 'Payment method set as default successfully',
+      paymentMethodId,
+      isDefault: true,
+    };
   }
 
   async handleWebhook(webhookData: any): Promise<void> {
@@ -242,5 +257,24 @@ export class PaymentMethodsService {
       .getCount();
 
     return activePayments > 0;
+  }
+
+  async getDefaultPaymentMethod(userId: string): Promise<PaymentMethod | null> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['paymentMethods'],
+    });
+
+    if (!user || !user.defaultPaymentMethodId) {
+      return null;
+    }
+
+    return this.paymentMethodRepository.findOne({
+      where: {
+        id: user.defaultPaymentMethodId,
+        userId,
+        status: PaymentMethodStatus.ACTIVE,
+      },
+    });
   }
 }
