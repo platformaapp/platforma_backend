@@ -13,6 +13,7 @@ import { Slot, SlotStatus } from '../slots/entities/slot.entity';
 import { User } from '../users/user.entity';
 import { BookingDetails } from 'src/utils/types';
 import { BookingMapper } from 'src/mapper/booking.mapper';
+import { Session, SessionStatus } from '../session/entities/session.entity';
 
 @Injectable()
 export class StudentService {
@@ -80,20 +81,40 @@ export class StudentService {
         slotId: slot.id,
         tutorId: slot.tutor.id,
         studentId: student.id,
-        status: BookingStatus.CONFIRMED,
+        status: BookingStatus.PENDING,
       });
 
       this.logger.log(`Booking created: ${JSON.stringify(booking)}`);
 
       slot.status = SlotStatus.BOOKED;
-      this.logger.log(`Slot status updated: ${slot.status}`);
-
       await manager.save(slot);
       const savedBooking = await manager.save(booking);
 
-      this.logger.log(`Booking saved with ID: ${savedBooking.id}`);
+      const sessionDuration = 60;
+      const sessionEndTime = new Date(slotDateTime.getTime() + sessionDuration * 60000);
 
-      return this.bookingMapper.mapToResponseDto(savedBooking, slot, student, slot.tutor);
+      const session = manager.create(Session, {
+        tutorId: slot.tutor.id,
+        studentId: studentId,
+        startTime: slotDateTime,
+        endTime: sessionEndTime,
+        price: slot.price,
+        status: SessionStatus.PLANNED,
+      });
+
+      const savedSession = await manager.save(session);
+
+      this.logger.log(
+        `Booking ${savedBooking.id} and session ${savedSession.id} created, waiting for payment`
+      );
+
+      return this.bookingMapper.mapToBookingWithSession(
+        savedBooking,
+        slot,
+        student,
+        slot.tutor,
+        savedSession
+      );
     });
   }
 

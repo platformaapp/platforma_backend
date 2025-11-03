@@ -16,11 +16,11 @@ export class YookassaWebhookDto {
       value: string;
       currency: string;
     };
-    authorization_details?: {
-      rrn: string;
-      auth_code: string;
+    income_amount?: {
+      value: string;
+      currency: string;
     };
-    payment_method?: {
+    payment_method: {
       id: string;
       saved: boolean;
       type: string;
@@ -32,6 +32,20 @@ export class YookassaWebhookDto {
         card_type: string;
       };
     };
-    metadata?: Record<string, any>;
+    captured_at?: string;
+    created_at: string;
+    expires_at?: string;
+    description?: string;
+    metadata?: {
+      payment_id?: string;
+      type?: string;
+      [key: string]: any;
+    };
+    recipient: {
+      account_id: string;
+      gateway_id: string;
+    };
+    refundable: boolean;
+    test: boolean;
   };
 }

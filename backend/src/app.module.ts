@@ -10,6 +10,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { EventsModule } from './events/events.module';
 import { TutorModule } from './tutor/tutor.module';
 import { StudentModule } from './student/student.module';
+import { SessionModule } from './session/session.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { StudentModule } from './student/student.module';
     EventsModule,
     TutorModule,
     StudentModule,
+    SessionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

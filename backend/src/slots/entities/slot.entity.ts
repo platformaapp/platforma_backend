@@ -44,6 +44,9 @@ export class Slot {
   @OneToMany(() => Event, (event) => event.slot)
   events: Event[];
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 2000 })
+  price: number;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

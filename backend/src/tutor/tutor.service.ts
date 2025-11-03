@@ -125,6 +125,7 @@ export class TutorService {
     const existingSlot = await this.slotsRepository.findOne({
       where: {
         tutor: { id: userId },
+        price: createSlotDto.price,
         date: createSlotDto.date,
         time: createSlotDto.time,
       },
@@ -135,6 +136,7 @@ export class TutorService {
       tutor,
       date: createSlotDto.date,
       time: createSlotDto.time,
+      price: createSlotDto.price,
       status: SlotStatus.FREE,
     });
 

@@ -17,6 +17,7 @@ import { User } from '../users/user.entity';
 import { YookassaService } from './yookassa.service';
 import { Payment } from './entities/payment.entity';
 import { CardDetails } from '../utils/types';
+import { FRONTEND_URL } from '../utils/constants';
 
 @Injectable()
 export class PaymentMethodsService {
@@ -42,7 +43,7 @@ export class PaymentMethodsService {
       throw new NotFoundException('User not found');
     }
 
-    const returnUrl = `${this.configService.get('FRONTEND_URL')}/payment-methods/callback`;
+    const returnUrl = `${FRONTEND_URL}/payment-methods/callback`;
     const { confirmationUrl, paymentId } =
       await this.yookassaService.createPaymentMethodAttachment(returnUrl);
 

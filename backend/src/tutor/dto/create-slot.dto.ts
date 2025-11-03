@@ -1,4 +1,4 @@
-import { IsDateString, IsNotEmpty, Matches } from 'class-validator';
+import { IsDateString, IsNotEmpty, IsNumber, Matches, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateSlotDto {
@@ -11,4 +11,9 @@ export class CreateSlotDto {
   @IsNotEmpty()
   @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'Time must be in HH:mm format' })
   time: string;
+
+  @ApiProperty({ example: 1000 })
+  @IsNumber()
+  @Min(0, { message: 'Price must be a positive number' })
+  price: number;
 }

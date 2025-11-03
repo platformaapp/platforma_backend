@@ -63,6 +63,9 @@ export class Payment {
   @Column({ name: 'error_message', nullable: true, type: 'text' })
   errorMessage: string;
 
+  @Column({ name: 'paid_at', nullable: true })
+  paidAt: Date;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
