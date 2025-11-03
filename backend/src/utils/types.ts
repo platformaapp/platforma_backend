@@ -64,6 +64,11 @@ export interface BookingDetails {
     fullName: string;
     email: string;
   };
+  sessionInfo?: {
+    sessionId: string;
+    price: number;
+    requiresPayment: boolean;
+  };
 }
 
 export interface CardDetails {
@@ -72,4 +77,38 @@ export interface CardDetails {
   cardType: string;
   expiryMonth: string;
   expiryYear: string;
+}
+
+export interface YookassaWebhook {
+  type: 'notification';
+  event: string;
+  object: {
+    id: string;
+    status: string;
+    payment_method?: {
+      id: string;
+      type: string;
+      saved: boolean;
+      card?: {
+        first6: string;
+        last4: string;
+        card_type: string;
+        expiry_month: string;
+        expiry_year: string;
+      };
+    };
+  };
+}
+export interface CreateSessionPaymentParams {
+  amount: number;
+  paymentMethodToken: string;
+  description: string;
+  paymentId: string;
+  returnUrl: string;
+}
+
+export interface YookassaSessionPaymentResponse {
+  id: string;
+  status: string;
+  confirmation_url?: string;
 }

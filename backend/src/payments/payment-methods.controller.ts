@@ -9,6 +9,8 @@ import {
   Delete,
   Param,
   Logger,
+  Get,
+  Patch,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { PaymentMethodsService } from './payment-methods.service';
@@ -17,6 +19,7 @@ import type { AuthenticatedRequest } from '../utils/types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { StudentGuard } from '../auth/guards/student.guard';
 import { DeletePaymentMethodResponseDto } from './dto/delete-payment-method.dto';
+import { SetDefaultPaymentMethodResponseDto } from './dto/set-default-payment-method.dto';
 
 @ApiTags('Student Payment Methods')
 @Controller('student/payment-methods')
@@ -24,6 +27,39 @@ export class PaymentMethodsController {
   private readonly logger = new Logger(PaymentMethodsController.name);
 
   constructor(private readonly paymentMethodsService: PaymentMethodsService) {}
+
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, StudentGuard)
+  @ApiOperation({ summary: 'Get all payment methods for user' })
+  @ApiResponse({
+    status: 200,
+    description: 'Payment methods retrieved successfully',
+  })
+  async getPaymentMethods(@Req() req: AuthenticatedRequest) {
+    const paymentMethods = await this.paymentMethodsService.findByUserId(req.user.sub);
+
+    const defaultPaymentMethod = await this.paymentMethodsService.getDefaultPaymentMethod(
+      req.user.sub
+    );
+
+    return {
+      success: true,
+      message: 'Payment methods retrieved successfully',
+      data: {
+        paymentMethods: paymentMethods.map((pm) => ({
+          id: pm.id,
+          cardMasked: pm.cardMasked,
+          cardType: pm.cardType,
+          expiryMonth: pm.expiryMonth,
+          expiryYear: pm.expiryYear,
+          isDefault: defaultPaymentMethod?.id === pm.id,
+          createdAt: pm.createdAt,
+        })),
+        total: paymentMethods.length,
+      },
+    };
+  }
 
   @Post('attach')
   @HttpCode(HttpStatus.OK)
@@ -72,5 +108,60 @@ export class PaymentMethodsController {
     this.logger.log(`User ${req.user.sub} attempting to delete payment method ${paymentMethodId}`);
 
     return await this.paymentMethodsService.deletePaymentMethod(req.user.sub, paymentMethodId);
+  }
+
+  @Patch(':id/default')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, StudentGuard)
+  @ApiOperation({ summary: 'Set payment method as default' })
+  @ApiParam({ name: 'id', description: 'Payment method ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Payment method successfully set as default',
+    type: SetDefaultPaymentMethodResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Payment method not found' })
+  async setDefaultPaymentMethod(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') paymentMethodId: string
+  ): Promise<SetDefaultPaymentMethodResponseDto> {
+    this.logger.log(`User ${req.user.sub} setting payment method ${paymentMethodId} as default`);
+
+    return await this.paymentMethodsService.setDefaultPaymentMethod(req.user.sub, paymentMethodId);
+  }
+
+  @Get('default')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, StudentGuard)
+  @ApiOperation({ summary: 'Get default payment method' })
+  @ApiResponse({
+    status: 200,
+    description: 'Default payment method retrieved successfully',
+  })
+  async getDefaultPaymentMethod(@Req() req: AuthenticatedRequest) {
+    const defaultPaymentMethod = await this.paymentMethodsService.getDefaultPaymentMethod(
+      req.user.sub
+    );
+
+    if (!defaultPaymentMethod) {
+      return {
+        success: true,
+        message: 'No default payment method set',
+        data: null,
+      };
+    }
+
+    return {
+      success: true,
+      message: 'Default payment method retrieved successfully',
+      data: {
+        id: defaultPaymentMethod.id,
+        cardMasked: defaultPaymentMethod.cardMasked,
+        cardType: defaultPaymentMethod.cardType,
+        expiryMonth: defaultPaymentMethod.expiryMonth,
+        expiryYear: defaultPaymentMethod.expiryYear,
+        isDefault: true,
+      },
+    };
   }
 }

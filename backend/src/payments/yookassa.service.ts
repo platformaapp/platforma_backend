@@ -7,6 +7,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'crypto';
+import {
+  CreateSessionPaymentParams,
+  YookassaSessionPaymentResponse,
+  YookassaWebhook,
+} from '../utils/types';
 
 interface YookassaConfig {
   shopId: string;
@@ -103,13 +108,22 @@ export class YookassaService {
   }
 
   verifyWebhookSignature(body: string, signature: string): boolean {
-    const secretKey = this.config.secretKey;
-    const computedSignature = crypto.createHmac('sha256', secretKey).update(body).digest('base64');
+    try {
+      const secretKey = this.config.secretKey;
 
-    return computedSignature === signature;
+      const computedSignature = crypto
+        .createHmac('sha256', secretKey)
+        .update(body, 'utf8')
+        .digest('base64');
+
+      return crypto.timingSafeEqual(Buffer.from(computedSignature), Buffer.from(signature));
+    } catch (error) {
+      this.logger.error('Error verifying signature', error);
+      return false;
+    }
   }
 
-  async handlePaymentMethodWebhook(webhookData: any): Promise<{
+  handlePaymentMethodWebhook(webhookData: YookassaWebhook): {
     paymentId: string;
     status: string;
     paymentMethodId?: string;
@@ -120,7 +134,7 @@ export class YookassaService {
       expiryMonth: string;
       expiryYear: string;
     };
-  }> {
+  } {
     const { object } = webhookData;
 
     if (object.status === 'succeeded' && object.payment_method?.saved) {
@@ -147,6 +161,78 @@ export class YookassaService {
       };
     }
 
-    throw new BadRequestException('Unhandled webhook type');
+    if (object.status === 'waiting_for_capture' || object.status === 'pending') {
+      return {
+        paymentId: object.id,
+        status: object.status,
+      };
+    }
+
+    this.logger.warn(`Unhandled webhook event: ${webhookData.event}`);
+    throw new BadRequestException(`Unhandled webhook type: ${webhookData.event}`);
+  }
+
+  async createSessionPayment(
+    params: CreateSessionPaymentParams
+  ): Promise<YookassaSessionPaymentResponse> {
+    const idempotenceKey = uuidv4();
+
+    const amount = Number(params.amount);
+
+    if (isNaN(amount) || amount <= 0) {
+      throw new BadRequestException('Invalid amount provided');
+    }
+
+    const payload = {
+      amount: {
+        value: amount.toFixed(2),
+        currency: 'RUB',
+      },
+      payment_method_id: params.paymentMethodToken,
+      capture: true,
+      description: params.description,
+      confirmation: {
+        type: 'redirect',
+        return_url: params.returnUrl,
+      },
+      metadata: {
+        payment_id: params.paymentId,
+        type: 'session_payment',
+      },
+    };
+
+    this.logger.debug(`Creating session payment with payload: ${JSON.stringify(payload)}`);
+
+    try {
+      const response = await fetch(`${this.config.baseUrl}/payments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotence-Key': idempotenceKey,
+          Authorization: `Basic ${Buffer.from(`${this.config.shopId}:${this.config.secretKey}`).toString('base64')}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      this.logger.debug(`Yookassa API response status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        this.logger.error(`Yookassa API error: ${response.status} - ${errorText}`);
+        throw new Error(`Yookassa API error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      this.logger.log(`Session payment created successfully: ${data.id}, status: ${data.status}`);
+
+      return {
+        id: data.id,
+        status: data.status,
+        confirmation_url: data.confirmation?.confirmation_url,
+      };
+    } catch (error) {
+      this.logger.error('Failed to create session payment', error);
+      throw new InternalServerErrorException('Failed to create payment: ' + error.message);
+    }
   }
 }
