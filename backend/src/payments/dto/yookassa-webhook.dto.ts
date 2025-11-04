@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class YookassaWebhookDto {
-  @ApiProperty()
-  type: string;
+  @ApiProperty({ enum: ['notification'] })
+  type: 'notification';
 
   @ApiProperty()
   event: string;

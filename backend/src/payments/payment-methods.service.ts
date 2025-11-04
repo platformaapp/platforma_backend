@@ -18,6 +18,7 @@ import { YookassaService } from './yookassa.service';
 import { Payment } from './entities/payment.entity';
 import { CardDetails } from '../utils/types';
 import { FRONTEND_URL } from '../utils/constants';
+import { YookassaWebhookDto } from './dto/yookassa-webhook.dto';
 
 @Injectable()
 export class PaymentMethodsService {
@@ -113,9 +114,9 @@ export class PaymentMethodsService {
     };
   }
 
-  async handleWebhook(webhookData: any): Promise<void> {
+  async handleWebhook(webhookData: YookassaWebhookDto): Promise<void> {
     try {
-      const webhookResult = await this.yookassaService.handlePaymentMethodWebhook(webhookData);
+      const webhookResult = this.yookassaService.handlePaymentMethodWebhook(webhookData);
 
       const paymentMethod = await this.paymentMethodRepository.findOne({
         where: {
@@ -128,6 +129,10 @@ export class PaymentMethodsService {
       if (!paymentMethod) {
         this.logger.warn(`Payment method not found for payment ID: ${webhookResult.paymentId}`);
         return;
+      }
+
+      if (webhookData.object.status === 'waiting_for_capture') {
+        await this.yookassaService.capturePayment(webhookResult.paymentId);
       }
 
       if (webhookResult.status === 'succeeded' && webhookResult.paymentMethodId) {
