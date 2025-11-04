@@ -160,12 +160,14 @@ export class PaymentsService {
         currency: 'RUB',
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
       savedPayment.status = PaymentStatus.FAILED;
-      savedPayment.errorMessage = error.message;
+      savedPayment.errorMessage = errorMessage;
       await this.paymentRepository.save(savedPayment);
 
-      this.logger.error(`Payment failed: ${error.message}`);
-      throw new InternalServerErrorException(`Payment processing failed: ${error.message}`);
+      this.logger.error(`Payment failed: ${errorMessage}`);
+      throw new InternalServerErrorException(`Payment processing failed: ${errorMessage}`);
     }
   }
 

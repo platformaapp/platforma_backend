@@ -9,23 +9,11 @@ import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'crypto';
 import {
   CreateSessionPaymentParams,
+  YookassaConfig,
+  YookassaPaymentResponse,
   YookassaSessionPaymentResponse,
   YookassaWebhook,
 } from '../utils/types';
-
-interface YookassaConfig {
-  shopId: string;
-  secretKey: string;
-  baseUrl: string;
-}
-
-interface YookassaPaymentResponse {
-  id: string;
-  status: string;
-  confirmation: {
-    confirmation_url: string;
-  };
-}
 
 @Injectable()
 export class YookassaService {
@@ -47,6 +35,45 @@ export class YookassaService {
       this.logger.log(
         `Yookassa service initialized with shopId: ${this.config.shopId.substring(0, 10)}...`
       );
+    }
+  }
+
+  private async makeYookassaRequest<T>(
+    endpoint: string,
+    payload: any,
+    idempotenceKey: string
+  ): Promise<T> {
+    const url = `${this.config.baseUrl}${endpoint}`;
+
+    this.logger.debug(`Making request to Yookassa API: ${url}`);
+    this.logger.debug(`Request payload: ${JSON.stringify(payload)}`);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotence-Key': idempotenceKey,
+          Authorization: `Basic ${Buffer.from(`${this.config.shopId}:${this.config.secretKey}`).toString('base64')}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      this.logger.debug(`Yookassa API response status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        this.logger.error(`Yookassa API error: ${response.status} - ${errorText}`);
+        throw new Error(`Yookassa API error: ${response.status} - ${errorText}`);
+      }
+
+      const data = (await response.json()) as T;
+      this.logger.debug(`Yookassa API response: ${JSON.stringify(data)}`);
+
+      return data;
+    } catch (error) {
+      this.logger.error(`Yookassa API request failed for endpoint: ${endpoint}`, error);
+      throw error;
     }
   }
 
@@ -74,25 +101,12 @@ export class YookassaService {
     );
 
     try {
-      const response = await fetch(`${this.config.baseUrl}/payments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Idempotence-Key': idempotenceKey,
-          Authorization: `Basic ${Buffer.from(`${this.config.shopId}:${this.config.secretKey}`).toString('base64')}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      const data = await this.makeYookassaRequest<YookassaPaymentResponse>(
+        '/payments',
+        payload,
+        idempotenceKey
+      );
 
-      this.logger.debug(`Yookassa API response status: ${response.status}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        this.logger.error(`Yookassa API error: ${response.status} - ${errorText}`);
-        throw new Error(`Yookassa API error: ${response.status} - ${errorText}`);
-      }
-
-      const data: YookassaPaymentResponse = await response.json();
       this.logger.log(`Payment method attachment created successfully: ${data.id}`);
 
       return {
@@ -102,7 +116,7 @@ export class YookassaService {
     } catch (error) {
       this.logger.error('Failed to create payment method attachment', error);
       throw new InternalServerErrorException(
-        'Failed to initiate card attachment: ' + error.message
+        'Failed to initiate card attachment: ' + (error as Error).message
       );
     }
   }
@@ -137,7 +151,10 @@ export class YookassaService {
   } {
     const { object } = webhookData;
 
-    if (object.status === 'succeeded' && object.payment_method?.saved) {
+    if (
+      (object.status === 'succeeded' || object.status === 'waiting_for_capture') &&
+      object.payment_method?.saved
+    ) {
       return {
         paymentId: object.id,
         status: 'succeeded',
@@ -161,7 +178,7 @@ export class YookassaService {
       };
     }
 
-    if (object.status === 'waiting_for_capture' || object.status === 'pending') {
+    if (object.status === 'pending') {
       return {
         paymentId: object.id,
         status: object.status,
@@ -204,25 +221,12 @@ export class YookassaService {
     this.logger.debug(`Creating session payment with payload: ${JSON.stringify(payload)}`);
 
     try {
-      const response = await fetch(`${this.config.baseUrl}/payments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Idempotence-Key': idempotenceKey,
-          Authorization: `Basic ${Buffer.from(`${this.config.shopId}:${this.config.secretKey}`).toString('base64')}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      const data = await this.makeYookassaRequest<YookassaPaymentResponse>(
+        '/payments',
+        payload,
+        idempotenceKey
+      );
 
-      this.logger.debug(`Yookassa API response status: ${response.status}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        this.logger.error(`Yookassa API error: ${response.status} - ${errorText}`);
-        throw new Error(`Yookassa API error: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
       this.logger.log(`Session payment created successfully: ${data.id}, status: ${data.status}`);
 
       return {
@@ -232,7 +236,22 @@ export class YookassaService {
       };
     } catch (error) {
       this.logger.error('Failed to create session payment', error);
-      throw new InternalServerErrorException('Failed to create payment: ' + error.message);
+      throw new InternalServerErrorException(
+        `Failed to create payment: ${(error as Error).message}`
+      );
+    }
+  }
+
+  async capturePayment(paymentId: string): Promise<void> {
+    const idempotenceKey = uuidv4();
+
+    try {
+      await this.makeYookassaRequest(`/payments/${paymentId}/capture`, {}, idempotenceKey);
+
+      this.logger.log(`Payment ${paymentId} captured successfully`);
+    } catch (error) {
+      this.logger.error(`Failed to capture payment ${paymentId}`, error);
+      throw error;
     }
   }
 }

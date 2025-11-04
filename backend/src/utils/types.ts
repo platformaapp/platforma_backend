@@ -112,3 +112,17 @@ export interface YookassaSessionPaymentResponse {
   status: string;
   confirmation_url?: string;
 }
+
+export interface YookassaConfig {
+  shopId: string;
+  secretKey: string;
+  baseUrl: string;
+}
+
+export interface YookassaPaymentResponse {
+  id: string;
+  status: string;
+  confirmation: {
+    confirmation_url: string;
+  };
+}
