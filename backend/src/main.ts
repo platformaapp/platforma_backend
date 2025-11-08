@@ -4,17 +4,30 @@ import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
 import { ValidationPipe } from '@nestjs/common';
 import { setupSwagger } from './config';
+import * as bodyParser from 'body-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
   });
 
+  app.use(
+    '/api/webhooks/yookassa',
+    bodyParser.raw({
+      type: 'application/json',
+      verify: (req: any, res, buf) => {
+        req.rawBody = buf;
+      },
+      limit: '1mb', // Лимит для вебхуков
+    })
+  );
+
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
+      whitelist: false,
+      forbidNonWhitelisted: false,
       transform: true,
+      skipMissingProperties: true,
     })
   );
 
@@ -24,6 +37,8 @@ async function bootstrap() {
 
   app.use(cookieParser());
   app.setGlobalPrefix('api');
+  app.use(bodyParser.json());
+  app.use(bodyParser.urlencoded({ extended: true }));
 
   await app.listen(port);
   console.log(`Application started on port ${port}`);
