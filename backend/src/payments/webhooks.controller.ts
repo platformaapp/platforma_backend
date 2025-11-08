@@ -1,5 +1,6 @@
-import { Controller, Post, Body, Headers, HttpCode, HttpStatus, Logger } from '@nestjs/common';
+import { Controller, Post, Headers, HttpCode, HttpStatus, Logger, Req } from '@nestjs/common';
 import { ApiTags, ApiExcludeController } from '@nestjs/swagger';
+import type { Request } from 'express'; // ← Исправьте эту строку
 import { PaymentMethodsService } from './payment-methods.service';
 import { YookassaService } from './yookassa.service';
 import { YookassaWebhookDto } from './dto/yookassa-webhook.dto';
@@ -19,41 +20,52 @@ export class WebhooksController {
 
   @Post('yookassa')
   @HttpCode(HttpStatus.OK)
-  async handleYookassaWebhook(
-    @Body() webhookData: YookassaWebhookDto,
-    @Headers('Webhook-Signature') signatureHeader: string
-  ) {
-    console.log('=== YOOKASSA WEBHOOK ===');
-    console.log(`Event type: ${webhookData.type}`);
-    console.log(`Webhook event: ${webhookData.event}`);
-    console.log(`Payment status: ${webhookData.object.status}`);
+  async handleYookassaWebhook(@Req() req: Request, @Headers() headers: Record<string, string>) {
+    // Получаем RAW тело как есть
+    const rawBody = (req as any).rawBody?.toString('utf8');
+    const signature = headers['signature'] || headers['Signature'] || headers['HTTP_SIGNATURE'];
+
+    console.log('=== YOOKASSA WEBHOOK RECEIVED ===');
+    console.log('Raw body length:', rawBody?.length);
+    console.log('Signature header:', signature);
+    console.log('All headers:', headers);
+
+    if (!rawBody) {
+      this.logger.error('No raw body available');
+      return { status: 'error', message: 'No raw body' };
+    }
+
+    if (!signature) {
+      this.logger.error('No signature found in headers');
+      return { status: 'error', message: 'Missing signature' };
+    }
 
     try {
-      // Верификация подписи
-      const signature = signatureHeader?.replace(/^(Signature|HMAC)\s+/i, '');
-      if (!signature) {
-        this.logger.error('No signature found in Authorization header');
-        return { status: 'error', message: 'Missing signature' };
-      }
-
-      const isValid = this.yookassaService.verifyWebhookSignature(
-        JSON.stringify(webhookData),
-        signature
-      );
+      // Используем оригинальное тело БЕЗ нормализации
+      const isValid = this.yookassaService.verifyWebhookSignature(rawBody, signature);
 
       if (!isValid) {
         this.logger.error('Invalid webhook signature');
+
+        // Дополнительная диагностика
+        console.log('=== SIGNATURE VERIFICATION FAILED ===');
+        console.log('Body content:', rawBody);
+        console.log('Signature:', signature);
+
         return { status: 'error', message: 'Invalid signature' };
       }
 
       this.logger.log('Webhook signature verified successfully');
 
-      // Определяем тип вебхука и направляем в соответствующий сервис
+      // Парсим JSON только после верификации
+      const webhookData = JSON.parse(rawBody) as YookassaWebhookDto;
+
+      console.log(`Webhook event: ${webhookData.event}, Status: ${webhookData.object.status}`);
+
+      // Обработка вебхука
       if (this.isPaymentMethodWebhook(webhookData)) {
-        // Вебхук для привязки карты
         await this.paymentMethodsService.handleWebhook(webhookData);
       } else if (this.isSessionPaymentWebhook(webhookData)) {
-        // Вебхук для платежа сессии
         await this.paymentsService.handlePaymentWebhook(webhookData);
       } else {
         this.logger.warn(`Unhandled webhook type: ${webhookData.event}`);

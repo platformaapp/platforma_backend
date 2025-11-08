@@ -119,10 +119,10 @@ export class PaymentMethodsService {
       const webhookResult = this.yookassaService.handlePaymentMethodWebhook(webhookData);
 
       const paymentMethod = await this.paymentMethodRepository.findOne({
-        where: {
-          cardToken: webhookResult.paymentId,
-          status: PaymentMethodStatus.PENDING,
-        },
+        where: [
+          { cardToken: webhookResult.paymentId, status: PaymentMethodStatus.PENDING },
+          { yookassaPaymentId: webhookResult.paymentId, status: PaymentMethodStatus.PENDING },
+        ],
         relations: ['user'],
       });
 
@@ -162,8 +162,13 @@ export class PaymentMethodsService {
     yookassaPaymentMethodId: string,
     cardDetails?: CardDetails
   ): Promise<void> {
+    if (paymentMethod.status === PaymentMethodStatus.ACTIVE) {
+      this.logger.log(`Payment method ${paymentMethod.id} already activated, skipping`);
+      return;
+    }
+
     paymentMethod.cardToken = yookassaPaymentMethodId;
-    paymentMethod.yookassaPaymentId = paymentMethod.cardToken;
+    paymentMethod.yookassaPaymentId = yookassaPaymentMethodId;
     paymentMethod.status = PaymentMethodStatus.ACTIVE;
 
     if (cardDetails) {
@@ -186,6 +191,9 @@ export class PaymentMethodsService {
       await this.userRepository.update(paymentMethod.userId, {
         defaultPaymentMethodId: paymentMethod.id,
       });
+      this.logger.log(
+        `Set payment method ${paymentMethod.id} as default for user ${paymentMethod.userId}`
+      );
     }
 
     this.logger.log(
