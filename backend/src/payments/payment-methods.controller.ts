@@ -61,7 +61,7 @@ export class PaymentMethodsController {
     };
   }
 
-  @Post('attach')
+  @Post('bind')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, StudentGuard)
   @ApiOperation({ summary: 'Link a bank card' })
@@ -84,7 +84,7 @@ export class PaymentMethodsController {
       success: true,
       data: {
         confirmationUrl: result.confirmationUrl,
-        attachmentId: result.attachmentId,
+        attachmentId: result.transactionId,
       },
     };
   }

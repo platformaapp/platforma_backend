@@ -255,4 +255,28 @@ export class YookassaService {
       throw error;
     }
   }
+
+  async getPayment(paymentId: string): Promise<any> {
+    const url = `${this.config.baseUrl}/payments/${paymentId}`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${Buffer.from(`${this.config.shopId}:${this.config.secretKey}`).toString('base64')}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Yookassa API error: ${response.status} - ${errorText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      this.logger.error(`Failed to get payment ${paymentId}`, error);
+      throw new InternalServerErrorException(`Failed to get payment info: ${error.message}`);
+    }
+  }
 }

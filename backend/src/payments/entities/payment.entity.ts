@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
   JoinColumn,
 } from 'typeorm';
+import { Transaction } from 'src/payments/entities/transaction.entity';
 
 export enum PaymentStatus {
   PENDING = 'pending',
@@ -43,6 +44,13 @@ export class Payment {
 
   @Column({ name: 'session_id', nullable: true })
   sessionId: string;
+
+  @ManyToOne(() => Transaction, { nullable: true })
+  @JoinColumn({ name: 'transaction_id' })
+  transaction: Transaction;
+
+  @Column({ name: 'transaction_id', nullable: true })
+  transactionId: string;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   amount: number;

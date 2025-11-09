@@ -12,15 +12,19 @@ import { PaymentsService } from './payments.service';
 import { Session } from '../session/entities/session.entity';
 import { YookassaService } from './yookassa.service';
 import { WebhooksController } from './webhooks.controller';
+import { Transaction } from './entities/transaction.entity';
+import { TransactionsService } from './transactions.service';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Payment, PaymentMethod, Session, User]),
+    TypeOrmModule.forFeature([Payment, PaymentMethod, Session, User, Transaction]),
     AuthModule,
     JwtModule,
+    ConfigModule,
   ],
   controllers: [PaymentMethodsController, PaymentsController, WebhooksController],
-  providers: [PaymentMethodsService, PaymentsService, YookassaService],
-  exports: [PaymentMethodsService, YookassaService],
+  providers: [PaymentMethodsService, PaymentsService, YookassaService, TransactionsService],
+  exports: [PaymentMethodsService, YookassaService, TransactionsService],
 })
 export class PaymentsModule {}

@@ -9,8 +9,16 @@ import {
   Get,
   Param,
   Logger,
+  Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+  ApiBearerAuth,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { PaymentResponseDto } from './dto/payment-response.dto';
@@ -18,6 +26,7 @@ import type { AuthenticatedRequest } from '../utils/types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { StudentGuard } from '../auth/guards/student.guard';
 import { PaymentStatus } from './entities/payment.entity';
+import { PaymentCallbackDto } from './dto/payment-callback.dto';
 
 @ApiTags('Student Payments')
 @ApiBearerAuth('JWT-auth')
@@ -90,5 +99,49 @@ export class PaymentsController {
         errorMessage: payment.errorMessage,
       },
     };
+  }
+
+  @Get('callback')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Handle payment callback after 3D Secure' })
+  @ApiQuery({ name: 'payment_id', description: 'Payment ID from YooKassa' })
+  @ApiResponse({
+    status: 200,
+    description: 'Payment callback processed successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['succeeded', 'failed'] },
+        message: { type: 'string' },
+        paymentId: { type: 'string' },
+        redirectUrl: { type: 'string' },
+      },
+    },
+  })
+  async handlePaymentCallback(@Query() callbackDto: PaymentCallbackDto): Promise<{
+    status: 'succeeded' | 'failed';
+    message: string;
+    paymentId?: string;
+    redirectUrl?: string;
+  }> {
+    this.logger.log(`Processing payment callback for: ${callbackDto.payment_id}`);
+
+    try {
+      const result = await this.paymentsService.handlePaymentCallback(callbackDto.payment_id);
+
+      return {
+        status: 'succeeded',
+        message: result.message,
+        paymentId: result.paymentId,
+        redirectUrl: result.redirectUrl,
+      };
+    } catch (error) {
+      this.logger.error(`Payment callback failed: ${error.message}`);
+
+      return {
+        status: 'failed',
+        message: error.message || 'Ошибка обработки платежа',
+      };
+    }
   }
 }

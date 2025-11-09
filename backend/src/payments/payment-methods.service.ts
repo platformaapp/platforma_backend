@@ -4,8 +4,8 @@ import {
   NotFoundException,
   Logger,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -17,8 +17,10 @@ import { User } from '../users/user.entity';
 import { YookassaService } from './yookassa.service';
 import { Payment } from './entities/payment.entity';
 import { CardDetails } from '../utils/types';
-import { FRONTEND_URL } from '../utils/constants';
+// import { FRONTEND_URL } from '../utils/constants';
 import { YookassaWebhookDto } from './dto/yookassa-webhook.dto';
+import { TransactionStatus } from './entities/transaction.entity';
+import { TransactionsService } from './transactions.service';
 
 @Injectable()
 export class PaymentMethodsService {
@@ -32,40 +34,58 @@ export class PaymentMethodsService {
     @InjectRepository(Payment)
     private paymentRepository: Repository<Payment>,
     private yookassaService: YookassaService,
-    private configService: ConfigService
+    private transactionsService: TransactionsService
   ) {}
 
   async attachPaymentMethod(
     userId: string,
     provider: PaymentProvider = PaymentProvider.YOOKASSA
-  ): Promise<{ confirmationUrl: string; attachmentId: string }> {
+  ): Promise<{ confirmationUrl: string; transactionId: string }> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    const returnUrl = `${FRONTEND_URL}/payment-methods/callback`;
-    const { confirmationUrl, paymentId } =
-      await this.yookassaService.createPaymentMethodAttachment(returnUrl);
+    const activeCardsCount = await this.paymentMethodRepository.count({
+      where: {
+        userId,
+        status: PaymentMethodStatus.ACTIVE,
+      },
+    });
+
+    if (activeCardsCount >= 3) {
+      throw new ConflictException('Максимум можно привязать 3 карты');
+    }
 
     const paymentMethod = this.paymentMethodRepository.create({
       user,
       userId: user.id,
       provider,
       cardMasked: 'pending',
-      cardToken: paymentId,
+      cardToken: 'pending',
       status: PaymentMethodStatus.PENDING,
     });
 
-    await this.paymentMethodRepository.save(paymentMethod);
+    const savedPaymentMethod = await this.paymentMethodRepository.save(paymentMethod);
+
+    const { transaction, redirectUrl, yookassaPaymentId } =
+      await this.transactionsService.createBindTransaction(userId, savedPaymentMethod.id);
+
+    savedPaymentMethod.cardToken = yookassaPaymentId;
+    savedPaymentMethod.yookassaPaymentId = yookassaPaymentId;
+    savedPaymentMethod.bindTransactionId = transaction.id;
+    await this.paymentMethodRepository.save(savedPaymentMethod);
 
     this.logger.log(
-      `Payment method attachment initiated for user ${userId}, payment ID: ${paymentId}`
+      `Payment method attachment initiated for user ${userId}, ` +
+        `transaction: ${transaction.id}, ` +
+        `payment method: ${savedPaymentMethod.id}, ` +
+        `yookassa payment: ${yookassaPaymentId}`
     );
 
     return {
-      confirmationUrl,
-      attachmentId: paymentMethod.id,
+      confirmationUrl: redirectUrl,
+      transactionId: transaction.id,
     };
   }
 
@@ -79,46 +99,18 @@ export class PaymentMethodsService {
     });
   }
 
-  async setDefaultPaymentMethod(
-    userId: string,
-    paymentMethodId: string
-  ): Promise<{
-    success: boolean;
-    message: string;
-    paymentMethodId: string;
-    isDefault: boolean;
-  }> {
-    const paymentMethod = await this.paymentMethodRepository.findOne({
-      where: {
-        id: paymentMethodId,
-        userId,
-        status: PaymentMethodStatus.ACTIVE,
-      },
-    });
-
-    if (!paymentMethod) {
-      throw new NotFoundException('Payment method not found or not active');
-    }
-
-    await this.userRepository.update(userId, {
-      defaultPaymentMethodId: paymentMethodId,
-    });
-
-    this.logger.log(`Default payment method set to ${paymentMethodId} for user ${userId}`);
-
-    return {
-      success: true,
-      message: 'Payment method set as default successfully',
-      paymentMethodId,
-      isDefault: true,
-    };
-  }
-
   async handleWebhook(webhookData: YookassaWebhookDto): Promise<void> {
     try {
       const webhookResult = this.yookassaService.handlePaymentMethodWebhook(webhookData);
 
-      const paymentMethod = await this.paymentMethodRepository.findOne({
+      const transactionStatus = this.mapToTransactionStatus(webhookResult.status);
+      const updatedTransaction = await this.transactionsService.updateTransactionStatus(
+        webhookResult.paymentId,
+        transactionStatus,
+        webhookResult.status === 'failed' ? 'Payment failed' : null
+      );
+
+      let paymentMethod = await this.paymentMethodRepository.findOne({
         where: [
           { cardToken: webhookResult.paymentId, status: PaymentMethodStatus.PENDING },
           { yookassaPaymentId: webhookResult.paymentId, status: PaymentMethodStatus.PENDING },
@@ -126,10 +118,29 @@ export class PaymentMethodsService {
         relations: ['user'],
       });
 
+      if (!paymentMethod && updatedTransaction) {
+        paymentMethod = await this.paymentMethodRepository.findOne({
+          where: {
+            bindTransactionId: updatedTransaction.id,
+            status: PaymentMethodStatus.PENDING,
+          },
+          relations: ['user'],
+        });
+      }
+
       if (!paymentMethod) {
         this.logger.warn(`Payment method not found for payment ID: ${webhookResult.paymentId}`);
+        this.logger.debug(`Searching for payment methods with:`, {
+          cardToken: webhookResult.paymentId,
+          yookassaPaymentId: webhookResult.paymentId,
+          transactionId: updatedTransaction?.id,
+        });
         return;
       }
+
+      this.logger.log(
+        `Found payment method: ${paymentMethod.id} for payment: ${webhookResult.paymentId}`
+      );
 
       if (webhookData.object.status === 'waiting_for_capture') {
         await this.yookassaService.capturePayment(webhookResult.paymentId);
@@ -150,11 +161,19 @@ export class PaymentMethodsService {
     }
   }
 
-  async getPaymentMethodById(id: string): Promise<PaymentMethod> {
-    return this.paymentMethodRepository.findOne({
-      where: { id },
-      relations: ['user'],
-    });
+  private mapToTransactionStatus(status: string): TransactionStatus {
+    switch (status) {
+      case 'succeeded':
+        return TransactionStatus.SUCCEEDED;
+      case 'canceled':
+        return TransactionStatus.CANCELED;
+      case 'waiting_for_capture':
+        return TransactionStatus.WAITING_FOR_CAPTURE;
+      case 'failed':
+        return TransactionStatus.FAILED;
+      default:
+        return TransactionStatus.PENDING;
+    }
   }
 
   private async updatePaymentMethodOnSuccess(
@@ -209,6 +228,48 @@ export class PaymentMethodsService {
     await this.paymentMethodRepository.save(paymentMethod);
 
     this.logger.warn(`Payment method ${paymentMethod.id} failed with status: ${status}`);
+  }
+
+  async setDefaultPaymentMethod(
+    userId: string,
+    paymentMethodId: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    paymentMethodId: string;
+    isDefault: boolean;
+  }> {
+    const paymentMethod = await this.paymentMethodRepository.findOne({
+      where: {
+        id: paymentMethodId,
+        userId,
+        status: PaymentMethodStatus.ACTIVE,
+      },
+    });
+
+    if (!paymentMethod) {
+      throw new NotFoundException('Payment method not found or not active');
+    }
+
+    await this.userRepository.update(userId, {
+      defaultPaymentMethodId: paymentMethodId,
+    });
+
+    this.logger.log(`Default payment method set to ${paymentMethodId} for user ${userId}`);
+
+    return {
+      success: true,
+      message: 'Payment method set as default successfully',
+      paymentMethodId,
+      isDefault: true,
+    };
+  }
+
+  async getPaymentMethodById(id: string): Promise<PaymentMethod> {
+    return this.paymentMethodRepository.findOne({
+      where: { id },
+      relations: ['user'],
+    });
   }
 
   async deletePaymentMethod(
