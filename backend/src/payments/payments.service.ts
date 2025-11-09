@@ -15,7 +15,7 @@ import { YookassaService } from './yookassa.service';
 import { YookassaWebhookDto } from './dto/yookassa-webhook.dto';
 import { FRONTEND_URL } from '../utils/constants';
 import { TransactionsService } from './transactions.service';
-import { TransactionStatus } from './entities/transaction.entity';
+import { TransactionStatus, TransactionType } from './entities/transaction.entity';
 
 @Injectable()
 export class PaymentsService {
@@ -276,6 +276,162 @@ export class PaymentsService {
         paymentId: payment.id,
       });
       this.logger.log(`Session ${payment.sessionId} confirmed after successful payment`);
+    }
+  }
+
+  async handlePaymentCallback(paymentId: string): Promise<{
+    message: string;
+    paymentId: string;
+    redirectUrl: string;
+  }> {
+    this.logger.log(`Handling payment callback for: ${paymentId}`);
+
+    try {
+      const yookassaPayment = await this.yookassaService.getPayment(paymentId);
+
+      const transaction = await this.transactionsService.getTransactionByYookassaId(paymentId);
+
+      if (!transaction) {
+        throw new NotFoundException(`Transaction not found for payment: ${paymentId}`);
+      }
+
+      switch (yookassaPayment.status) {
+        case 'succeeded': {
+          await this.transactionsService.updateTransactionStatus(
+            paymentId,
+            TransactionStatus.SUCCEEDED
+          );
+
+          if (transaction.type === TransactionType.CARD_BINDING) {
+            const paymentMethod = await this.paymentMethodRepository.findOne({
+              where: {
+                bindTransactionId: transaction.id,
+                status: PaymentMethodStatus.PENDING,
+              },
+            });
+
+            if (paymentMethod && yookassaPayment.payment_method?.id) {
+              paymentMethod.cardToken = yookassaPayment.payment_method.id;
+              paymentMethod.status = PaymentMethodStatus.ACTIVE;
+
+              if (yookassaPayment.payment_method.card) {
+                const card = yookassaPayment.payment_method.card;
+                paymentMethod.cardMasked = `${card.first6}******${card.last4}`;
+                paymentMethod.cardType = card.card_type;
+                paymentMethod.expiryMonth = card.expiry_month;
+                paymentMethod.expiryYear = card.expiry_year;
+              }
+
+              await this.paymentMethodRepository.save(paymentMethod);
+
+              const userCards = await this.paymentMethodRepository.count({
+                where: {
+                  userId: transaction.userId,
+                  status: PaymentMethodStatus.ACTIVE,
+                },
+              });
+
+              if (userCards === 1) {
+                await this.userRepository.update(transaction.userId, {
+                  defaultPaymentMethodId: paymentMethod.id,
+                });
+              }
+
+              this.logger.log(`Payment method ${paymentMethod.id} activated via callback`);
+            }
+          }
+
+          if (transaction.type === TransactionType.SESSION_PAYMENT) {
+            const payment = await this.paymentRepository.findOne({
+              where: { transactionId: transaction.id },
+              relations: ['session'],
+            });
+
+            if (payment) {
+              payment.status = PaymentStatus.SUCCESS;
+              payment.paidAt = new Date();
+              await this.paymentRepository.save(payment);
+
+              if (payment.sessionId) {
+                await this.sessionRepository.update(payment.sessionId, {
+                  status: SessionStatus.CONFIRMED,
+                  paymentId: payment.id,
+                });
+              }
+            }
+          }
+
+          let redirectUrl: string;
+
+          if (transaction.type === TransactionType.CARD_BINDING) {
+            redirectUrl = `${FRONTEND_URL}/payment-methods?status=success`;
+          } else {
+            const payment = await this.paymentRepository.findOne({
+              where: { transactionId: transaction.id },
+            });
+
+            const sessionId = payment?.sessionId || '';
+            redirectUrl = `${FRONTEND_URL}/sessions/${sessionId}?payment=success`;
+          }
+          return {
+            message:
+              transaction.type === TransactionType.CARD_BINDING
+                ? 'Карта успешно привязана'
+                : 'Платеж успешно завершен',
+            paymentId: transaction.id,
+            redirectUrl: redirectUrl,
+          };
+        }
+
+        case 'canceled':
+        case 'failed':
+          await this.transactionsService.updateTransactionStatus(
+            paymentId,
+            TransactionStatus.FAILED,
+            yookassaPayment.cancellation_details?.reason || 'Payment failed'
+          );
+
+          if (transaction.type === TransactionType.CARD_BINDING) {
+            await this.paymentMethodRepository.update(
+              { bindTransactionId: transaction.id },
+              { status: PaymentMethodStatus.DELETED }
+            );
+          }
+
+          throw new BadRequestException(
+            yookassaPayment.cancellation_details?.reason || 'Платеж отменен'
+          );
+
+        case 'waiting_for_capture':
+          await this.yookassaService.capturePayment(paymentId);
+
+          return {
+            message: 'Платеж требует подтверждения',
+            paymentId: transaction.id,
+            redirectUrl: `${FRONTEND_URL}/payments/status?payment_id=${paymentId}`,
+          };
+
+        case 'pending':
+          return {
+            message: 'Платеж обрабатывается',
+            paymentId: transaction.id,
+            redirectUrl: `${FRONTEND_URL}/payments/status?payment_id=${paymentId}`,
+          };
+
+        default:
+          this.logger.warn(`Unknown payment status: ${yookassaPayment.status}`);
+          throw new BadRequestException('Неизвестный статус платежа');
+      }
+    } catch (error) {
+      this.logger.error(`Error processing payment callback: ${error.message}`);
+
+      await this.transactionsService.updateTransactionStatus(
+        paymentId,
+        TransactionStatus.FAILED,
+        error.message
+      );
+
+      throw new InternalServerErrorException(`Ошибка обработки платежа: ${error.message}`);
     }
   }
 }
