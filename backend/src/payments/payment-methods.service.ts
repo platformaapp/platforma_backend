@@ -19,7 +19,7 @@ import { Payment } from './entities/payment.entity';
 import { CardDetails } from '../utils/types';
 // import { FRONTEND_URL } from '../utils/constants';
 import { YookassaWebhookDto } from './dto/yookassa-webhook.dto';
-import { Transaction, TransactionStatus } from './entities/transaction.entity';
+import { TransactionStatus } from './entities/transaction.entity';
 import { TransactionsService } from './transactions.service';
 
 @Injectable()
@@ -34,7 +34,6 @@ export class PaymentMethodsService {
     @InjectRepository(Payment)
     private paymentRepository: Repository<Payment>,
     private yookassaService: YookassaService,
-    @InjectRepository(Transaction)
     private transactionsService: TransactionsService
   ) {}
 
@@ -47,11 +46,15 @@ export class PaymentMethodsService {
       throw new NotFoundException('User not found');
     }
 
-    const existingActive = await this.paymentMethodRepository.findOne({
-      where: { userId, status: PaymentMethodStatus.ACTIVE },
+    const activeCardsCount = await this.paymentMethodRepository.count({
+      where: {
+        userId,
+        status: PaymentMethodStatus.ACTIVE,
+      },
     });
-    if (existingActive) {
-      throw new ConflictException('Карта уже привязана');
+
+    if (activeCardsCount >= 3) {
+      throw new ConflictException('Максимум можно привязать 3 карты');
     }
 
     const paymentMethod = this.paymentMethodRepository.create({
