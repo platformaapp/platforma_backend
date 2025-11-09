@@ -14,6 +14,8 @@ import { User } from '../users/user.entity';
 import { YookassaService } from './yookassa.service';
 import { YookassaWebhookDto } from './dto/yookassa-webhook.dto';
 import { FRONTEND_URL } from '../utils/constants';
+import { TransactionsService } from './transactions.service';
+import { TransactionStatus } from './entities/transaction.entity';
 
 @Injectable()
 export class PaymentsService {
@@ -28,7 +30,8 @@ export class PaymentsService {
     private paymentMethodRepository: Repository<PaymentMethod>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    private yookassaService: YookassaService
+    private yookassaService: YookassaService,
+    private transactionsService: TransactionsService
   ) {}
 
   async createSessionPayment(
@@ -41,6 +44,7 @@ export class PaymentsService {
     redirectUrl?: string;
     amount: number;
     currency: string;
+    transactionId: string;
   }> {
     // 1. Проверяем существование сессии
     const session = await this.sessionRepository.findOne({
@@ -74,7 +78,6 @@ export class PaymentsService {
     // 5. Получаем платежный метод
     let paymentMethod: PaymentMethod;
     if (paymentMethodId) {
-      // Используем указанную карту
       paymentMethod = await this.paymentMethodRepository.findOne({
         where: {
           id: paymentMethodId,
@@ -87,7 +90,6 @@ export class PaymentsService {
         throw new NotFoundException('Payment method not found or not active');
       }
     } else {
-      // Используем карту по умолчанию
       const user = await this.userRepository.findOne({
         where: { id: userId },
         relations: ['paymentMethods'],
@@ -110,7 +112,15 @@ export class PaymentsService {
       }
     }
 
-    // 6. Создаем запись платежа в БД
+    // 6. Создаем транзакцию для платежа сессии
+    const transaction = await this.transactionsService.createSessionPaymentTransaction(
+      userId,
+      paymentMethod.id,
+      session.price,
+      `Оплата сессии с репетитором ${session.tutor.fullName}`
+    );
+
+    // 7. Создаем запись платежа в БД
     const payment = this.paymentRepository.create({
       user: { id: userId },
       userId,
@@ -118,16 +128,18 @@ export class PaymentsService {
       tutorId: session.tutorId,
       session: { id: sessionId },
       sessionId,
+      transaction: { id: transaction.id },
+      transactionId: transaction.id,
       amount: session.price,
       currency: 'RUB',
       status: PaymentStatus.PENDING,
     });
 
     const savedPayment = await this.paymentRepository.save(payment);
-    this.logger.log(`Payment record created: ${savedPayment.id}`);
+    this.logger.log(`Payment record created: ${savedPayment.id}, transaction: ${transaction.id}`);
 
     try {
-      // 7. Создаем платеж в ЮКассе
+      // 8. Создаем платеж в ЮКассе
       const yookassaPayment = await this.yookassaService.createSessionPayment({
         amount: session.price,
         paymentMethodToken: paymentMethod.cardToken,
@@ -136,14 +148,28 @@ export class PaymentsService {
         returnUrl: `${FRONTEND_URL}/payments/callback`,
       });
 
-      // 8. Обновляем платеж с данными от ЮКассы
+      await this.transactionsService.updateTransactionYookassaId(
+        transaction.id,
+        yookassaPayment.id
+      );
+
+      // 9. Обновляем платеж с данными от ЮКассы
       savedPayment.providerPaymentId = yookassaPayment.id;
       savedPayment.status =
         yookassaPayment.status === 'succeeded' ? PaymentStatus.SUCCESS : PaymentStatus.PROCESSING;
 
+      // Обновляем транзакцию с ID из ЮKassa
+      transaction.yookassaPaymentId = yookassaPayment.id;
+      await this.transactionsService.updateTransactionStatus(
+        yookassaPayment.id,
+        yookassaPayment.status === 'succeeded'
+          ? TransactionStatus.SUCCEEDED
+          : TransactionStatus.PENDING
+      );
+
       await this.paymentRepository.save(savedPayment);
 
-      // 9. Если платеж успешен - обновляем сессию
+      // 10. Если платеж успешен - обновляем сессию
       if (savedPayment.status === PaymentStatus.SUCCESS) {
         await this.sessionRepository.update(sessionId, {
           status: SessionStatus.CONFIRMED,
@@ -158,6 +184,7 @@ export class PaymentsService {
         redirectUrl: yookassaPayment.confirmation_url,
         amount: session.price,
         currency: 'RUB',
+        transactionId: transaction.id,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -165,6 +192,13 @@ export class PaymentsService {
       savedPayment.status = PaymentStatus.FAILED;
       savedPayment.errorMessage = errorMessage;
       await this.paymentRepository.save(savedPayment);
+
+      // Обновляем транзакцию как неудачную
+      await this.transactionsService.updateTransactionStatus(
+        transaction.yookassaPaymentId || 'unknown',
+        TransactionStatus.FAILED,
+        errorMessage
+      );
 
       this.logger.error(`Payment failed: ${errorMessage}`);
       throw new InternalServerErrorException(`Payment processing failed: ${errorMessage}`);
@@ -174,7 +208,7 @@ export class PaymentsService {
   async getPaymentStatus(paymentId: string, userId: string): Promise<Payment> {
     const payment = await this.paymentRepository.findOne({
       where: { id: paymentId, userId },
-      relations: ['session', 'tutor'],
+      relations: ['session', 'tutor', 'transaction'],
     });
 
     if (!payment) {
@@ -188,6 +222,9 @@ export class PaymentsService {
     const { object } = webhookData;
 
     this.logger.log(`Processing payment webhook: ${object.id}, status: ${object.status}`);
+
+    // Обновляем транзакцию
+    await this.transactionsService.handleYookassaWebhook(webhookData);
 
     // Находим платеж по providerPaymentId (ID из ЮKassa)
     const payment = await this.paymentRepository.findOne({

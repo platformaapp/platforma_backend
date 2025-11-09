@@ -6,8 +6,10 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
 import { User } from '../../users/user.entity';
+import { Transaction } from './transaction.entity';
 
 export enum PaymentProvider {
   YOOKASSA = 'yookassa',
@@ -64,6 +66,12 @@ export class PaymentMethod {
     default: PaymentMethodStatus.PENDING,
   })
   status: PaymentMethodStatus;
+
+  @Column({ name: 'bind_transaction_id', nullable: true })
+  bindTransactionId: string;
+
+  @OneToMany(() => Transaction, (transaction) => transaction.paymentMethod)
+  transactions: Transaction[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
