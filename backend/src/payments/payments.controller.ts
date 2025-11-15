@@ -136,11 +136,18 @@ export class PaymentsController {
         redirectUrl: result.redirectUrl,
       };
     } catch (error) {
-      this.logger.error(`Payment callback failed: ${error.message}`);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'string'
+            ? error
+            : 'Payment processing error';
+
+      this.logger.error(`Payment callback failed: ${errorMessage}`);
 
       return {
         status: 'failed',
-        message: error.message || 'Ошибка обработки платежа',
+        message: errorMessage,
       };
     }
   }

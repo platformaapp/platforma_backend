@@ -1,8 +1,8 @@
 import {
-  Injectable,
   ConflictException,
-  UnauthorizedException,
+  Injectable,
   InternalServerErrorException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -12,13 +12,12 @@ import { User } from 'src/users/user.entity';
 import { AuthSession } from './auth.entity';
 import { RegisterDto } from './dto/registration.dto';
 import { LoginDto } from './dto/login.dto';
-import { AuthResponse } from 'src/utils/types';
+import { AuthResponse, JwtError, PasswordResetPayload } from 'src/utils/types';
 import { randomBytes } from 'crypto';
 import { sendPasswordResetEmail } from 'src/utils/sendEmail';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { JWT_SECRET } from 'src/utils/constants';
-import { JwtError, PasswordResetPayload } from 'src/utils/types';
 
 function isJwtError(error: unknown): error is JwtError {
   return (
@@ -243,9 +242,8 @@ export class AuthService {
         }
 
         const saltRounds = 12;
-        const newPasswordHash = await bcrypt.hash(password, saltRounds);
 
-        user.passwordHash = newPasswordHash;
+        user.passwordHash = await bcrypt.hash(password, saltRounds);
         await this.usersRepository.save(user);
 
         await this.authSessionRepository.update(

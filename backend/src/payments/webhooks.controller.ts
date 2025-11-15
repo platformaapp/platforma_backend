@@ -1,6 +1,6 @@
 import { Controller, Post, Headers, HttpCode, HttpStatus, Logger, Req } from '@nestjs/common';
 import { ApiTags, ApiExcludeController } from '@nestjs/swagger';
-import type { Request } from 'express'; // ← Исправьте эту строку
+import type { Request } from 'express';
 import { PaymentMethodsService } from './payment-methods.service';
 import { YookassaService } from './yookassa.service';
 import { YookassaWebhookDto } from './dto/yookassa-webhook.dto';
@@ -22,22 +22,21 @@ export class WebhooksController {
   @HttpCode(HttpStatus.OK)
   async handleYookassaWebhook(@Req() req: Request, @Headers() headers: Record<string, string>) {
     // Получаем RAW тело как есть
-    const rawBody = (req as any).rawBody?.toString('utf8');
-    const signature = headers['signature'] || headers['Signature'] || headers['HTTP_SIGNATURE'];
+    const rawBody = req.body as unknown as string | undefined;
+    const signature = headers['signature'] ?? headers['Signature'] ?? headers['HTTP_SIGNATURE'];
 
-    console.log('=== YOOKASSA WEBHOOK RECEIVED ===');
-    console.log('Raw body length:', rawBody?.length);
-    console.log('Signature header:', signature);
-    console.log('All headers:', headers);
+    this.logger.log('=== YOOKASSA WEBHOOK RECEIVED ===');
+    this.logger.log('Raw body length:', rawBody?.length ?? 'undefined');
+    this.logger.log('Signature header:', signature);
 
     if (!rawBody) {
       this.logger.error('No raw body available');
       return { status: 'error', message: 'No raw body' };
     }
 
-    if (!signature) {
-      this.logger.error('No signature found in headers');
-      return { status: 'error', message: 'Missing signature' };
+    if (!signature || Array.isArray(signature)) {
+      this.logger.error('No valid signature found in headers');
+      return { status: 'error', message: 'Missing or invalid signature' };
     }
 
     try {
@@ -46,12 +45,6 @@ export class WebhooksController {
 
       if (!isValid) {
         this.logger.error('Invalid webhook signature');
-
-        // Дополнительная диагностика
-        console.log('=== SIGNATURE VERIFICATION FAILED ===');
-        console.log('Body content:', rawBody);
-        console.log('Signature:', signature);
-
         return { status: 'error', message: 'Invalid signature' };
       }
 

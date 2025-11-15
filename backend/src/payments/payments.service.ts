@@ -423,15 +423,22 @@ export class PaymentsService {
           throw new BadRequestException('Неизвестный статус платежа');
       }
     } catch (error) {
-      this.logger.error(`Error processing payment callback: ${error.message}`);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'string'
+            ? error
+            : 'Unknown Error';
+
+      this.logger.error(`Error processing payment callback: ${errorMessage}`);
 
       await this.transactionsService.updateTransactionStatus(
         paymentId,
         TransactionStatus.FAILED,
-        error.message
+        errorMessage
       );
 
-      throw new InternalServerErrorException(`Ошибка обработки платежа: ${error.message}`);
+      throw new InternalServerErrorException(`Payment processing error: ${errorMessage}`);
     }
   }
 }

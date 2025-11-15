@@ -6,10 +6,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
-import * as crypto from 'crypto';
 import {
   CreateSessionPaymentParams,
   YookassaConfig,
+  YookassaPayment,
   YookassaPaymentResponse,
   YookassaSessionPaymentResponse,
   YookassaWebhook,
@@ -256,7 +256,7 @@ export class YookassaService {
     }
   }
 
-  async getPayment(paymentId: string): Promise<any> {
+  async getPayment(paymentId: string): Promise<YookassaPayment> {
     const url = `${this.config.baseUrl}/payments/${paymentId}`;
 
     try {
@@ -274,9 +274,9 @@ export class YookassaService {
       }
 
       return await response.json();
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error(`Failed to get payment ${paymentId}`, error);
-      throw new InternalServerErrorException(`Failed to get payment info: ${error.message}`);
+      throw new InternalServerErrorException(`Failed to get payment info`);
     }
   }
 }

@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Transaction, TransactionStatus, TransactionType } from './entities/transaction.entity';
 import { YookassaService } from './yookassa.service';
 import { FRONTEND_URL } from '../utils/constants';
+import { YookassaWebhook } from '../utils/types';
 
 @Injectable()
 export class TransactionsService {
@@ -133,7 +134,7 @@ export class TransactionsService {
   }
 
   async findUserTransactions(userId: string, type?: TransactionType): Promise<Transaction[]> {
-    const where: any = { userId };
+    const where: Record<string, unknown> = { userId };
     if (type) {
       where.type = type;
     }
@@ -163,7 +164,7 @@ export class TransactionsService {
     }
   }
 
-  async handleYookassaWebhook(webhookData: any): Promise<Transaction> {
+  async handleYookassaWebhook(webhookData: YookassaWebhook): Promise<Transaction> {
     const { object } = webhookData;
 
     const transactionStatus = this.mapYookassaStatusToTransactionStatus(object.status);
