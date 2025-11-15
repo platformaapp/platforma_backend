@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
 import { ValidationPipe } from '@nestjs/common';
 import { setupSwagger } from './config';
+import { Request } from 'express';
 import * as bodyParser from 'body-parser';
 
 async function bootstrap() {
@@ -15,10 +16,10 @@ async function bootstrap() {
     '/api/webhooks/yookassa',
     bodyParser.raw({
       type: 'application/json',
-      verify: (req: any, res, buf) => {
+      verify: (req: Request & { rawBody?: Buffer }, _res, buf) => {
         req.rawBody = buf;
       },
-      limit: '1mb', // Лимит для вебхуков
+      limit: '1mb',
     })
   );
 

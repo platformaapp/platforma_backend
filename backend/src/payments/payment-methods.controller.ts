@@ -33,7 +33,7 @@ export class PaymentMethodsController {
   @UseGuards(JwtAuthGuard, StudentGuard)
   @ApiOperation({ summary: 'Get all payment methods for user' })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Payment methods retrieved successfully',
   })
   async getPaymentMethods(@Req() req: AuthenticatedRequest) {
@@ -66,7 +66,7 @@ export class PaymentMethodsController {
   @UseGuards(JwtAuthGuard, StudentGuard)
   @ApiOperation({ summary: 'Link a bank card' })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Card binding initiated. Redirect user to confirmationUrl',
   })
   @ApiResponse({ status: 400, description: 'Invalid request parameters' })
@@ -116,7 +116,7 @@ export class PaymentMethodsController {
   @ApiOperation({ summary: 'Set payment method as default' })
   @ApiParam({ name: 'id', description: 'Payment method ID' })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Payment method successfully set as default',
     type: SetDefaultPaymentMethodResponseDto,
   })
@@ -135,7 +135,7 @@ export class PaymentMethodsController {
   @UseGuards(JwtAuthGuard, StudentGuard)
   @ApiOperation({ summary: 'Get default payment method' })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Default payment method retrieved successfully',
   })
   async getDefaultPaymentMethod(@Req() req: AuthenticatedRequest) {
