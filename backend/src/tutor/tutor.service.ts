@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/users/user.entity';
-import { Event, EventStatus } from 'src/events/entities/event.entity';
+import { Event } from 'src/events/entities/event.entity';
 import { FindManyOptions, In, Not, Repository } from 'typeorm';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { Slot, SlotStatus } from 'src/slots/entities/slot.entity';
@@ -16,7 +16,6 @@ import { GetSlotsFilterDto } from './dto/get-slots-filter.dto';
 import { CreateSlotDto } from './dto/create-slot.dto';
 import { UpdateSlotDto } from './dto/update-slot.dto';
 import { isUUID } from 'class-validator';
-import { CreateEventDto } from './dto/create-event.dto';
 import { Payment, PaymentStatus } from 'src/payments/entities/payment.entity';
 import { BookingDetails, PaymentsSummary } from 'src/utils/types';
 import { Booking, BookingStatus } from 'src/student/entities/booking.entity';
@@ -278,90 +277,90 @@ export class TutorService {
   }
 
   //Events
-  async getTutorEvents(userId: string): Promise<Event[]> {
-    return await this.eventsRepository
-      .createQueryBuilder('event')
-      .leftJoinAndSelect('event.slot', 'slot')
-      .leftJoinAndSelect('slot.tutor', 'tutor')
-      .leftJoinAndSelect('event.student', 'student')
-      .where('tutor.id = :userId', { userId })
-      .orderBy('slot.date', 'ASC')
-      .addOrderBy('slot.time', 'ASC')
-      .getMany();
-  }
+  // async getTutorEvents(userId: string): Promise<Event[]> {
+  //   return await this.eventsRepository
+  //     .createQueryBuilder('event')
+  //     .leftJoinAndSelect('event.slot', 'slot')
+  //     .leftJoinAndSelect('slot.tutor', 'tutor')
+  //     .leftJoinAndSelect('event.student', 'student')
+  //     .where('tutor.id = :userId', { userId })
+  //     .orderBy('slot.date', 'ASC')
+  //     .addOrderBy('slot.time', 'ASC')
+  //     .getMany();
+  // }
 
-  async createEvent(userId: string, createEventDto: CreateEventDto): Promise<Event> {
-    const slot = await this.slotsRepository.findOne({
-      where: { id: createEventDto.slotId },
-      relations: ['tutor', 'events'],
-    });
+  // async createEvent(userId: string, createEventDto: CreateEventDto): Promise<Event> {
+  //   const slot = await this.slotsRepository.findOne({
+  //     where: { id: createEventDto.slotId },
+  //     relations: ['tutor', 'events'],
+  //   });
+  //
+  //   if (!slot) {
+  //     throw new NotFoundException('Slot not found');
+  //   }
+  //
+  //   if (slot.tutor.id !== userId) {
+  //     throw new ForbiddenException('You can only create events for your own slots');
+  //   }
+  //
+  //   if (slot.status !== SlotStatus.FREE) {
+  //     throw new ConflictException('Slot is not available for booking');
+  //   }
+  //
+  //   if (slot.events && slot.events.length > 0) {
+  //     throw new ConflictException('Slot already has an event');
+  //   }
+  //
+  //   const student = await this.usersRepository.findOne({
+  //     where: { id: createEventDto.studentId, role: 'student' },
+  //   });
+  //
+  //   if (!student) {
+  //     throw new NotFoundException('Student not found');
+  //   }
+  //
+  //   const event = this.eventsRepository.create({
+  //     slot: { id: slot.id },
+  //     student: { id: student.id },
+  //     status: createEventDto.status || EventStatus.PLANNED,
+  //     notes: createEventDto.notes || null,
+  //   });
+  //
+  //   const savedEvent = await this.eventsRepository.save(event);
+  //
+  //   return await this.eventsRepository
+  //     .createQueryBuilder('event')
+  //     .leftJoinAndSelect('event.slot', 'slot')
+  //     .leftJoinAndSelect('slot.tutor', 'tutor')
+  //     .leftJoinAndSelect('event.student', 'student')
+  //     .where('event.id = :id', { id: savedEvent.id })
+  //     .getOne();
+  // }
 
-    if (!slot) {
-      throw new NotFoundException('Slot not found');
-    }
-
-    if (slot.tutor.id !== userId) {
-      throw new ForbiddenException('You can only create events for your own slots');
-    }
-
-    if (slot.status !== SlotStatus.FREE) {
-      throw new ConflictException('Slot is not available for booking');
-    }
-
-    if (slot.events && slot.events.length > 0) {
-      throw new ConflictException('Slot already has an event');
-    }
-
-    const student = await this.usersRepository.findOne({
-      where: { id: createEventDto.studentId, role: 'student' },
-    });
-
-    if (!student) {
-      throw new NotFoundException('Student not found');
-    }
-
-    const event = this.eventsRepository.create({
-      slot: { id: slot.id },
-      student: { id: student.id },
-      status: createEventDto.status || EventStatus.PLANNED,
-      notes: createEventDto.notes || null,
-    });
-
-    const savedEvent = await this.eventsRepository.save(event);
-
-    return await this.eventsRepository
-      .createQueryBuilder('event')
-      .leftJoinAndSelect('event.slot', 'slot')
-      .leftJoinAndSelect('slot.tutor', 'tutor')
-      .leftJoinAndSelect('event.student', 'student')
-      .where('event.id = :id', { id: savedEvent.id })
-      .getOne();
-  }
-
-  async updateEventStatus(userId: string, eventId: string, status: EventStatus) {
-    if (!Object.values(EventStatus).includes(status)) {
-      throw new BadRequestException('Invalid event status');
-    }
-
-    const event = await this.eventsRepository.findOne({
-      where: { id: eventId },
-      relations: ['slot', 'slot.tutor', 'student'],
-    });
-
-    if (!event) throw new NotFoundException('Event not found');
-
-    if (event.slot.tutor.id !== userId) {
-      throw new ForbiddenException('You can only update your own events');
-    }
-
-    event.status = status;
-    await this.eventsRepository.save(event);
-
-    return await this.eventsRepository.findOne({
-      where: { id: event.id },
-      relations: ['slot', 'slot.tutor', 'student'],
-    });
-  }
+  // async updateEventStatus(userId: string, eventId: string, status: EventStatus) {
+  //   if (!Object.values(EventStatus).includes(status)) {
+  //     throw new BadRequestException('Invalid event status');
+  //   }
+  //
+  //   const event = await this.eventsRepository.findOne({
+  //     where: { id: eventId },
+  //     relations: ['slot', 'slot.tutor', 'student'],
+  //   });
+  //
+  //   if (!event) throw new NotFoundException('Event not found');
+  //
+  //   if (event.slot.tutor.id !== userId) {
+  //     throw new ForbiddenException('You can only update your own events');
+  //   }
+  //
+  //   event.status = status;
+  //   await this.eventsRepository.save(event);
+  //
+  //   return await this.eventsRepository.findOne({
+  //     where: { id: event.id },
+  //     relations: ['slot', 'slot.tutor', 'student'],
+  //   });
+  // }
 
   async getTutorPayments(userId: string): Promise<Payment[]> {
     return this.paymentsRepository.find({

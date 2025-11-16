@@ -1,4 +1,4 @@
-import { Body, Controller, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
@@ -16,7 +16,7 @@ export class UsersController {
     description: 'Retrieve a list of all users. Requires JWT authentication.',
   })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Successfully retrieved list of users',
     schema: {
       example: [

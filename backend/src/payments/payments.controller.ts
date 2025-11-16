@@ -41,12 +41,15 @@ export class PaymentsController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create payment for session' })
   @ApiResponse({
-    status: 201,
+    status: HttpStatus.CREATED,
     description: 'Payment created successfully',
     type: PaymentResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Invalid request or session already paid' })
-  @ApiResponse({ status: 404, description: 'Session or payment method not found' })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid request or session already paid',
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Session or payment method not found' })
   async createPayment(
     @Req() req: AuthenticatedRequest,
     @Body() createPaymentDto: CreatePaymentDto
@@ -80,7 +83,7 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Get payment status' })
   @ApiParam({ name: 'id', description: 'Payment ID' })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Payment status retrieved successfully',
   })
   async getPaymentStatus(@Req() req: AuthenticatedRequest, @Param('id') paymentId: string) {
@@ -106,7 +109,7 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Handle payment callback after 3D Secure' })
   @ApiQuery({ name: 'payment_id', description: 'Payment ID from YooKassa' })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Payment callback processed successfully',
     schema: {
       type: 'object',
