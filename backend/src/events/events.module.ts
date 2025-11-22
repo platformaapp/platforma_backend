@@ -10,6 +10,7 @@ import { UserEvent } from './entities/user-event.entity';
 import { VideoRoom } from './entities/video-room.entity';
 import { Event } from './entities/event.entity';
 import { EmailService } from '../notifications/email.service';
+import { MyOwnConferenceService } from './myownconference.service';
 
 @Module({
   imports: [
@@ -18,6 +19,6 @@ import { EmailService } from '../notifications/email.service';
     JwtModule,
   ],
   controllers: [EventsController],
-  providers: [EventsService, EmailService],
+  providers: [EventsService, EmailService, MyOwnConferenceService],
 })
 export class EventsModule {}

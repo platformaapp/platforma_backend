@@ -22,6 +22,7 @@ import { UpdateEventDto } from './dto/update-event.dto';
 import { RegisterResponseDto } from './dto/register-response.dto';
 import { EventDetailResponseDto } from './dto/event-detail-response.dto';
 import { CountdownResponseDto } from './dto/countdown-response.dto';
+import { CreateVideoRoomDto, VideoRoomResponseDto } from './dto/create-video-room.dto';
 
 @Controller('events')
 export class EventsController {
@@ -95,5 +96,24 @@ export class EventsController {
   @UseGuards(JwtAuthGuard)
   async getCountdown(@Param('id', ParseUUIDPipe) id: string): Promise<CountdownResponseDto> {
     return await this.eventsService.getEventCountdown(id);
+  }
+
+  @Get(':id/join')
+  @UseGuards(JwtAuthGuard)
+  async joinEvent(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest
+  ): Promise<{ join_url: string }> {
+    return await this.eventsService.getEventJoinUrl(id, req.user.sub);
+  }
+
+  @Post('video_rooms/create')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async createVideoRoom(
+    @Body() createVideoRoomDto: CreateVideoRoomDto,
+    @Req() req: AuthenticatedRequest
+  ): Promise<VideoRoomResponseDto> {
+    return await this.eventsService.createVideoRoom(createVideoRoomDto, req.user.sub);
   }
 }

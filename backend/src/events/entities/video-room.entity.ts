@@ -35,6 +35,10 @@ export class VideoRoom {
   @Column({ type: 'varchar', name: 'external_id' })
   externalId: string;
 
+  // Добавляем недостающее поле
+  @Column({ type: 'varchar', name: 'moderator_url', nullable: true })
+  moderatorUrl: string;
+
   @Column({ type: 'boolean', name: 'is_active', default: true })
   isActive: boolean;
 

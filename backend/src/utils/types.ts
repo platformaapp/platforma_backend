@@ -162,3 +162,149 @@ export interface YookassaPaymentResponse {
     confirmation_url: string;
   };
 }
+
+export interface CreateWebinarParams {
+  name: string;
+  start: string; // YYYY-MM-DD HH:MM:SS
+  duration: number; // в минутах
+  description?: string;
+  maxParticipants?: number;
+  close?: boolean; // приватный или публичный
+  language?: string;
+}
+
+export interface WebinarResponse {
+  success: string;
+  alias: string;
+  webinarLink: string;
+  mainModeratorLink: string;
+}
+
+export interface MyOwnConferenceRequest {
+  key: string;
+  action: string;
+  params: {
+    name: string;
+    start: string;
+    duration: number;
+    description: string;
+    close: string;
+    language: string;
+    settings?: {
+      maxParticipants: number;
+    };
+  };
+}
+
+export interface MyOwnConferenceResponse {
+  response: {
+    error?: string;
+    alias?: string;
+    webinarLink?: string;
+    mainModeratorLink?: string;
+  };
+}
+
+export interface UpdateWebinarParams {
+  name?: string;
+  start?: string;
+  duration?: number;
+  description?: string;
+  maxParticipants?: number;
+  close?: boolean;
+  language?: string;
+}
+
+export interface UpdateWebinarRequest {
+  key: string;
+  action: string;
+  params: {
+    alias: string;
+    name?: string;
+    start?: string;
+    duration?: number;
+    description?: string;
+    close?: string;
+    language?: string;
+    settings?: {
+      maxParticipants: number;
+    };
+  };
+}
+
+export interface UpdateWebinarResponse {
+  response: {
+    error?: string;
+    success?: string;
+  };
+}
+
+export interface DeleteWebinarRequest {
+  key: string;
+  action: string;
+  params: {
+    alias: string;
+  };
+}
+
+export interface DeleteWebinarResponse {
+  response: {
+    error?: string;
+    success?: string;
+  };
+}
+
+export interface CreateAttendeeRequest {
+  key: string;
+  action: string;
+  params: {
+    email: string;
+    name: string;
+  };
+}
+
+export interface AddAttendeeToWebinarRequest {
+  key: string;
+  action: string;
+  params: {
+    alias: string;
+    attendees: string[];
+  };
+}
+
+export interface AttendeeApiResponse {
+  response: {
+    error?: string;
+    success?: string;
+  };
+}
+
+// Добавьте эти интерфейсы в файл types.ts
+export interface BaseApiResponse {
+  response: {
+    error?: string;
+    success?: string;
+  };
+}
+
+export interface WebinarInfoResponse {
+  response: {
+    error?: string;
+    success?: string;
+    // Добавьте другие поля, которые возвращает API для получения информации
+    alias?: string;
+    webinarLink?: string;
+    mainModeratorLink?: string;
+  };
+}
+
+export interface AttendeesListResponse {
+  response: {
+    error?: string;
+    list?: Array<{
+      email: string;
+      link: string;
+      // другие поля участника
+    }>;
+  };
+}

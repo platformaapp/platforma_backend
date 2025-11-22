@@ -3,11 +3,12 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../users/user.entity';
-import { VideoRoom } from './entities/video-room.entity';
+import { VideoProvider, VideoRoom } from './entities/video-room.entity';
 import { Repository } from 'typeorm';
 import { Event, EventStatus } from './entities/event.entity';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -20,9 +21,13 @@ import {
 } from './dto/event-detail-response.dto';
 import { CountdownResponseDto } from './dto/countdown-response.dto';
 import { EmailService } from '../notifications/email.service';
+import { MyOwnConferenceService } from './myownconference.service';
+import { CreateVideoRoomDto, VideoRoomResponseDto } from './dto/create-video-room.dto';
 
 @Injectable()
 export class EventsService {
+  private readonly logger = new Logger(EventsService.name);
+
   constructor(
     @InjectRepository(Event)
     private readonly eventsRepository: Repository<Event>,
@@ -32,7 +37,8 @@ export class EventsService {
     private readonly videoRoomRepository: Repository<VideoRoom>,
     @InjectRepository(UserEvent)
     private readonly userEventRepository: Repository<UserEvent>,
-    private readonly emailService: EmailService
+    private readonly emailService: EmailService,
+    private readonly myOwnConferenceService: MyOwnConferenceService
   ) {}
 
   async createEvent(createEventDto: CreateEventDto, mentorId: string): Promise<Event> {
@@ -76,6 +82,30 @@ export class EventsService {
     });
 
     const savedEvent = await this.eventsRepository.save(event);
+
+    try {
+      const webinarResponse = await this.myOwnConferenceService.createWebinar({
+        name: savedEvent.title,
+        start: this.myOwnConferenceService.formatDateForAPI(savedEvent.datetimeStart),
+        duration: savedEvent.durationMinutes,
+        description: savedEvent.description,
+        maxParticipants: savedEvent.maxParticipants,
+        close: false,
+        language: 'RU',
+      });
+
+      const videoRoom = this.videoRoomRepository.create({
+        event: savedEvent,
+        provider: VideoProvider.MY_OWN_CONFERENCE,
+        url: webinarResponse.webinarLink,
+        externalId: webinarResponse.alias,
+        moderatorUrl: webinarResponse.mainModeratorLink,
+      });
+
+      await this.videoRoomRepository.save(videoRoom);
+    } catch (error) {
+      this.logger.error('Failed to create webinar room', error);
+    }
 
     try {
       await this.sendEventCreatedNotification(savedEvent);
@@ -173,6 +203,19 @@ export class EventsService {
       await this.notifyParticipantsAboutTimeChange(updatedEvent, originalDateTimeStart);
     }
 
+    if (updatedEvent.videoRoom?.externalId) {
+      try {
+        await this.myOwnConferenceService.updateWebinar(updatedEvent.videoRoom.externalId, {
+          name: updatedEvent.title,
+          start: this.myOwnConferenceService.formatDateForAPI(updatedEvent.datetimeStart),
+          duration: updatedEvent.durationMinutes,
+          description: updatedEvent.description,
+        });
+      } catch (error) {
+        this.logger.error('Failed to update webinar room', error);
+      }
+    }
+
     return updatedEvent;
   }
 
@@ -237,6 +280,18 @@ export class EventsService {
     });
 
     const savedUserEvent = await this.userEventRepository.save(userEvent);
+
+    if (event.videoRoom?.externalId) {
+      try {
+        await this.myOwnConferenceService.addAttendeeToWebinar(
+          event.videoRoom.externalId,
+          student.email,
+          student.fullName || student.email.split('@')[0]
+        );
+      } catch (error) {
+        this.logger.error('Failed to add attendee to webinar', error);
+      }
+    }
 
     await this.notifyMentorAboutNewRegistration(event, student);
 
@@ -496,11 +551,8 @@ export class EventsService {
         where: { id: videoRoomId },
       });
 
-      if (videoRoom) {
-        // TODO: Реализовать удаление комнаты у провайдера MyOwnConference
-        // await this.myOwnConferenceService.deleteRoom(videoRoom.externalId);
-
-        // Удаляем запись из базы
+      if (videoRoom && videoRoom.externalId) {
+        await this.myOwnConferenceService.deleteWebinar(videoRoom.externalId);
         await this.videoRoomRepository.remove(videoRoom);
       }
     } catch (error) {
@@ -622,6 +674,158 @@ export class EventsService {
       console.log(`Cancellation notifications sent to ${participants.length} participants`);
     } catch (error) {
       console.error('Failed to send cancellation notifications:', error);
+    }
+  }
+
+  async getEventJoinUrl(eventId: string, userId: string): Promise<{ join_url: string }> {
+    const event = await this.eventsRepository.findOne({
+      where: { id: eventId },
+      relations: ['videoRoom', 'userEvents', 'mentor'],
+    });
+
+    if (!event) {
+      throw new NotFoundException('Событие не найдено');
+    }
+
+    const userRegistration = await this.userEventRepository.findOne({
+      where: {
+        eventId,
+        userId,
+        status: ParticipationStatus.REGISTERED,
+      },
+    });
+
+    const isMentor = event.mentorId === userId;
+
+    if (!userRegistration && !isMentor) {
+      throw new ForbiddenException('Вы не записаны на это событие');
+    }
+
+    const now = new Date();
+    const timeUntilStart = event.datetimeStart.getTime() - now.getTime();
+    const fifteenMinutes = 15 * 60 * 1000;
+
+    const isEventActive = event.datetimeStart <= now && event.datetimeEnd > now;
+    const isWithinFifteenMinutes = timeUntilStart <= fifteenMinutes && timeUntilStart > 0;
+
+    if (!isEventActive && !isWithinFifteenMinutes) {
+      throw new ForbiddenException(
+        'Подключиться к событию можно за 15 минут до начала или во время его проведения'
+      );
+    }
+
+    if (event.status === EventStatus.CANCELLED) {
+      throw new BadRequestException('Событие было отменено');
+    }
+
+    if (!event.videoRoom) {
+      throw new NotFoundException('Видеокомната для события не найдена');
+    }
+
+    try {
+      if (isMentor && event.videoRoom?.moderatorUrl) {
+        return {
+          join_url: event.videoRoom.moderatorUrl,
+        };
+      }
+
+      const user = await this.usersRepository.findOne({ where: { id: userId } });
+      if (!user) throw new NotFoundException('Пользователь не найден');
+
+      const attendeeLink = await this.myOwnConferenceService.getAttendeeLink(
+        event.videoRoom.externalId,
+        user.email
+      );
+
+      return {
+        join_url: attendeeLink || event.videoRoom.url,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get attendee link, using general URL', error);
+      return {
+        join_url: event.videoRoom.url,
+      };
+    }
+  }
+
+  async createVideoRoom(
+    createVideoRoomDto: CreateVideoRoomDto,
+    userId: string
+  ): Promise<VideoRoomResponseDto> {
+    const { event_id, provider } = createVideoRoomDto;
+
+    const event = await this.eventsRepository.findOne({
+      where: { id: event_id },
+      relations: ['mentor'],
+    });
+
+    if (!event) {
+      throw new NotFoundException('Событие не найдено');
+    }
+
+    if (event.mentorId !== userId) {
+      throw new ForbiddenException('Вы можете создавать видеокомнаты только для своих событий');
+    }
+
+    const existingVideoRoom = await this.videoRoomRepository.findOne({
+      where: { eventId: event_id },
+    });
+
+    if (existingVideoRoom) {
+      throw new ConflictException('Видеокомната для этого события уже существует');
+    }
+
+    try {
+      let videoRoomData;
+
+      switch (provider) {
+        case VideoProvider.MY_OWN_CONFERENCE:
+          const webinarResponse = await this.myOwnConferenceService.createWebinar({
+            name: event.title,
+            start: this.myOwnConferenceService.formatDateForAPI(event.datetimeStart),
+            duration: event.durationMinutes,
+            description: event.description,
+            maxParticipants: event.maxParticipants,
+            close: false,
+            language: 'RU',
+          });
+
+          videoRoomData = {
+            externalId: webinarResponse.alias,
+            url: webinarResponse.webinarLink,
+            moderatorUrl: webinarResponse.mainModeratorLink,
+          };
+          break;
+
+        case VideoProvider.TELEMOST:
+          throw new BadRequestException('Интеграция с Telemost пока не реализована');
+
+        case VideoProvider.JITSI:
+          throw new BadRequestException('Интеграция с Jitsi пока не реализована');
+
+        default:
+          throw new BadRequestException(`Провайдер ${provider} не поддерживается`);
+      }
+
+      const videoRoom = this.videoRoomRepository.create({
+        eventId: event_id,
+        provider,
+        url: videoRoomData.url,
+        externalId: videoRoomData.externalId,
+        moderatorUrl: videoRoomData.moderatorUrl,
+        expiresAt: new Date(event.datetimeEnd.getTime() + 24 * 60 * 60 * 1000),
+      });
+
+      const savedVideoRoom = await this.videoRoomRepository.save(videoRoom);
+
+      return {
+        url: savedVideoRoom.url,
+        provider: savedVideoRoom.provider,
+        expires_at: savedVideoRoom.expiresAt.toISOString(),
+      };
+    } catch (error) {
+      this.logger.error(`Failed to create video room with provider ${provider}`, error);
+      throw new BadRequestException(`Не удалось создать видеокомнату: ${error.message}`);
     }
   }
 }
