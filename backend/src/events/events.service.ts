@@ -14,6 +14,8 @@ import { Event, EventStatus } from './entities/event.entity';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { ParticipationStatus, PaymentStatus, UserEvent } from './entities/user-event.entity';
+import { PaymentStatus as PaymentEntityStatus } from '../payments/entities/payment.entity';
+
 import {
   EventDetailResponseDto,
   MentorInfoDto,
@@ -23,6 +25,7 @@ import { CountdownResponseDto } from './dto/countdown-response.dto';
 import { EmailService } from '../notifications/email.service';
 import { MyOwnConferenceService } from './myownconference.service';
 import { CreateVideoRoomDto, VideoRoomResponseDto } from './dto/create-video-room.dto';
+import { Payment } from 'src/payments/entities/payment.entity';
 
 @Injectable()
 export class EventsService {
@@ -38,7 +41,9 @@ export class EventsService {
     @InjectRepository(UserEvent)
     private readonly userEventRepository: Repository<UserEvent>,
     private readonly emailService: EmailService,
-    private readonly myOwnConferenceService: MyOwnConferenceService
+    private readonly myOwnConferenceService: MyOwnConferenceService,
+    @InjectRepository(Payment)
+    private readonly paymentRepository: Repository<Payment>
   ) {}
 
   async createEvent(createEventDto: CreateEventDto, mentorId: string): Promise<Event> {
@@ -696,7 +701,7 @@ export class EventsService {
   async getEventJoinUrl(eventId: string, userId: string): Promise<{ join_url: string }> {
     const event = await this.eventsRepository.findOne({
       where: { id: eventId },
-      relations: ['videoRoom', 'userEvents', 'mentor'],
+      relations: ['videoRoom', 'userEvents', 'mentor', 'userEvents.user'],
     });
 
     if (!event) {
@@ -713,12 +718,49 @@ export class EventsService {
 
     const isMentor = event.mentorId === userId;
 
-    //TODO закончить проверку, допустить только учеников, которы оплатили сессию.
-    // if (event.price > 0 && userRegistration) {
-    //   if (userRegistration.paymentStatus !== PaymentStatus.PAID) {
-    //     throw new ForbiddenException('Необходимо оплатить событие для доступа к видеочату');
-    //   }
-    // }
+    this.logger.log(`=== DEBUG ACCESS CHECK ===`);
+    this.logger.log(
+      `User: ${userId}, Event: ${eventId}, Price: ${event.price}, isMentor: ${isMentor}`
+    );
+
+    if (userRegistration) {
+      this.logger.log(
+        `User registration found: ${userRegistration.id}, PaymentStatus: ${userRegistration.paymentStatus}`
+      );
+    } else {
+      this.logger.log(`No user registration found`);
+    }
+
+    if (event.price > 0 && !isMentor) {
+      const successfulPayments = await this.paymentRepository.find({
+        where: {
+          userId: userId,
+          status: PaymentEntityStatus.SUCCESS,
+        },
+      });
+
+      this.logger.log(`Found ${successfulPayments.length} successful payments for user`);
+
+      successfulPayments.forEach((payment) => {
+        this.logger.log(
+          `Payment: ${payment.id}, Amount: ${payment.amount}, Session: ${payment.sessionId}`
+        );
+      });
+
+      const hasSuccessfulPayment = successfulPayments.length > 0;
+
+      this.logger.log(`hasSuccessfulPayment: ${hasSuccessfulPayment}`);
+
+      if (!hasSuccessfulPayment) {
+        throw new ForbiddenException('Необходимо оплатить событие для доступа к видеочату');
+      }
+
+      if (userRegistration && userRegistration.paymentStatus !== PaymentStatus.PAID) {
+        this.logger.log(`Updating user registration payment status to PAID`);
+        userRegistration.paymentStatus = PaymentStatus.PAID;
+        await this.userEventRepository.save(userRegistration);
+      }
+    }
 
     if (!userRegistration && !isMentor) {
       throw new ForbiddenException('Вы не записаны на это событие');

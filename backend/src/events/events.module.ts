@@ -11,10 +11,11 @@ import { VideoRoom } from './entities/video-room.entity';
 import { Event } from './entities/event.entity';
 import { EmailService } from '../notifications/email.service';
 import { MyOwnConferenceService } from './myownconference.service';
+import { Payment } from 'src/payments/entities/payment.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Session, User, UserEvent, VideoRoom, Event]),
+    TypeOrmModule.forFeature([Session, User, UserEvent, VideoRoom, Event, Payment]),
     AuthModule,
     JwtModule,
   ],

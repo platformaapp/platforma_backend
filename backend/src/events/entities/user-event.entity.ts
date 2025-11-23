@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/user.entity';
 import { Event } from './event.entity';
+import { Session } from 'src/session/entities/session.entity';
 
 export enum ParticipationStatus {
   REGISTERED = 'registered',
@@ -43,6 +44,13 @@ export class UserEvent {
 
   @Column({ name: 'event_id' })
   eventId: string;
+
+  @ManyToOne(() => Session, { nullable: true })
+  @JoinColumn({ name: 'session_id' })
+  session: Session;
+
+  @Column({ name: 'session_id', nullable: true })
+  sessionId: string;
 
   @Column({
     type: 'enum',
