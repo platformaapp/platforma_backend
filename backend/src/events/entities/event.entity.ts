@@ -68,8 +68,10 @@ export class Event {
   @Column({ type: 'int', name: 'max_participants', default: 30 })
   maxParticipants: number;
 
-  @OneToOne(() => VideoRoom, (videoRoom) => videoRoom.event, { cascade: true })
-  @JoinColumn({ name: 'video_room_id' })
+  @OneToOne(() => VideoRoom, (videoRoom) => videoRoom.event, {
+    cascade: true,
+    eager: true,
+  })
   videoRoom: VideoRoom;
 
   @Column({ name: 'video_room_id', nullable: true })
@@ -94,6 +96,5 @@ export class Event {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  // Virtual field for registered students count
   registeredCount?: number;
 }

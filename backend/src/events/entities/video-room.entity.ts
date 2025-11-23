@@ -35,7 +35,6 @@ export class VideoRoom {
   @Column({ type: 'varchar', name: 'external_id' })
   externalId: string;
 
-  // Добавляем недостающее поле
   @Column({ type: 'varchar', name: 'moderator_url', nullable: true })
   moderatorUrl: string;
 
@@ -52,6 +51,6 @@ export class VideoRoom {
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @Column({ type: 'timestamp', name: 'expires_at' })
+  @Column({ type: 'timestamp', name: 'expires_at', nullable: true })
   expiresAt: Date;
 }

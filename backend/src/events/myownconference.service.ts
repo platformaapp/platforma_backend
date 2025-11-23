@@ -1,17 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
-  AddAttendeeToWebinarRequest,
   AttendeeApiResponse,
   AttendeesListResponse,
-  CreateAttendeeRequest,
   CreateWebinarParams,
-  DeleteWebinarRequest,
   DeleteWebinarResponse,
-  MyOwnConferenceRequest,
   MyOwnConferenceResponse,
   UpdateWebinarParams,
-  UpdateWebinarRequest,
   UpdateWebinarResponse,
   WebinarInfoResponse,
   WebinarResponse,
@@ -28,37 +23,22 @@ export class MyOwnConferenceService {
     this.baseUrl = 'https://api.mywebinar.com';
   }
 
-  /**
-   * Создание вебинара
-   */
   async createWebinar(params: CreateWebinarParams): Promise<WebinarResponse> {
-    const requestData: MyOwnConferenceRequest = {
+    const requestData = {
       key: this.apiKey,
       action: 'webinarsCreate',
       params: {
         name: params.name,
         start: params.start,
         duration: params.duration,
-        description: params.description || '',
-        close: params.close ? 'YES' : 'NO',
-        language: params.language || 'RU',
       },
     };
-
-    if (params.maxParticipants) {
-      requestData.params.settings = {
-        maxParticipants: params.maxParticipants,
-      };
-    }
 
     this.logger.log('Sending request to MyOwnConference:');
     this.logger.log(JSON.stringify(requestData, null, 2));
 
     try {
       const response = await this.sendRequest<MyOwnConferenceResponse>(requestData);
-
-      this.logger.log('Received response from MyOwnConference:');
-      this.logger.log(JSON.stringify(response, null, 2));
 
       if (response.response.error) {
         throw new Error(`MyOwnConference API Error: ${response.response.error}`);
@@ -81,27 +61,15 @@ export class MyOwnConferenceService {
   }
 
   async updateWebinar(alias: string, params: UpdateWebinarParams): Promise<{ success: string }> {
-    const updateData: UpdateWebinarRequest['params'] = {
-      alias,
-    };
-
-    if (params.name) updateData.name = params.name;
-    if (params.start) updateData.start = params.start;
-    if (params.duration) updateData.duration = params.duration;
-    if (params.description !== undefined) updateData.description = params.description;
-    if (params.close !== undefined) updateData.close = params.close ? 'YES' : 'NO';
-    if (params.language) updateData.language = params.language;
-
-    if (params.maxParticipants) {
-      updateData.settings = {
-        maxParticipants: params.maxParticipants,
-      };
-    }
-
-    const requestData: UpdateWebinarRequest = {
+    const requestData = {
       key: this.apiKey,
       action: 'webinarsSet',
-      params: updateData,
+      params: {
+        alias: alias,
+        name: params.name,
+        start: params.start,
+        duration: params.duration,
+      },
     };
 
     try {
@@ -111,12 +79,8 @@ export class MyOwnConferenceService {
         throw new Error(`MyOwnConference API Error: ${response.response.error}`);
       }
 
-      if (!response.response.success) {
-        throw new Error('Invalid response from MyOwnConference API: missing success field');
-      }
-
       return {
-        success: response.response.success,
+        success: response.response.success || 'Webinar updated',
       };
     } catch (error) {
       this.logger.error('Failed to update webinar', error);
@@ -124,15 +88,12 @@ export class MyOwnConferenceService {
     }
   }
 
-  /**
-   * Удаление вебинара
-   */
   async deleteWebinar(alias: string): Promise<{ success: string }> {
-    const requestData: DeleteWebinarRequest = {
+    const requestData = {
       key: this.apiKey,
       action: 'webinarsDelete',
       params: {
-        alias,
+        alias: alias,
       },
     };
 
@@ -143,12 +104,8 @@ export class MyOwnConferenceService {
         throw new Error(`MyOwnConference API Error: ${response.response.error}`);
       }
 
-      if (!response.response.success) {
-        throw new Error('Invalid response from MyOwnConference API: missing success field');
-      }
-
       return {
-        success: response.response.success,
+        success: response.response.success || 'Webinar deleted',
       };
     } catch (error) {
       this.logger.error('Failed to delete webinar', error);
@@ -156,15 +113,12 @@ export class MyOwnConferenceService {
     }
   }
 
-  /**
-   * Получение информации о вебинаре
-   */
   async getWebinarInfo(alias: string): Promise<{ success: string }> {
-    const requestData: DeleteWebinarRequest = {
+    const requestData = {
       key: this.apiKey,
       action: 'webinarsGetInfo',
       params: {
-        alias,
+        alias: alias,
       },
     };
 
@@ -175,12 +129,8 @@ export class MyOwnConferenceService {
         throw new Error(`MyOwnConference API Error: ${response.response.error}`);
       }
 
-      if (!response.response.success) {
-        throw new Error('Invalid response from MyOwnConference API: missing success field');
-      }
-
       return {
-        success: response.response.success,
+        success: response.response.success || 'Webinar info retrieved',
       };
     } catch (error) {
       this.logger.error('Failed to get webinar info', error);
@@ -195,11 +145,11 @@ export class MyOwnConferenceService {
   ): Promise<{ success: string }> {
     await this.createAttendee(attendeeEmail, attendeeName);
 
-    const requestData: AddAttendeeToWebinarRequest = {
+    const requestData = {
       key: this.apiKey,
       action: 'attendeesAddToWebinar',
       params: {
-        alias,
+        alias: alias,
         attendees: [attendeeEmail],
       },
     };
@@ -211,12 +161,8 @@ export class MyOwnConferenceService {
         throw new Error(`MyOwnConference API Error: ${response.response.error}`);
       }
 
-      if (!response.response.success) {
-        throw new Error('Failed to add attendee to webinar: operation was not successful');
-      }
-
       return {
-        success: response.response.success,
+        success: response.response.success || 'Attendee added',
       };
     } catch (error) {
       this.logger.error('Failed to add attendee to webinar', error);
@@ -225,12 +171,12 @@ export class MyOwnConferenceService {
   }
 
   private async createAttendee(email: string, name: string): Promise<void> {
-    const requestData: CreateAttendeeRequest = {
+    const requestData = {
       key: this.apiKey,
       action: 'attendeesCreate',
       params: {
-        email,
-        name,
+        name: name,
+        email: email,
       },
     };
 
@@ -245,9 +191,6 @@ export class MyOwnConferenceService {
     }
   }
 
-  /**
-   * Получение ссылки для участника
-   */
   async getAttendeeLink(alias: string, email: string): Promise<string> {
     const requestData = {
       key: this.apiKey,
@@ -273,9 +216,6 @@ export class MyOwnConferenceService {
     }
   }
 
-  /**
-   * Отправка запроса к API
-   */
   private async sendRequest<T = any>(data: any): Promise<T> {
     const formData = new URLSearchParams();
     formData.append('request', JSON.stringify(data));
@@ -295,9 +235,6 @@ export class MyOwnConferenceService {
     return (await response.json()) as T;
   }
 
-  /**
-   * Форматирование даты для API
-   */
   formatDateForAPI(date: Date): string {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');

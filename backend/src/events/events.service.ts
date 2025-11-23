@@ -9,7 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../users/user.entity';
 import { VideoProvider, VideoRoom } from './entities/video-room.entity';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Event, EventStatus } from './entities/event.entity';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
@@ -88,10 +88,6 @@ export class EventsService {
         name: savedEvent.title,
         start: this.myOwnConferenceService.formatDateForAPI(savedEvent.datetimeStart),
         duration: savedEvent.durationMinutes,
-        description: savedEvent.description,
-        maxParticipants: savedEvent.maxParticipants,
-        close: false,
-        language: 'RU',
       });
 
       const videoRoom = this.videoRoomRepository.create({
@@ -138,7 +134,15 @@ export class EventsService {
 
     const now = new Date();
     if (event.datetimeStart <= now) {
-      throw new BadRequestException('Нельзя редактировать событие после его начала');
+      if (updateEventDto.title !== undefined) {
+        throw new BadRequestException('Нельзя изменять название после начала события');
+      }
+      if (updateEventDto.datetime_start !== undefined) {
+        throw new BadRequestException('Нельзя изменять время после начала события');
+      }
+      if (updateEventDto.price !== undefined) {
+        throw new BadRequestException('Нельзя изменять цену после начала события');
+      }
     }
 
     if (updateEventDto.max_participants !== undefined) {
@@ -186,6 +190,19 @@ export class EventsService {
     }
 
     if (isPriceChanged) {
+      const paidRegistrations = await this.userEventRepository.count({
+        where: {
+          eventId,
+          paymentStatus: PaymentStatus.PAID,
+        },
+      });
+
+      if (paidRegistrations > 0) {
+        throw new BadRequestException(
+          'Нельзя изменять цену, так как уже есть оплаченные регистрации'
+        );
+      }
+
       event.price = updateEventDto.price;
       event.platformFee = Number((updateEventDto.price * 0.1).toFixed(2));
       event.mentorRevenue = Number((updateEventDto.price * 0.9).toFixed(2));
@@ -209,7 +226,6 @@ export class EventsService {
           name: updatedEvent.title,
           start: this.myOwnConferenceService.formatDateForAPI(updatedEvent.datetimeStart),
           duration: updatedEvent.durationMinutes,
-          description: updatedEvent.description,
         });
       } catch (error) {
         this.logger.error('Failed to update webinar room', error);
@@ -275,7 +291,7 @@ export class EventsService {
     const userEvent = this.userEventRepository.create({
       eventId,
       userId: studentId,
-      status: ParticipationStatus.REGISTERED,
+      status: event.price > 0 ? ParticipationStatus.PENDING : ParticipationStatus.REGISTERED,
       paymentStatus: event.price > 0 ? PaymentStatus.PENDING : PaymentStatus.PAID,
     });
 
@@ -349,7 +365,7 @@ export class EventsService {
   async getEventDetails(eventId: string): Promise<EventDetailResponseDto> {
     const event = await this.eventsRepository.findOne({
       where: { id: eventId },
-      relations: ['mentor', 'videoRoom', 'userEvents', 'userEvents.user'],
+      relations: ['mentor', 'videoRoom', 'userEvents', 'userEvents.user'], // Убедитесь что videoRoom включен
     });
 
     if (!event) {
@@ -691,11 +707,17 @@ export class EventsService {
       where: {
         eventId,
         userId,
-        status: ParticipationStatus.REGISTERED,
+        status: In([ParticipationStatus.REGISTERED, ParticipationStatus.PENDING]),
       },
     });
 
     const isMentor = event.mentorId === userId;
+
+    if (event.price > 0 && userRegistration) {
+      if (userRegistration.paymentStatus !== PaymentStatus.PAID) {
+        throw new ForbiddenException('Необходимо оплатить событие для доступа к видеочату');
+      }
+    }
 
     if (!userRegistration && !isMentor) {
       throw new ForbiddenException('Вы не записаны на это событие');
@@ -776,18 +798,18 @@ export class EventsService {
     }
 
     try {
-      let videoRoomData;
+      let videoRoomData: {
+        externalId: string;
+        url: string;
+        moderatorUrl: string;
+      };
 
       switch (provider) {
-        case VideoProvider.MY_OWN_CONFERENCE:
+        case VideoProvider.MY_OWN_CONFERENCE: {
           const webinarResponse = await this.myOwnConferenceService.createWebinar({
             name: event.title,
             start: this.myOwnConferenceService.formatDateForAPI(event.datetimeStart),
             duration: event.durationMinutes,
-            description: event.description,
-            maxParticipants: event.maxParticipants,
-            close: false,
-            language: 'RU',
           });
 
           videoRoomData = {
@@ -796,6 +818,7 @@ export class EventsService {
             moderatorUrl: webinarResponse.mainModeratorLink,
           };
           break;
+        }
 
         case VideoProvider.TELEMOST:
           throw new BadRequestException('Интеграция с Telemost пока не реализована');
@@ -825,7 +848,9 @@ export class EventsService {
       };
     } catch (error) {
       this.logger.error(`Failed to create video room with provider ${provider}`, error);
-      throw new BadRequestException(`Не удалось создать видеокомнату: ${error.message}`);
+      throw new BadRequestException(
+        `Не удалось создать видеокомнату: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+      );
     }
   }
 }

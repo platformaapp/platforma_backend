@@ -15,6 +15,7 @@ export enum ParticipationStatus {
   REGISTERED = 'registered',
   CANCELLED = 'cancelled',
   ATTENDED = 'attended',
+  PENDING = 'pending',
 }
 
 export enum PaymentStatus {

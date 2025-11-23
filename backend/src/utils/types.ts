@@ -183,17 +183,7 @@ export interface WebinarResponse {
 export interface MyOwnConferenceRequest {
   key: string;
   action: string;
-  params: {
-    name: string;
-    start: string;
-    duration: number;
-    description: string;
-    close: string;
-    language: string;
-    settings?: {
-      maxParticipants: number;
-    };
-  };
+  params: any[];
 }
 
 export interface MyOwnConferenceResponse {
@@ -218,18 +208,7 @@ export interface UpdateWebinarParams {
 export interface UpdateWebinarRequest {
   key: string;
   action: string;
-  params: {
-    alias: string;
-    name?: string;
-    start?: string;
-    duration?: number;
-    description?: string;
-    close?: string;
-    language?: string;
-    settings?: {
-      maxParticipants: number;
-    };
-  };
+  params: any[];
 }
 
 export interface UpdateWebinarResponse {
@@ -279,7 +258,6 @@ export interface AttendeeApiResponse {
   };
 }
 
-// Добавьте эти интерфейсы в файл types.ts
 export interface BaseApiResponse {
   response: {
     error?: string;
@@ -291,7 +269,6 @@ export interface WebinarInfoResponse {
   response: {
     error?: string;
     success?: string;
-    // Добавьте другие поля, которые возвращает API для получения информации
     alias?: string;
     webinarLink?: string;
     mainModeratorLink?: string;
@@ -304,7 +281,6 @@ export interface AttendeesListResponse {
     list?: Array<{
       email: string;
       link: string;
-      // другие поля участника
     }>;
   };
 }
