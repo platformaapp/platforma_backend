@@ -323,8 +323,8 @@ export class EventsService {
     const userEvent = this.userEventRepository.create({
       eventId,
       userId: studentId,
-      status: participationStatus, // ← ИСПОЛЬЗУЙТЕ ВЫЧИСЛЕННОЕ ЗНАЧЕНИЕ
-      paymentStatus: paymentStatus, // ← ИСПОЛЬЗУЙТЕ ВЫЧИСЛЕННОЕ ЗНАЧЕНИЕ
+      status: participationStatus,
+      paymentStatus: paymentStatus,
     });
 
     const savedUserEvent = await this.userEventRepository.save(userEvent);
