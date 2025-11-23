@@ -13,6 +13,7 @@ import { User } from '../../users/user.entity';
 import { VideoRoom } from './video-room.entity';
 import { UserEvent } from './user-event.entity';
 import { Slot } from '../../slots/entities/slot.entity';
+import { Session } from 'src/session/entities/session.entity';
 
 export enum EventStatus {
   DRAFT = 'draft',
@@ -89,6 +90,13 @@ export class Event {
 
   @OneToMany(() => UserEvent, (userEvent) => userEvent.event)
   userEvents: UserEvent[];
+
+  @OneToOne(() => Session, { nullable: true })
+  @JoinColumn({ name: 'session_id' })
+  session: Session;
+
+  @Column({ name: 'session_id', nullable: true })
+  sessionId: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
