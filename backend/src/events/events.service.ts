@@ -293,11 +293,38 @@ export class EventsService {
       throw new BadRequestException('Достигнут лимит участников');
     }
 
+    let paymentStatus = PaymentStatus.PENDING;
+    let participationStatus = ParticipationStatus.PENDING;
+
+    if (event.price > 0) {
+      const successfulPayments = await this.paymentRepository.find({
+        where: {
+          userId: studentId,
+          status: PaymentEntityStatus.SUCCESS,
+        },
+      });
+
+      this.logger.log(
+        `Found ${successfulPayments.length} successful payments for user during registration`
+      );
+
+      if (successfulPayments.length > 0) {
+        paymentStatus = PaymentStatus.PAID;
+        participationStatus = ParticipationStatus.REGISTERED;
+        this.logger.log(`User has successful payments, setting registration as PAID`);
+      } else {
+        this.logger.log(`No successful payments found, registration will be PENDING`);
+      }
+    } else {
+      paymentStatus = PaymentStatus.PAID;
+      participationStatus = ParticipationStatus.REGISTERED;
+    }
+
     const userEvent = this.userEventRepository.create({
       eventId,
       userId: studentId,
-      status: event.price > 0 ? ParticipationStatus.PENDING : ParticipationStatus.REGISTERED,
-      paymentStatus: event.price > 0 ? PaymentStatus.PENDING : PaymentStatus.PAID,
+      status: participationStatus, // ← ИСПОЛЬЗУЙТЕ ВЫЧИСЛЕННОЕ ЗНАЧЕНИЕ
+      paymentStatus: paymentStatus, // ← ИСПОЛЬЗУЙТЕ ВЫЧИСЛЕННОЕ ЗНАЧЕНИЕ
     });
 
     const savedUserEvent = await this.userEventRepository.save(userEvent);
