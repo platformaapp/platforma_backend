@@ -13,6 +13,7 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
+import { UserEvent } from '../events/entities/user-event.entity';
 
 export type UserRole = 'student' | 'tutor' | 'admin';
 
@@ -54,8 +55,14 @@ export class User {
   @OneToMany(() => Slot, (slot) => slot.tutor, { cascade: true })
   tutorSlots: Slot[];
 
-  @OneToMany(() => Event, (event) => event.student)
-  studentEvents: Event[];
+  // @OneToMany(() => Event, (event) => event.student)
+  // studentEvents: Event[];
+
+  @OneToMany(() => Event, (event) => event.mentor)
+  mentoredEvents: Event[];
+
+  @OneToMany(() => UserEvent, (userEvent) => userEvent.user)
+  userEvents: UserEvent[];
 
   @OneToMany(() => Payment, (payment) => payment.tutor)
   payments: Payment[];

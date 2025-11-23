@@ -15,10 +15,11 @@ import { WebhooksController } from './webhooks.controller';
 import { Transaction } from './entities/transaction.entity';
 import { TransactionsService } from './transactions.service';
 import { ConfigModule } from '@nestjs/config';
+import { UserEvent } from 'src/events/entities/user-event.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Payment, PaymentMethod, Session, User, Transaction]),
+    TypeOrmModule.forFeature([Payment, PaymentMethod, Session, User, Transaction, UserEvent]),
     AuthModule,
     JwtModule,
     ConfigModule,

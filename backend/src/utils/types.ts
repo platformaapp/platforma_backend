@@ -97,7 +97,6 @@ export interface YookassaWebhook {
         expiry_year: string;
       };
     };
-    // Добавляем недостающие свойства
     error?: {
       message?: string;
     };
@@ -160,5 +159,127 @@ export interface YookassaPaymentResponse {
   status: string;
   confirmation: {
     confirmation_url: string;
+  };
+}
+
+export interface CreateWebinarParams {
+  name: string;
+  start: string;
+  duration: number;
+  description?: string;
+  maxParticipants?: number;
+  close?: boolean;
+  language?: string;
+}
+
+export interface WebinarResponse {
+  success: string;
+  alias: string;
+  webinarLink: string;
+  mainModeratorLink: string;
+}
+
+export interface MyOwnConferenceRequest {
+  key: string;
+  action: string;
+  params: any[];
+}
+
+export interface MyOwnConferenceResponse {
+  response: {
+    error?: string;
+    alias?: string;
+    webinarLink?: string;
+    mainModeratorLink?: string;
+  };
+}
+
+export interface UpdateWebinarParams {
+  name?: string;
+  start?: string;
+  duration?: number;
+  description?: string;
+  maxParticipants?: number;
+  close?: boolean;
+  language?: string;
+}
+
+export interface UpdateWebinarRequest {
+  key: string;
+  action: string;
+  params: any[];
+}
+
+export interface UpdateWebinarResponse {
+  response: {
+    error?: string;
+    success?: string;
+  };
+}
+
+export interface DeleteWebinarRequest {
+  key: string;
+  action: string;
+  params: {
+    alias: string;
+  };
+}
+
+export interface DeleteWebinarResponse {
+  response: {
+    error?: string;
+    success?: string;
+  };
+}
+
+export interface CreateAttendeeRequest {
+  key: string;
+  action: string;
+  params: {
+    email: string;
+    name: string;
+  };
+}
+
+export interface AddAttendeeToWebinarRequest {
+  key: string;
+  action: string;
+  params: {
+    alias: string;
+    attendees: string[];
+  };
+}
+
+export interface AttendeeApiResponse {
+  response: {
+    error?: string;
+    success?: string;
+  };
+}
+
+export interface BaseApiResponse {
+  response: {
+    error?: string;
+    success?: string;
+  };
+}
+
+export interface WebinarInfoResponse {
+  response: {
+    error?: string;
+    success?: string;
+    alias?: string;
+    webinarLink?: string;
+    mainModeratorLink?: string;
+  };
+}
+
+export interface AttendeesListResponse {
+  response: {
+    error?: string;
+    list?: Array<{
+      email: string;
+      link: string;
+    }>;
   };
 }

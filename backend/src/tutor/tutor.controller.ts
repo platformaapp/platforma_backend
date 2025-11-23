@@ -18,8 +18,6 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { GetSlotsFilterDto } from './dto/get-slots-filter.dto';
 import { CreateSlotDto } from './dto/create-slot.dto';
 import { UpdateSlotDto } from './dto/update-slot.dto';
-import { CreateEventDto } from './dto/create-event.dto';
-import { UpdateEventStatusDto } from './dto/update-eventStatus.dto';
 import type { AuthenticatedRequest, BookingDetails } from 'src/utils/types';
 import {
   ApiTags,
@@ -40,7 +38,7 @@ export class TutorController {
   @UseGuards(TutorGuard)
   @ApiOperation({ summary: 'Get tutor profile' })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Tutor profile retrieved successfully',
   })
   getProfile(@Req() req: AuthenticatedRequest) {
@@ -54,7 +52,7 @@ export class TutorController {
   @ApiOperation({ summary: 'Update tutor profile' })
   @ApiBody({ type: UpdateProfileDto })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Profile updated successfully',
   })
   updateProfile(@Req() req: AuthenticatedRequest, @Body() updateProfileDto: UpdateProfileDto) {
@@ -68,7 +66,7 @@ export class TutorController {
   @UseGuards(TutorGuard)
   @ApiOperation({ summary: 'Get tutor slots' })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Slots retrieved successfully',
   })
   getSlots(@Req() req: AuthenticatedRequest, @Query() filterDto: GetSlotsFilterDto) {
@@ -81,7 +79,7 @@ export class TutorController {
   @ApiOperation({ summary: 'Create slot' })
   @ApiBody({ type: CreateSlotDto })
   @ApiResponse({
-    status: 201,
+    status: HttpStatus.CREATED,
     description: 'Slot created successfully',
   })
   createSlot(@Req() req: AuthenticatedRequest, @Body() createSlotDto: CreateSlotDto) {
@@ -95,7 +93,7 @@ export class TutorController {
   @ApiParam({ name: 'id', description: 'Slot ID' })
   @ApiBody({ type: UpdateSlotDto })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Slot updated successfully',
   })
   updateSlot(
@@ -112,7 +110,7 @@ export class TutorController {
   @ApiOperation({ summary: 'Delete slot' })
   @ApiParam({ name: 'id', description: 'Slot ID' })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Slot deleted successfully',
     schema: {
       example: {
@@ -141,7 +139,7 @@ export class TutorController {
     },
   })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Slots deleted successfully',
     schema: {
       example: {
@@ -163,48 +161,48 @@ export class TutorController {
   }
 
   //Events
-  @Get('events')
-  @UseGuards(TutorGuard)
-  @ApiOperation({ summary: 'Get tutor events' })
-  @ApiResponse({
-    status: 200,
-    description: 'Events retrieved successfully',
-  })
-  getEvents(@Req() req: AuthenticatedRequest) {
-    const userId = req.user.sub;
-    return this.tutorService.getTutorEvents(userId);
-  }
-
-  @Post('events')
-  @UseGuards(TutorGuard)
-  @ApiOperation({ summary: 'Create event' })
-  @ApiBody({ type: CreateEventDto })
-  @ApiResponse({
-    status: 201,
-    description: 'Event created successfully',
-  })
-  async createEvent(@Req() req: AuthenticatedRequest, @Body() createEventDto: CreateEventDto) {
-    const userId = req.user.sub;
-    return this.tutorService.createEvent(userId, createEventDto);
-  }
-
-  @Put('events/:id')
-  @UseGuards(TutorGuard)
-  @ApiOperation({ summary: 'Update event status' })
-  @ApiParam({ name: 'id', description: 'Event ID' })
-  @ApiBody({ type: UpdateEventStatusDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Event status updated successfully',
-  })
-  async updateEventStatus(
-    @Req() req: AuthenticatedRequest,
-    @Param('id') eventId: string,
-    @Body() updateEventStatusDto: UpdateEventStatusDto
-  ) {
-    const userId = req.user.sub;
-    return this.tutorService.updateEventStatus(userId, eventId, updateEventStatusDto.status);
-  }
+  // @Get('events')
+  // @UseGuards(TutorGuard)
+  // @ApiOperation({ summary: 'Get tutor events' })
+  // @ApiResponse({
+  //   status: 200,
+  //   description: 'Events retrieved successfully',
+  // })
+  // getEvents(@Req() req: AuthenticatedRequest) {
+  //   const userId = req.user.sub;
+  //   return this.tutorService.getTutorEvents(userId);
+  // }
+  //
+  // @Post('events')
+  // @UseGuards(TutorGuard)
+  // @ApiOperation({ summary: 'Create event' })
+  // @ApiBody({ type: CreateEventDto })
+  // @ApiResponse({
+  //   status: 201,
+  //   description: 'Event created successfully',
+  // })
+  // async createEvent(@Req() req: AuthenticatedRequest, @Body() createEventDto: CreateEventDto) {
+  //   const userId = req.user.sub;
+  //   return this.tutorService.createEvent(userId, createEventDto);
+  // }
+  //
+  // @Put('events/:id')
+  // @UseGuards(TutorGuard)
+  // @ApiOperation({ summary: 'Update event status' })
+  // @ApiParam({ name: 'id', description: 'Event ID' })
+  // @ApiBody({ type: UpdateEventStatusDto })
+  // @ApiResponse({
+  //   status: 200,
+  //   description: 'Event status updated successfully',
+  // })
+  // async updateEventStatus(
+  //   @Req() req: AuthenticatedRequest,
+  //   @Param('id') eventId: string,
+  //   @Body() updateEventStatusDto: UpdateEventStatusDto
+  // ) {
+  //   const userId = req.user.sub;
+  //   return this.tutorService.updateEventStatus(userId, eventId, updateEventStatusDto.status);
+  // }
 
   @Get('payments')
   @UseGuards(TutorGuard)
@@ -222,7 +220,7 @@ export class TutorController {
   @UseGuards(TutorGuard)
   @ApiOperation({ summary: 'Get payments summary' })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Payments summary retrieved successfully',
   })
   async getPaymentsSummary(@Req() req: AuthenticatedRequest) {
@@ -234,7 +232,7 @@ export class TutorController {
   @UseGuards(TutorGuard)
   @ApiOperation({ summary: 'Get bookings as a tutor' })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Booking list got successfully',
   })
   async getMyBookings(@Req() req: AuthenticatedRequest): Promise<BookingDetails[]> {
@@ -247,7 +245,7 @@ export class TutorController {
   @ApiOperation({ summary: 'End of session' })
   @ApiParam({ name: 'id', description: 'Booking ID' })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'The session ended successfully',
     example: {
       id: '123e45u67',
@@ -258,7 +256,7 @@ export class TutorController {
     },
   })
   @ApiResponse({
-    status: 404,
+    status: HttpStatus.NOT_FOUND,
     description: 'No bookings found',
   })
   async completeBooking(

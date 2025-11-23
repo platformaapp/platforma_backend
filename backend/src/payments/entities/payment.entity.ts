@@ -17,6 +17,7 @@ export enum PaymentStatus {
   SUCCESS = 'success',
   FAILED = 'failed',
   CANCELED = 'canceled',
+  PAID = 'paid',
 }
 
 @Entity('payments')

@@ -18,23 +18,21 @@ export class TransactionsService {
 
   async createBindTransaction(
     userId: string,
-    paymentMethodId: string // ОБЯЗАТЕЛЬНЫЙ параметр
+    paymentMethodId: string
   ): Promise<{
     transaction: Transaction;
     redirectUrl: string;
     yookassaPaymentId: string;
   }> {
     try {
-      // Сначала создаем платеж в YooKassa
       const returnUrl = `${FRONTEND_URL}/payment-methods/callback`;
       const { confirmationUrl, paymentId } =
         await this.yookassaService.createPaymentMethodAttachment(returnUrl);
 
-      // Затем создаем транзакцию с paymentMethodId
       const transaction = this.transactionRepository.create({
         userId,
         yookassaPaymentId: paymentId,
-        paymentMethodId: paymentMethodId, // УБЕДИТЕСЬ ЧТО ЭТО ЕСТЬ
+        paymentMethodId: paymentMethodId,
         amount: 1.0,
         description: 'Привязка карты',
         type: TransactionType.CARD_BINDING,

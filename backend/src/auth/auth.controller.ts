@@ -39,7 +39,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Register new user' })
   @ApiBody({ type: RegisterDto })
   @ApiResponse({
-    status: 201,
+    status: HttpStatus.CREATED,
     description: 'User successfully registered (sets refreshToken cookie)',
     schema: {
       example: {
@@ -65,7 +65,7 @@ export class AuthController {
   @ApiOperation({ summary: 'User login' })
   @ApiBody({ type: LoginDto })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Successfully logged in (sets refreshToken cookie)',
     schema: {
       example: {
@@ -89,7 +89,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiCookieAuth('refreshToken')
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Token refreshed successfully',
     schema: {
       example: {
@@ -118,7 +118,7 @@ export class AuthController {
   @ApiBearerAuth('JWT-auth')
   @ApiCookieAuth('refreshToken')
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Successfully logged out',
     schema: {
       example: {
@@ -146,7 +146,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Request password reset' })
   @ApiBody({ type: ForgotPasswordDto })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Password reset link sent',
     schema: {
       example: {
@@ -169,7 +169,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Reset password' })
   @ApiBody({ type: ResetPasswordDto })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Password reset successfully',
     schema: {
       example: {
