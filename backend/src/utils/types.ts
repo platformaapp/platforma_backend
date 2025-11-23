@@ -97,7 +97,6 @@ export interface YookassaWebhook {
         expiry_year: string;
       };
     };
-    // Добавляем недостающие свойства
     error?: {
       message?: string;
     };
@@ -165,11 +164,11 @@ export interface YookassaPaymentResponse {
 
 export interface CreateWebinarParams {
   name: string;
-  start: string; // YYYY-MM-DD HH:MM:SS
-  duration: number; // в минутах
+  start: string;
+  duration: number;
   description?: string;
   maxParticipants?: number;
-  close?: boolean; // приватный или публичный
+  close?: boolean;
   language?: string;
 }
 

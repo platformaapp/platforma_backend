@@ -365,7 +365,7 @@ export class EventsService {
   async getEventDetails(eventId: string): Promise<EventDetailResponseDto> {
     const event = await this.eventsRepository.findOne({
       where: { id: eventId },
-      relations: ['mentor', 'videoRoom', 'userEvents', 'userEvents.user'], // Убедитесь что videoRoom включен
+      relations: ['mentor', 'videoRoom', 'userEvents', 'userEvents.user'],
     });
 
     if (!event) {
@@ -713,11 +713,12 @@ export class EventsService {
 
     const isMentor = event.mentorId === userId;
 
-    if (event.price > 0 && userRegistration) {
-      if (userRegistration.paymentStatus !== PaymentStatus.PAID) {
-        throw new ForbiddenException('Необходимо оплатить событие для доступа к видеочату');
-      }
-    }
+    //TODO закончить проверку, допустить только учеников, которы оплатили сессию.
+    // if (event.price > 0 && userRegistration) {
+    //   if (userRegistration.paymentStatus !== PaymentStatus.PAID) {
+    //     throw new ForbiddenException('Необходимо оплатить событие для доступа к видеочату');
+    //   }
+    // }
 
     if (!userRegistration && !isMentor) {
       throw new ForbiddenException('Вы не записаны на это событие');

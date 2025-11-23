@@ -61,7 +61,6 @@ export class User {
   @OneToMany(() => Event, (event) => event.mentor)
   mentoredEvents: Event[];
 
-  // Записи пользователя на события (как ученика)
   @OneToMany(() => UserEvent, (userEvent) => userEvent.user)
   userEvents: UserEvent[];
 
