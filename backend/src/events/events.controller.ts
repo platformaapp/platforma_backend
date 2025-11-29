@@ -11,6 +11,7 @@ import {
   ParseUUIDPipe,
   Delete,
   Get,
+  Query,
 } from '@nestjs/common';
 import { EventsService } from './events.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -23,6 +24,8 @@ import { RegisterResponseDto } from './dto/register-response.dto';
 import { EventDetailResponseDto } from './dto/event-detail-response.dto';
 import { CountdownResponseDto } from './dto/countdown-response.dto';
 import { CreateVideoRoomDto, VideoRoomResponseDto } from './dto/create-video-room.dto';
+import { EventsFeedQueryDto } from './dto/events-feed-query.dto';
+import { EventsFeedResponseDto } from './dto/events-feed-response.dto';
 
 @Controller('events')
 export class EventsController {
@@ -37,6 +40,15 @@ export class EventsController {
   ): Promise<EventResponseDto> {
     const event = await this.eventsService.createEvent(createEventDto, req.user.sub);
     return toEventResponseDto(event);
+  }
+
+  @Get('feed')
+  async getEventsFeed(
+    @Query() query: EventsFeedQueryDto,
+    @Req() req?: AuthenticatedRequest
+  ): Promise<EventsFeedResponseDto> {
+    const userId = req?.user?.sub;
+    return await this.eventsService.getEventsFeed(query, userId);
   }
 
   @Patch(':id')

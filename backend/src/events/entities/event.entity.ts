@@ -98,6 +98,9 @@ export class Event {
   @Column({ name: 'session_id', nullable: true })
   sessionId: string;
 
+  @Column({ type: 'text', name: 'cover_url', nullable: true })
+  coverUrl: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

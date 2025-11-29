@@ -26,6 +26,14 @@ import { EmailService } from '../notifications/email.service';
 import { MyOwnConferenceService } from './myownconference.service';
 import { CreateVideoRoomDto, VideoRoomResponseDto } from './dto/create-video-room.dto';
 import { Payment } from 'src/payments/entities/payment.entity';
+import { EventsFeedQueryDto } from './dto/events-feed-query.dto';
+import {
+  EventFeedItemDto,
+  EventsFeedResponseDto,
+  MentorDto,
+  PaginationDto,
+  TimeToEventDto,
+} from './dto/events-feed-response.dto';
 
 @Injectable()
 export class EventsService {
@@ -43,7 +51,9 @@ export class EventsService {
     private readonly emailService: EmailService,
     private readonly myOwnConferenceService: MyOwnConferenceService,
     @InjectRepository(Payment)
-    private readonly paymentRepository: Repository<Payment>
+    private readonly paymentRepository: Repository<Payment>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>
   ) {}
 
   async createEvent(createEventDto: CreateEventDto, mentorId: string): Promise<Event> {
@@ -922,5 +932,105 @@ export class EventsService {
         `Не удалось создать видеокомнату: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
       );
     }
+  }
+
+  async getEventsFeed(query: EventsFeedQueryDto, userId?: string): Promise<EventsFeedResponseDto> {
+    const { page, limit } = query;
+
+    if (page < 1) throw new BadRequestException('invalid_page');
+
+    if (limit < 1 || limit > 100) throw new BadRequestException('invalid_limit');
+
+    const skip = (page - 1) * limit;
+
+    const now = new Date();
+
+    const [events, total] = await this.eventsRepository
+      .createQueryBuilder('event')
+      .leftJoinAndSelect('event.mentor', 'mentor')
+      .leftJoinAndSelect('event.userEvents', 'userEvents')
+      .where('event.status = :status', { status: EventStatus.SCHEDULED })
+      .andWhere('event.datetimeStart > :now', { now })
+      .orderBy('event.datetimeStart', 'ASC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const items: EventFeedItemDto[] = await Promise.all(
+      events.map(async (event) => {
+        let isRegistered = false;
+        let isPaid = false;
+
+        if (userId) {
+          const userEvent = await this.userEventRepository.findOne({
+            where: {
+              event: { id: event.id },
+              user: { id: userId },
+              status: ParticipationStatus.REGISTERED,
+            },
+          });
+
+          isRegistered = !!userEvent;
+          isPaid = userEvent?.paymentStatus === PaymentStatus.PAID;
+        }
+
+        const timeToEvent = this.calculateTimeToEvent(event.datetimeStart);
+
+        const mentor: MentorDto = {
+          id: event.mentor.id,
+          name: event.mentor.fullName,
+          avatarUrl: event.mentor.avatarUrl,
+        };
+
+        return {
+          id: event.id,
+          title: event.title,
+          description: event.description,
+          datetimeStart: event.datetimeStart.toISOString(),
+          timeToEvent,
+          durationMinutes: event.durationMinutes,
+          coverUrl: null,
+          price: Number(event.price),
+          mentor,
+          ...(userId && {
+            isRegistered,
+            isPaid,
+          }),
+          status: event.status,
+        };
+      })
+    );
+
+    const pagination: PaginationDto = {
+      page,
+      limit,
+      total,
+      hasNext: page * limit < total,
+    };
+
+    return {
+      items,
+      pagination,
+    };
+  }
+
+  private calculateTimeToEvent(datetimeStart: Date): TimeToEventDto | null {
+    const now = new Date();
+    const start = new Date(datetimeStart);
+
+    if (start <= now) return null;
+
+    const deltaMs = start.getTime() - now.getTime();
+    const deltaSeconds = Math.floor(deltaMs / 1000);
+
+    const days = Math.floor(deltaSeconds / 86400);
+    const hours = Math.floor((deltaSeconds % 86400) / 3600);
+    const minutes = Math.floor((deltaSeconds % 3600) / 60);
+
+    return {
+      days,
+      hours,
+      minutes,
+    };
   }
 }
