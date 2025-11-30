@@ -7,8 +7,11 @@ import {
   IsOptional,
   Min,
   Max,
+  IsEnum,
+  IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { EventType } from '../entities/event.entity';
 
 export class CreateEventDto {
   @IsString()
@@ -36,4 +39,12 @@ export class CreateEventDto {
   @IsOptional()
   @Type(() => Number)
   max_participants?: number;
+
+  @IsOptional()
+  @IsUUID()
+  sessionId?: string;
+
+  @IsOptional()
+  @IsEnum(EventType)
+  type?: EventType;
 }

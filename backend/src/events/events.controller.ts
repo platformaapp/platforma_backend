@@ -43,6 +43,7 @@ export class EventsController {
   }
 
   @Get('feed')
+  @UseGuards(JwtAuthGuard)
   async getEventsFeed(
     @Query() query: EventsFeedQueryDto,
     @Req() req?: AuthenticatedRequest

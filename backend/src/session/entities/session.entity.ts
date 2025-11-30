@@ -8,6 +8,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { User } from '../../users/user.entity';
+import { Payment } from 'src/payments/entities/payment.entity';
 
 export enum SessionStatus {
   PLANNED = 'planned',
@@ -50,6 +51,10 @@ export class Session {
     default: SessionStatus.PLANNED,
   })
   status: SessionStatus;
+
+  @ManyToOne(() => Payment, { nullable: true })
+  @JoinColumn({ name: 'payment_id' })
+  payment: Payment;
 
   @Column({ name: 'payment_id', nullable: true })
   paymentId: string | null;

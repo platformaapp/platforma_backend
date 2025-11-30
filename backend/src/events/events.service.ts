@@ -10,7 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../users/user.entity';
 import { VideoProvider, VideoRoom } from './entities/video-room.entity';
 import { In, Repository } from 'typeorm';
-import { Event, EventStatus } from './entities/event.entity';
+import { Event, EventStatus, EventType } from './entities/event.entity';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { ParticipationStatus, PaymentStatus, UserEvent } from './entities/user-event.entity';
@@ -34,6 +34,7 @@ import {
   PaginationDto,
   TimeToEventDto,
 } from './dto/events-feed-response.dto';
+import { Session } from 'src/session/entities/session.entity';
 
 @Injectable()
 export class EventsService {
@@ -53,21 +54,25 @@ export class EventsService {
     @InjectRepository(Payment)
     private readonly paymentRepository: Repository<Payment>,
     @InjectRepository(User)
-    private readonly userRepository: Repository<User>
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(Session)
+    private readonly sessionRepository: Repository<Session>
   ) {}
 
   async createEvent(createEventDto: CreateEventDto, mentorId: string): Promise<Event> {
-    const startDate = new Date(createEventDto.datetime_start);
-    const endDate = new Date(createEventDto.datetime_end);
+    if (createEventDto.sessionId) {
+      const existingEvent = await this.eventsRepository.findOne({
+        where: { sessionId: createEventDto.sessionId },
+      });
+
+      if (existingEvent) {
+        throw new ConflictException('Для этой сессии уже создано событие');
+      }
+    }
+
+    let startDate = createEventDto.datetime_start ? new Date(createEventDto.datetime_start) : null;
+    let endDate = createEventDto.datetime_end ? new Date(createEventDto.datetime_end) : null;
     const now = new Date();
-
-    if (startDate >= endDate) {
-      throw new BadRequestException('Время окончания должно быть позже времени начала');
-    }
-
-    if (startDate <= now) {
-      throw new BadRequestException('Время начала должно быть в будущем');
-    }
 
     const mentor = await this.usersRepository.findOne({
       where: { id: mentorId, role: 'tutor' },
@@ -75,6 +80,47 @@ export class EventsService {
 
     if (!mentor) {
       throw new ForbiddenException('Только наставники могут создавать события');
+    }
+
+    let session: Session | null = null;
+    if (createEventDto.sessionId) {
+      session = await this.sessionRepository.findOne({
+        where: {
+          id: createEventDto.sessionId,
+          tutorId: mentorId,
+        },
+        relations: ['student', 'payment'],
+      });
+
+      if (!session) {
+        throw new NotFoundException('Сессия не найдена или у вас нет к ней доступа');
+      }
+
+      if (session.price > 0 && !session.paymentId) {
+        throw new BadRequestException('Сессия не оплачена, нельзя создать событие');
+      }
+
+      if (!startDate) {
+        startDate = session.startTime;
+      }
+      if (!endDate) {
+        endDate = session.endTime;
+      }
+      if (!createEventDto.price) {
+        createEventDto.price = Number(session.price);
+      }
+    }
+
+    if (!startDate || !endDate) {
+      throw new BadRequestException('Не указано время начала и окончания события');
+    }
+
+    if (startDate >= endDate) {
+      throw new BadRequestException('Время окончания должно быть позже времени начала');
+    }
+
+    if (startDate <= now) {
+      throw new BadRequestException('Время начала должно быть в будущем');
     }
 
     const durationMinutes = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60));
@@ -94,13 +140,22 @@ export class EventsService {
       maxParticipants: createEventDto.max_participants || 30,
       mentorId,
       status: EventStatus.SCHEDULED,
+      session: session ? { id: session.id } : undefined,
+      sessionId: session?.id,
+      type: session ? EventType.SESSION_BASED : EventType.STANDALONE,
     });
 
     const savedEvent = await this.eventsRepository.save(event);
 
     try {
+      let webinarName = savedEvent.title;
+      if (session) {
+        const studentName = session.student.fullName || session.student.email.split('@')[0];
+        webinarName = `${savedEvent.title} - ${studentName}`;
+      }
+
       const webinarResponse = await this.myOwnConferenceService.createWebinar({
-        name: savedEvent.title,
+        name: webinarName,
         start: this.myOwnConferenceService.formatDateForAPI(savedEvent.datetimeStart),
         duration: savedEvent.durationMinutes,
       });
@@ -114,8 +169,15 @@ export class EventsService {
       });
 
       await this.videoRoomRepository.save(videoRoom);
+
+      savedEvent.videoRoom = videoRoom;
+      savedEvent.videoRoomId = videoRoom.id;
     } catch (error) {
       this.logger.error('Failed to create webinar room', error);
+    }
+
+    if (session) {
+      await this.autoRegisterStudentForSessionEvent(savedEvent, session);
     }
 
     try {
@@ -738,7 +800,14 @@ export class EventsService {
   async getEventJoinUrl(eventId: string, userId: string): Promise<{ join_url: string }> {
     const event = await this.eventsRepository.findOne({
       where: { id: eventId },
-      relations: ['videoRoom', 'userEvents', 'mentor', 'userEvents.user'],
+      relations: [
+        'videoRoom',
+        'userEvents',
+        'mentor',
+        'userEvents.user',
+        'session',
+        'session.payment',
+      ],
     });
 
     if (!event) {
@@ -769,33 +838,29 @@ export class EventsService {
     }
 
     if (event.price > 0 && !isMentor) {
-      const successfulPayments = await this.paymentRepository.find({
-        where: {
-          userId: userId,
-          status: PaymentEntityStatus.SUCCESS,
-        },
-      });
+      if (event.type === EventType.SESSION_BASED && event.session) {
+        if (!event.session.paymentId) {
+          throw new ForbiddenException('Сессия не оплачена');
+        }
 
-      this.logger.log(`Found ${successfulPayments.length} successful payments for user`);
+        const payment = await this.paymentRepository.findOne({
+          where: { id: event.session.paymentId },
+        });
 
-      successfulPayments.forEach((payment) => {
-        this.logger.log(
-          `Payment: ${payment.id}, Amount: ${payment.amount}, Session: ${payment.sessionId}`
-        );
-      });
+        if (!payment || payment.status !== PaymentEntityStatus.SUCCESS) {
+          throw new ForbiddenException('Сессия не оплачена');
+        }
+      } else {
+        const successfulPayments = await this.paymentRepository.find({
+          where: {
+            userId: userId,
+            status: PaymentEntityStatus.SUCCESS,
+          },
+        });
 
-      const hasSuccessfulPayment = successfulPayments.length > 0;
-
-      this.logger.log(`hasSuccessfulPayment: ${hasSuccessfulPayment}`);
-
-      if (!hasSuccessfulPayment) {
-        throw new ForbiddenException('Необходимо оплатить событие для доступа к видеочату');
-      }
-
-      if (userRegistration && userRegistration.paymentStatus !== PaymentStatus.PAID) {
-        this.logger.log(`Updating user registration payment status to PAID`);
-        userRegistration.paymentStatus = PaymentStatus.PAID;
-        await this.userEventRepository.save(userRegistration);
+        if (!successfulPayments.length) {
+          throw new ForbiddenException('Необходимо оплатить событие для доступа к видеочату');
+        }
       }
     }
 
@@ -826,9 +891,7 @@ export class EventsService {
 
     try {
       if (isMentor && event.videoRoom?.moderatorUrl) {
-        return {
-          join_url: event.videoRoom.moderatorUrl,
-        };
+        return { join_url: event.videoRoom.moderatorUrl };
       }
 
       const user = await this.usersRepository.findOne({ where: { id: userId } });
@@ -839,9 +902,7 @@ export class EventsService {
         user.email
       );
 
-      return {
-        join_url: attendeeLink || event.videoRoom.url,
-      };
+      return { join_url: attendeeLink || event.videoRoom.url };
     } catch (error) {
       this.logger.error('Failed to get attendee link, using general URL', error);
       return {
@@ -936,12 +997,15 @@ export class EventsService {
 
   async getEventsFeed(query: EventsFeedQueryDto, userId?: string): Promise<EventsFeedResponseDto> {
     const { page, limit } = query;
-
-    if (page < 1) throw new BadRequestException('invalid_page');
-
-    if (limit < 1 || limit > 100) throw new BadRequestException('invalid_limit');
-
     const skip = (page - 1) * limit;
+
+    if (page < 1) {
+      throw new BadRequestException('invalid_page');
+    }
+
+    if (limit < 1 || limit > 100) {
+      throw new BadRequestException('invalid_limit');
+    }
 
     const now = new Date();
 
@@ -956,50 +1020,60 @@ export class EventsService {
       .take(limit)
       .getManyAndCount();
 
-    const items: EventFeedItemDto[] = await Promise.all(
-      events.map(async (event) => {
-        let isRegistered = false;
-        let isPaid = false;
+    let userEventsMap = new Map<string, { isRegistered: boolean; isPaid: boolean }>();
 
-        if (userId) {
-          const userEvent = await this.userEventRepository.findOne({
-            where: {
-              event: { id: event.id },
-              user: { id: userId },
-              status: ParticipationStatus.REGISTERED,
-            },
-          });
+    if (userId) {
+      const userEvents = await this.userEventRepository
+        .createQueryBuilder('userEvent')
+        .leftJoinAndSelect('userEvent.event', 'event')
+        .where('userEvent.userId = :userId', { userId })
+        .andWhere('userEvent.eventId IN (:...eventIds)', {
+          eventIds: events.map((e) => e.id),
+        })
+        .getMany();
 
-          isRegistered = !!userEvent;
-          isPaid = userEvent?.paymentStatus === PaymentStatus.PAID;
-        }
+      userEventsMap = userEvents.reduce((map, userEvent) => {
+        map.set(userEvent.event.id, {
+          isRegistered: this.isUserRegistered(userEvent),
+          isPaid: this.isUserPaid(userEvent),
+        });
+        return map;
+      }, new Map<string, { isRegistered: boolean; isPaid: boolean }>());
+    }
 
-        const timeToEvent = this.calculateTimeToEvent(event.datetimeStart);
+    const items: EventFeedItemDto[] = events.map((event) => {
+      const timeToEvent = this.calculateTimeToEvent(event.datetimeStart);
 
-        const mentor: MentorDto = {
-          id: event.mentor.id,
-          name: event.mentor.fullName,
-          avatarUrl: event.mentor.avatarUrl,
-        };
+      const mentor: MentorDto = {
+        id: event.mentor.id,
+        name: event.mentor.fullName,
+        avatarUrl: event.mentor.avatarUrl,
+      };
 
+      const baseItem: EventFeedItemDto = {
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        datetimeStart: event.datetimeStart.toISOString(),
+        timeToEvent,
+        durationMinutes: event.durationMinutes,
+        coverUrl: event.coverUrl,
+        price: Number(event.price),
+        mentor,
+        status: event.status,
+      };
+
+      if (userId) {
+        const userEventInfo = userEventsMap.get(event.id);
         return {
-          id: event.id,
-          title: event.title,
-          description: event.description,
-          datetimeStart: event.datetimeStart.toISOString(),
-          timeToEvent,
-          durationMinutes: event.durationMinutes,
-          coverUrl: null,
-          price: Number(event.price),
-          mentor,
-          ...(userId && {
-            isRegistered,
-            isPaid,
-          }),
-          status: event.status,
+          ...baseItem,
+          isRegistered: userEventInfo?.isRegistered || false,
+          isPaid: userEventInfo?.isPaid || false,
         };
-      })
-    );
+      }
+
+      return baseItem;
+    });
 
     const pagination: PaginationDto = {
       page,
@@ -1012,6 +1086,17 @@ export class EventsService {
       items,
       pagination,
     };
+  }
+
+  private isUserRegistered(userEvent: UserEvent): boolean {
+    return (
+      userEvent.status === ParticipationStatus.REGISTERED ||
+      userEvent.status === ParticipationStatus.ATTENDED
+    );
+  }
+
+  private isUserPaid(userEvent: UserEvent): boolean {
+    return userEvent.paymentStatus === PaymentStatus.PAID;
   }
 
   private calculateTimeToEvent(datetimeStart: Date): TimeToEventDto | null {
@@ -1032,5 +1117,58 @@ export class EventsService {
       hours,
       minutes,
     };
+  }
+
+  private async autoRegisterStudentForSessionEvent(event: Event, session: Session): Promise<void> {
+    try {
+      const existingRegistration = await this.userEventRepository.findOne({
+        where: {
+          eventId: event.id,
+          userId: session.studentId,
+        },
+      });
+
+      if (existingRegistration) {
+        this.logger.log(`Student ${session.studentId} already registered for event ${event.id}`);
+        return;
+      }
+
+      const userEvent = this.userEventRepository.create({
+        eventId: event.id,
+        userId: session.studentId,
+        status: ParticipationStatus.REGISTERED,
+        paymentStatus: PaymentStatus.PAID, // Так как сессия уже оплачена
+      });
+
+      await this.userEventRepository.save(userEvent);
+
+      if (event.videoRoom?.externalId) {
+        const student = await this.usersRepository.findOne({
+          where: { id: session.studentId },
+        });
+
+        if (student) {
+          try {
+            await this.myOwnConferenceService.addAttendeeToWebinar(
+              event.videoRoom.externalId,
+              student.email,
+              student.fullName || student.email.split('@')[0]
+            );
+            this.logger.log(`Student ${student.email} added to webinar room`);
+          } catch (webinarError) {
+            this.logger.error(
+              'Failed to add student to webinar, but registration saved',
+              webinarError
+            );
+          }
+        }
+      }
+
+      this.logger.log(
+        `Student ${session.studentId} auto-registered for session-based event ${event.id}`
+      );
+    } catch (error) {
+      this.logger.error('Failed to auto-register student for session event', error);
+    }
   }
 }
