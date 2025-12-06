@@ -35,6 +35,16 @@ import {
   TimeToEventDto,
 } from './dto/events-feed-response.dto';
 import { Session } from 'src/session/entities/session.entity';
+import {
+  MyEventItemDto,
+  MyEventsPaginationDto,
+  MyEventsResponseDto,
+  TimeLeftDto,
+  UserInfoDto,
+} from './dto/my-events-response.dto';
+import { MyEventsFilter, MyEventsQueryDto } from './dto/my-events-query.dto';
+import { EventWithParticipantsDto, ParticipantDto } from './dto/event-with-participants.dto';
+import { CancelRegistrationResponseDto } from './dto/cancel-registration-response.dto';
 
 @Injectable()
 export class EventsService {
@@ -495,7 +505,6 @@ export class EventsService {
       id: event.id,
       title: event.title,
       mentor: mentorInfo,
-      datetime_start: event.datetimeStart.toISOString(),
       countdown,
       max_participants: event.maxParticipants,
       registered_count: registeredCount,
@@ -506,7 +515,8 @@ export class EventsService {
       platform_fee: event.platformFee,
       mentor_revenue: event.mentorRevenue,
       duration_minutes: durationMinutes,
-      datetime_end: event.datetimeEnd.toISOString(),
+      datetime_start: event.datetimeStart?.toISOString() || null,
+      datetime_end: event.datetimeEnd?.toISOString() || null,
     };
   }
 
@@ -562,9 +572,13 @@ export class EventsService {
     }
   }
 
-  private calculateDurationMinutes(start: Date, end: Date): number {
-    const diffMs = end.getTime() - start.getTime();
-    return Math.floor(diffMs / (1000 * 60));
+  private calculateDurationMinutes(start?: Date | null, end?: Date | null): number | null {
+    if (!start || !end) {
+      return null;
+    }
+
+    const durationMs = end.getTime() - start.getTime();
+    return Math.floor(durationMs / 60000);
   }
 
   private calculateCountdown(eventStart: Date): string {
@@ -1088,6 +1102,485 @@ export class EventsService {
     };
   }
 
+  async getMyEvents(query: MyEventsQueryDto, userId: string): Promise<MyEventsResponseDto> {
+    const { role, filter, page, per_page } = query;
+
+    if (page < 1) {
+      throw new BadRequestException('Некорректный номер страницы');
+    }
+
+    if (per_page < 1 || per_page > 100) {
+      throw new BadRequestException('Некорректное количество элементов на странице');
+    }
+
+    const skip = (page - 1) * per_page;
+
+    const currentUser = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!currentUser) {
+      throw new NotFoundException('Пользователь не найден');
+    }
+
+    if (currentUser.role !== role) {
+      throw new BadRequestException('Указанная роль не соответствует роли пользователя');
+    }
+
+    let queryBuilder = this.eventsRepository
+      .createQueryBuilder('event')
+      .leftJoinAndSelect('event.mentor', 'mentor')
+      .leftJoinAndSelect('event.userEvents', 'userEvents')
+      .leftJoinAndSelect('event.session', 'session')
+      .leftJoinAndSelect('session.student', 'student')
+      .orderBy('event.datetimeStart', 'ASC');
+
+    queryBuilder = queryBuilder.andWhere('event.datetimeStart IS NOT NULL');
+
+    if (role === 'tutor') {
+      queryBuilder = queryBuilder.where('event.mentorId = :userId', { userId });
+    } else if (role === 'student') {
+      queryBuilder = queryBuilder
+        .innerJoin('event.userEvents', 'myUserEvents')
+        .where('myUserEvents.userId = :userId', { userId })
+        .andWhere('myUserEvents.status IN (:...statuses)', {
+          statuses: [ParticipationStatus.REGISTERED, ParticipationStatus.ATTENDED],
+        });
+    } else {
+      throw new BadRequestException('Некорректная роль');
+    }
+
+    if (filter === MyEventsFilter.EVENTS) {
+      queryBuilder = queryBuilder.andWhere('event.type = :type', {
+        type: EventType.STANDALONE,
+      });
+    } else if (filter === MyEventsFilter.PERSONAL) {
+      queryBuilder = queryBuilder.andWhere('event.type = :type', {
+        type: EventType.SESSION_BASED,
+      });
+    }
+
+    const [events, total] = await queryBuilder.skip(skip).take(per_page).getManyAndCount();
+
+    const data: MyEventItemDto[] = events
+      .filter((event): event is Event & { datetimeStart: Date } => !!event.datetimeStart)
+      .map((event) => {
+        if (!event.mentor) {
+          throw new BadRequestException(`Событие ${event.id} не имеет наставника`);
+        }
+
+        const teacher: UserInfoDto = {
+          id: event.mentor.id,
+          name: event.mentor.fullName || event.mentor.email.split('@')[0],
+          avatar: event.mentor.avatarUrl,
+        };
+
+        let student: UserInfoDto | undefined;
+        if (event.type === EventType.SESSION_BASED && event.session?.student) {
+          student = {
+            id: event.session.student.id,
+            name: event.session.student.fullName || event.session.student.email.split('@')[0],
+            avatar: event.session.student.avatarUrl,
+          };
+        }
+
+        const time_left = this.calculateTimeLeft(event.datetimeStart);
+
+        return {
+          id: event.id,
+          title: event.title,
+          type: event.type,
+          teacher,
+          ...(student && { student }),
+          start_at: event.datetimeStart.toISOString(),
+          price: Number(event.price),
+          time_left,
+          status: event.status,
+        };
+      });
+
+    const pagination: MyEventsPaginationDto = {
+      page,
+      per_page,
+      total,
+    };
+
+    return {
+      data,
+      pagination,
+    };
+  }
+
+  async getEventWithParticipants(
+    eventId: string,
+    userId?: string
+  ): Promise<EventWithParticipantsDto> {
+    const event = await this.eventsRepository.findOne({
+      where: { id: eventId },
+      relations: [
+        'mentor',
+        'session',
+        'session.student',
+        'videoRoom',
+        'userEvents',
+        'userEvents.user',
+      ],
+    });
+
+    if (!event) {
+      throw new NotFoundException('Событие не найдено');
+    }
+
+    const participantsData = await this.getEventParticipants(eventId);
+
+    let currentUserParticipation: {
+      is_registered: boolean;
+      is_paid: boolean;
+      status: string;
+      payment_status: string;
+    } | null = null;
+
+    if (userId) {
+      const userEvent = await this.userEventRepository.findOne({
+        where: { eventId, userId },
+      });
+
+      if (userEvent) {
+        currentUserParticipation = {
+          is_registered: true,
+          is_paid: userEvent.paymentStatus === PaymentStatus.PAID,
+          status: userEvent.status,
+          payment_status: userEvent.paymentStatus,
+        };
+      }
+    }
+
+    const canJoin = this.checkIfUserCanJoin(event, userId);
+
+    const timeToEvent = event.datetimeStart
+      ? this.calculateTimeToEventWithText(event.datetimeStart)
+      : null;
+
+    const registeredCount = await this.getRegisteredParticipantsCount(eventId);
+
+    return {
+      id: event.id,
+      title: event.title,
+      description: event.description || '',
+      type: event.type,
+      mentor: {
+        id: event.mentor.id,
+        name: event.mentor.fullName || event.mentor.email.split('@')[0],
+        avatar: event.mentor.avatarUrl,
+        bio: event.mentor.bio,
+      },
+      ...(event.type === EventType.SESSION_BASED &&
+        event.session && {
+          session: {
+            id: event.session.id,
+            student: {
+              id: event.session.student.id,
+              name: event.session.student.fullName || event.session.student.email.split('@')[0],
+              avatar: event.session.student.avatarUrl,
+            },
+            status: event.session.status,
+          },
+        }),
+      datetime_start: event.datetimeStart ? event.datetimeStart.toISOString() : null,
+      datetime_end: event.datetimeEnd ? event.datetimeEnd.toISOString() : null,
+      duration_minutes: event.durationMinutes,
+      price: Number(event.price),
+      platform_fee: Number(event.platformFee),
+      mentor_revenue: Number(event.mentorRevenue),
+      max_participants: event.maxParticipants,
+      registered_count: registeredCount,
+      status: event.status,
+      cover_url: event.coverUrl,
+      recording_url: event.recordingUrl,
+      ...(event.videoRoom && {
+        video_room: {
+          id: event.videoRoom.id,
+          url: event.videoRoom.url,
+          moderator_url: event.videoRoom.moderatorUrl,
+          provider: event.videoRoom.provider,
+        },
+      }),
+      participants: participantsData,
+      ...(currentUserParticipation && { current_user_participation: currentUserParticipation }),
+      can_join: canJoin,
+      time_to_event: timeToEvent,
+    };
+  }
+
+  async cancelRegistration(
+    eventId: string,
+    userId: string
+  ): Promise<CancelRegistrationResponseDto> {
+    const event = await this.eventsRepository.findOne({
+      where: { id: eventId },
+      relations: ['mentor', 'userEvents', 'userEvents.user'],
+    });
+
+    if (!event) {
+      throw new NotFoundException('Событие не найдено');
+    }
+
+    const userEvent = await this.userEventRepository.findOne({
+      where: {
+        eventId,
+        userId,
+        status: In([ParticipationStatus.REGISTERED, ParticipationStatus.PENDING]),
+      },
+      relations: ['user'],
+    });
+
+    if (!userEvent) {
+      throw new BadRequestException('Вы не записаны на это событие или запись уже отменена');
+    }
+
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user || user.role !== 'student') {
+      throw new ForbiddenException('Только студенты могут отменять записи на события');
+    }
+
+    const now = new Date();
+    if (event.datetimeStart && event.datetimeStart <= now) {
+      throw new BadRequestException('Нельзя отменить запись на событие после его начала');
+    }
+
+    if (event.status === EventStatus.CANCELLED) {
+      throw new BadRequestException('Событие уже отменено');
+    }
+
+    const previousStatus = userEvent.status;
+    const previousPaymentStatus = userEvent.paymentStatus;
+
+    userEvent.status = ParticipationStatus.CANCELLED;
+    userEvent.updatedAt = new Date();
+
+    await this.userEventRepository.save(userEvent);
+
+    await this.sendCancellationNotifications(
+      event,
+      userEvent.user,
+      previousStatus,
+      previousPaymentStatus
+    );
+
+    if (event.type === EventType.SESSION_BASED) {
+      await this.handleSessionBasedEventCancellation(event, userId);
+    }
+
+    return {
+      success: true,
+      message: 'Запись на событие успешно отменена',
+      cancelled_at: userEvent.updatedAt.toISOString(),
+    };
+  }
+
+  private async sendCancellationNotifications(
+    event: Event,
+    student: User,
+    previousStatus: ParticipationStatus,
+    previousPaymentStatus: PaymentStatus
+  ): Promise<void> {
+    try {
+      await this.sendCancellationNotificationToMentor(event, student, previousStatus);
+
+      await this.sendCancellationConfirmationToStudent(event, student, previousPaymentStatus);
+
+      this.logger.log(`Cancellation notifications sent for event ${event.id}`);
+    } catch (error) {
+      this.logger.error('Failed to send cancellation notifications:', error);
+    }
+  }
+
+  private async sendCancellationNotificationToMentor(
+    event: Event,
+    student: User,
+    previousStatus: ParticipationStatus
+  ): Promise<void> {
+    try {
+      const mentor = await this.usersRepository.findOne({
+        where: { id: event.mentorId },
+      });
+
+      if (!mentor || !mentor.email) {
+        this.logger.warn('Mentor not found or has no email for cancellation notification');
+        return;
+      }
+
+      const studentName = student.fullName || student.email.split('@')[0];
+      const formattedDate = event.datetimeStart
+        ? new Date(event.datetimeStart).toLocaleString('ru-RU', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'Europe/Moscow',
+          })
+        : 'не указано';
+
+      await this.emailService.sendMentorCancellationNotification(
+        mentor.email,
+        mentor.fullName || mentor.email.split('@')[0],
+        event.title,
+        studentName,
+        student.email,
+        formattedDate,
+        previousStatus
+      );
+
+      this.logger.log(`Cancellation notification sent to mentor ${mentor.email}`);
+    } catch (error) {
+      this.logger.error('Failed to send cancellation notification to mentor:', error);
+    }
+  }
+
+  private async sendCancellationConfirmationToStudent(
+    event: Event,
+    student: User,
+    previousPaymentStatus: PaymentStatus
+  ): Promise<void> {
+    try {
+      if (!student.email) {
+        this.logger.warn('Student has no email for cancellation confirmation');
+        return;
+      }
+
+      const mentorName = event.mentor.fullName || event.mentor.email.split('@')[0];
+      const formattedDate = event.datetimeStart
+        ? new Date(event.datetimeStart).toLocaleString('ru-RU', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'Europe/Moscow',
+          })
+        : 'не указано';
+
+      await this.emailService.sendStudentCancellationConfirmation(
+        student.email,
+        student.fullName || student.email.split('@')[0],
+        event.title,
+        mentorName,
+        formattedDate,
+        event.price,
+        previousPaymentStatus === PaymentStatus.PAID
+      );
+
+      this.logger.log(`Cancellation confirmation sent to student ${student.email}`);
+    } catch (error) {
+      this.logger.error('Failed to send cancellation confirmation to student:', error);
+    }
+  }
+
+  private async handleSessionBasedEventCancellation(event: Event, userId: string): Promise<void> {
+    try {
+      const session = await this.sessionRepository.findOne({
+        where: { id: event.sessionId },
+      });
+
+      if (!session) {
+        this.logger.warn(`Session not found for event ${event.id}`);
+        return;
+      }
+
+      if (session.studentId !== userId) {
+        this.logger.warn(`Student ${userId} is not the owner of session ${session.id}`);
+        return;
+      }
+
+      this.logger.log(`Session ${session.id} marked as cancelled for event ${event.id}`);
+    } catch (error) {
+      this.logger.error('Failed to handle session-based event cancellation:', error);
+    }
+  }
+
+  private async getEventParticipants(eventId: string): Promise<ParticipantDto[]> {
+    const userEvents = await this.userEventRepository.find({
+      where: { eventId },
+      relations: ['user'],
+      order: { createdAt: 'ASC' },
+    });
+
+    return userEvents.map((userEvent) => ({
+      id: userEvent.user.id,
+      name: userEvent.user.fullName || userEvent.user.email.split('@')[0],
+      avatar: userEvent.user.avatarUrl,
+      email: userEvent.user.email,
+      status: userEvent.status,
+      payment_status: userEvent.paymentStatus,
+      registered_at: userEvent.createdAt.toISOString(),
+    }));
+  }
+
+  private checkIfUserCanJoin(event: Event, userId?: string): boolean {
+    const now = new Date();
+
+    if (event.status !== EventStatus.SCHEDULED && event.status !== EventStatus.ACTIVE) {
+      return false;
+    }
+
+    if (!event.datetimeStart) {
+      return false;
+    }
+
+    const fifteenMinutesBefore = new Date(event.datetimeStart.getTime() - 15 * 60 * 1000);
+    const isWithinTimeWindow = now >= fifteenMinutesBefore && now <= event.datetimeEnd;
+
+    if (!isWithinTimeWindow) {
+      return false;
+    }
+
+    if (userId) {
+      if (event.mentorId === userId) {
+        return true;
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  private calculateTimeToEventWithText(
+    datetimeStart: Date
+  ): { days: number; hours: number; minutes: number; text: string } | null {
+    if (!datetimeStart) {
+      return null;
+    }
+
+    const now = new Date();
+    const start = new Date(datetimeStart);
+
+    if (start <= now) {
+      return null;
+    }
+
+    const deltaMs = start.getTime() - now.getTime();
+    const deltaSeconds = Math.floor(deltaMs / 1000);
+
+    const days = Math.floor(deltaSeconds / 86400);
+    const hours = Math.floor((deltaSeconds % 86400) / 3600);
+    const minutes = Math.floor((deltaSeconds % 3600) / 60);
+
+    const text = this.formatTimeLeftText(days, hours, minutes);
+
+    return {
+      days,
+      hours,
+      minutes,
+      text,
+    };
+  }
+
   private isUserRegistered(userEvent: UserEvent): boolean {
     return (
       userEvent.status === ParticipationStatus.REGISTERED ||
@@ -1137,7 +1630,7 @@ export class EventsService {
         eventId: event.id,
         userId: session.studentId,
         status: ParticipationStatus.REGISTERED,
-        paymentStatus: PaymentStatus.PAID, // Так как сессия уже оплачена
+        paymentStatus: PaymentStatus.PAID,
       });
 
       await this.userEventRepository.save(userEvent);
@@ -1170,5 +1663,48 @@ export class EventsService {
     } catch (error) {
       this.logger.error('Failed to auto-register student for session event', error);
     }
+  }
+
+  private calculateTimeLeft(datetimeStart: Date): TimeLeftDto | null {
+    if (!datetimeStart) return null;
+
+    const now = new Date();
+    const start = new Date(datetimeStart);
+
+    if (start <= now) return null;
+
+    const deltaMs = start.getTime() - now.getTime();
+    const deltaSeconds = Math.floor(deltaMs / 1000);
+
+    const days = Math.floor(deltaSeconds / 86400);
+    const hours = Math.floor((deltaSeconds % 86400) / 3600);
+    const minutes = Math.floor((deltaSeconds % 3600) / 60);
+
+    const text = this.formatTimeLeftText(days, hours, minutes);
+
+    return {
+      days,
+      hours,
+      minutes,
+      text,
+    };
+  }
+
+  private formatTimeLeftText(days: number, hours: number, minutes: number): string {
+    const parts: string[] = [];
+
+    if (days > 0) {
+      parts.push(`${days} ${this.getRussianWord(days, ['день', 'дня', 'дней'])}`);
+    }
+
+    if (hours > 0) {
+      parts.push(`${hours} ${this.getRussianWord(hours, ['час', 'часа', 'часов'])}`);
+    }
+
+    if (minutes > 0 || parts.length === 0) {
+      parts.push(`${minutes} ${this.getRussianWord(minutes, ['минута', 'минуты', 'минут'])}`);
+    }
+
+    return `До события: ${parts.join(' ')}`;
   }
 }

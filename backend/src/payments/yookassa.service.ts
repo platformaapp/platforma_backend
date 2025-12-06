@@ -67,7 +67,9 @@ export class YookassaService {
         throw new Error(`Yookassa API error: ${response.status} - ${errorText}`);
       }
 
-      const data = (await response.json()) as T;
+      const raw: unknown = await response.json();
+      const data = raw as T;
+
       this.logger.debug(`Yookassa API response: ${JSON.stringify(data)}`);
 
       return data;
@@ -273,7 +275,8 @@ export class YookassaService {
         throw new Error(`Yookassa API error: ${response.status} - ${errorText}`);
       }
 
-      return await response.json();
+      const raw: unknown = await response.json();
+      return raw as YookassaPayment;
     } catch (error: unknown) {
       this.logger.error(`Failed to get payment ${paymentId}`, error);
       throw new InternalServerErrorException(`Failed to get payment info`);

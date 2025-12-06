@@ -505,4 +505,229 @@ export class EmailService {
       );
     }
   }
+  async sendMentorCancellationNotification(
+    email: string,
+    mentorName: string,
+    eventTitle: string,
+    studentName: string,
+    studentEmail: string,
+    eventDateTime: string,
+    previousStatus: string
+  ): Promise<void> {
+    const mailOptions = {
+      from: '"Platforma Events" <platformaapp@platformaapp.ru>',
+      to: email,
+      subject: `❌ Студент отменил запись на "${eventTitle}"`,
+      html: `
+      <!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+        .cancellation-info { background: white; padding: 25px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #e74c3c; }
+        .student-info { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 15px 0; }
+        .available-spots { background: #d1ecf1; border: 1px solid #bee5eb; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .detail-item { margin: 10px 0; }
+        .label { font-weight: bold; color: #555; }
+        .value { color: #333; }
+        .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px; }
+        .highlight { color: #e74c3c; font-weight: bold; }
+        .info-icon { color: #17a2b8; font-size: 18px; margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>❌ Запись отменена</h1>
+            <p>Студент отменил запись на ваше событие</p>
+        </div>
+        <div class="content">
+            <p>Здравствуйте, <strong>${mentorName}</strong>!</p>
+            <p>Студент отменил запись на ваше событие.</p>
+            
+            <div class="cancellation-info">
+                <h2>📋 Информация об отмене</h2>
+                
+                <div class="detail-item">
+                    <span class="label">Событие:</span>
+                    <span class="value highlight">"${eventTitle}"</span>
+                </div>
+                
+                <div class="detail-item">
+                    <span class="label">Дата и время:</span>
+                    <span class="value">${eventDateTime}</span>
+                </div>
+                
+                <div class="detail-item">
+                    <span class="label">Предыдущий статус:</span>
+                    <span class="value">${previousStatus === 'registered' ? 'Зарегистрирован' : 'Ожидает подтверждения'}</span>
+                </div>
+            </div>
+
+            <div class="student-info">
+                <h3>👤 Отменивший студент</h3>
+                <div class="detail-item">
+                    <span class="label">Имя:</span>
+                    <span class="value">${studentName}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">Email:</span>
+                    <span class="value">${studentEmail}</span>
+                </div>
+            </div>
+
+            <div class="available-spots">
+                <h3><span class="info-icon">📊</span> Доступные места</h3>
+                <p>Теперь на вашем событии доступно на 1 место больше.</p>
+                <p>Другие студенты смогут записаться на освободившееся место.</p>
+            </div>
+
+            <p><strong>💡 Что делать дальше?</strong></p>
+            <ul>
+                <li>Проверьте количество записанных участников в личном кабинете</li>
+                <li>Если это повлияло на проведение события, обновите материалы</li>
+                <li>При необходимости, можете изменить детали события</li>
+            </ul>
+        </div>
+        <div class="footer">
+            <p>С уважением,<br>Команда Platforma Events</p>
+            <p><a href="https://platformaapp.ru/mentor/events">Перейти к управлению событиями</a></p>
+        </div>
+    </div>
+</body>
+</html>
+      `,
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(`Mentor cancellation notification sent to ${email}`);
+    } catch (err) {
+      console.error(
+        'Error sending mentor cancellation notification:',
+        err instanceof Error ? err.message : 'Unknown error'
+      );
+    }
+  }
+
+  async sendStudentCancellationConfirmation(
+    email: string,
+    studentName: string,
+    eventTitle: string,
+    mentorName: string,
+    eventDateTime: string,
+    eventPrice: number,
+    wasPaid: boolean
+  ): Promise<void> {
+    const refundInfo = wasPaid
+      ? 'Средства будут автоматически возвращены на ваш счет в течение 1-3 рабочих дней.'
+      : 'Так как оплата еще не была произведена, плата с вас не будет взиматься.';
+
+    const mailOptions = {
+      from: '"Platforma Events" <platformaapp@platformaapp.ru>',
+      to: email,
+      subject: `✅ Запись на "${eventTitle}" отменена`,
+      html: `
+      <!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+        .confirmation-info { background: white; padding: 25px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745; }
+        .refund-section { background: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #155724; }
+        .suggestions { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .detail-item { margin: 12px 0; }
+        .label { font-weight: bold; color: #555; }
+        .value { color: #333; }
+        .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px; }
+        .success-badge { background: #d4edda; color: #155724; padding: 5px 10px; border-radius: 15px; font-size: 12px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✅ Запись отменена</h1>
+            <p>Вы успешно отменили запись на событие</p>
+        </div>
+        <div class="content">
+            <p>Здравствуйте, <strong>${studentName}</strong>!</p>
+            <p>Ваша запись на событие была успешно отменена.</p>
+            
+            <div class="confirmation-info">
+                <h2>📋 Подтверждение отмены</h2>
+                
+                <div class="detail-item">
+                    <span class="label">Событие:</span>
+                    <span class="value">"${eventTitle}"</span>
+                </div>
+                
+                <div class="detail-item">
+                    <span class="label">Наставник:</span>
+                    <span class="value">${mentorName}</span>
+                </div>
+                
+                <div class="detail-item">
+                    <span class="label">Дата и время:</span>
+                    <span class="value">${eventDateTime}</span>
+                </div>
+                
+                <div class="detail-item">
+                    <span class="label">Статус:</span>
+                    <span class="success-badge">Запись отменена</span>
+                </div>
+            </div>
+
+            ${
+              eventPrice > 0
+                ? `
+            <div class="refund-section">
+                <h3>💳 Возврат средств</h3>
+                <p><strong>${refundInfo}</strong></p>
+                <p>Если у вас есть вопросы по возврату средств, свяжитесь с нашей поддержкой.</p>
+            </div>
+            `
+                : ''
+            }
+
+            <div class="suggestions">
+                <h3>💡 Возможно вас заинтересует</h3>
+                <ul>
+                    <li>Посмотрите другие события наставника ${mentorName}</li>
+                    <li>Изучите события по похожей тематике</li>
+                    <li>Создайте уведомление о интересующих темах</li>
+                </ul>
+                <p>Мы поможем найти подходящее событие для вас!</p>
+            </div>
+
+            <p>Спасибо, что пользуетесь Platforma Events!</p>
+        </div>
+        <div class="footer">
+            <p>С уважением,<br>Команда Platforma Events</p>
+            <p><a href="https://platformaapp.ru/events">Посмотреть другие события</a></p>
+            <p>Если у вас есть вопросы, отвечайте на это письмо</p>
+        </div>
+    </div>
+</body>
+</html>
+      `,
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(`Student cancellation confirmation sent to ${email}`);
+    } catch (err) {
+      console.error(
+        'Error sending student cancellation confirmation:',
+        err instanceof Error ? err.message : 'Unknown error'
+      );
+    }
+  }
 }
