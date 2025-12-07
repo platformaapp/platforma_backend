@@ -23,6 +23,11 @@ export enum EventStatus {
   CANCELLED = 'cancelled',
 }
 
+export enum EventType {
+  STANDALONE = 'standalone',
+  SESSION_BASED = 'session_based',
+}
+
 @Entity('events')
 export class Event {
   @PrimaryGeneratedColumn('uuid')
@@ -48,10 +53,10 @@ export class Event {
   @Column({ name: 'slot_id', nullable: true })
   slotId: string;
 
-  @Column({ type: 'timestamp', name: 'datetime_start' })
+  @Column({ type: 'timestamptz', name: 'datetime_start', nullable: true })
   datetimeStart: Date;
 
-  @Column({ type: 'timestamp', name: 'datetime_end' })
+  @Column({ type: 'timestamptz', name: 'datetime_end', nullable: true })
   datetimeEnd: Date;
 
   @Column({ type: 'int', name: 'duration_minutes' })
@@ -97,6 +102,16 @@ export class Event {
 
   @Column({ name: 'session_id', nullable: true })
   sessionId: string;
+
+  @Column({
+    type: 'enum',
+    enum: EventType,
+    default: EventType.STANDALONE,
+  })
+  type: EventType;
+
+  @Column({ type: 'text', name: 'cover_url', nullable: true })
+  coverUrl: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
