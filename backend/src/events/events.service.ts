@@ -85,10 +85,10 @@ export class EventsService {
     const now = new Date();
 
     const mentor = await this.usersRepository.findOne({
-      where: { id: mentorId, role: 'tutor' },
+      where: { id: mentorId },
     });
 
-    if (!mentor) {
+    if (!mentor || !mentor.roles.includes('tutor')) {
       throw new ForbiddenException('Только наставники могут создавать события');
     }
 
@@ -342,10 +342,10 @@ export class EventsService {
     }
 
     const student = await this.usersRepository.findOne({
-      where: { id: studentId, role: 'student' },
+      where: { id: studentId },
     });
 
-    if (!student) {
+    if (!student || !student.roles.includes('student')) {
       throw new ForbiddenException('Только студенты могут записываться на события');
     }
 
@@ -1123,8 +1123,8 @@ export class EventsService {
       throw new NotFoundException('Пользователь не найден');
     }
 
-    if (currentUser.role !== role) {
-      throw new BadRequestException('Указанная роль не соответствует роли пользователя');
+    if (!currentUser.roles.includes(role)) {
+      throw new BadRequestException('Указанная роль не соответствует ролям пользователя');
     }
 
     let queryBuilder = this.eventsRepository
@@ -1342,7 +1342,7 @@ export class EventsService {
       where: { id: userId },
     });
 
-    if (!user || user.role !== 'student') {
+    if (!user || !user.roles.includes('student')) {
       throw new ForbiddenException('Только студенты могут отменять записи на события');
     }
 

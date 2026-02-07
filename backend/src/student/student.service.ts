@@ -60,10 +60,10 @@ export class StudentService {
       }
 
       const student = await manager.findOne(User, {
-        where: { id: studentId, role: 'student' },
+        where: { id: studentId },
       });
 
-      if (!student) {
+      if (!student || !student.roles.includes('student')) {
         this.logger.warn(`Student not found or invalid role: ${studentId}`);
         throw new NotFoundException('Student not found or user has invalid role');
       }

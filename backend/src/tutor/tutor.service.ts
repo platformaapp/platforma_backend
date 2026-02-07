@@ -51,7 +51,7 @@ export class TutorService {
         'email',
         'phone',
         'fullName',
-        'role',
+        'roles',
         'avatarUrl',
         'bio',
         'createdAt',
@@ -117,9 +117,9 @@ export class TutorService {
     }
 
     const tutor = await this.usersRepository.findOne({
-      where: { id: userId, role: 'tutor' },
+      where: { id: userId },
     });
-    if (!tutor) throw new NotFoundException('Tutor not found');
+    if (!tutor || !tutor.roles.includes('tutor')) throw new NotFoundException('Tutor not found');
 
     const existingSlot = await this.slotsRepository.findOne({
       where: {

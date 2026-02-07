@@ -16,7 +16,7 @@ export class UsersService {
         'id',
         'email',
         'fullName',
-        'role',
+        'roles',
         'phone',
         'avatarUrl',
         'bio',
