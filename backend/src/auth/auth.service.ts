@@ -43,7 +43,41 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('User with this email already exists');
+      if (existingUser.roles.includes(registerDto.role)) {
+        throw new ConflictException(`User already registered with role: ${registerDto.role}`);
+      }
+
+      existingUser.roles.push(registerDto.role);
+      const updatedUser = await this.usersRepository.save(existingUser);
+
+      const payload = {
+        sub: updatedUser.id,
+        email: updatedUser.email,
+        role: registerDto.role,
+        roles: updatedUser.roles,
+      };
+
+      const accessToken = this.jwtService.sign(payload);
+      const refreshToken = this.generateRefreshToken();
+
+      const authSession = this.authSessionRepository.create({
+        user: updatedUser,
+        refreshToken: refreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        isValid: true,
+        activeRole: registerDto.role,
+      });
+
+      await this.authSessionRepository.save(authSession);
+
+      const { passwordHash: _, ...userWithoutPassword } = updatedUser;
+      void _;
+
+      return {
+        user: userWithoutPassword,
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      };
     }
 
     if (registerDto.phone) {
@@ -63,7 +97,7 @@ export class AuthService {
       email: registerDto.email,
       passwordHash: passwordHash,
       fullName: registerDto.fullName,
-      role: registerDto.role,
+      roles: [registerDto.role],
       phone: registerDto.phone || null,
       avatarUrl: registerDto.avatarUrl || null,
       bio: registerDto.bio || null,
@@ -74,7 +108,8 @@ export class AuthService {
     const payload = {
       sub: savedUser.id,
       email: savedUser.email,
-      role: savedUser.role,
+      role: registerDto.role,
+      roles: savedUser.roles,
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -85,6 +120,7 @@ export class AuthService {
       refreshToken: refreshToken,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       isValid: true,
+      activeRole: registerDto.role,
     });
 
     await this.authSessionRepository.save(authSession);
@@ -108,6 +144,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    if (!user.roles.includes(loginDto.role)) {
+      throw new UnauthorizedException(`You don't have ${loginDto.role} role`);
+    }
+
     const isPasswordValid = await bcrypt.compare(loginDto.password, user.passwordHash);
 
     if (!isPasswordValid) {
@@ -117,7 +157,8 @@ export class AuthService {
     const payload = {
       sub: user.id,
       email: user.email,
-      role: user.role,
+      role: loginDto.role,
+      roles: user.roles,
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -134,6 +175,7 @@ export class AuthService {
       refreshToken: refreshToken,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       isValid: true,
+      activeRole: loginDto.role,
     });
 
     await this.authSessionRepository.save(authSession);
@@ -166,7 +208,8 @@ export class AuthService {
     const newAccessToken = this.jwtService.sign({
       sub: user.id,
       email: user.email,
-      role: user.role,
+      role: session.activeRole,
+      roles: user.roles,
     });
 
     const newRefreshToken = this.generateRefreshToken();
@@ -197,20 +240,23 @@ export class AuthService {
       where: { email },
     });
 
-    if (!user) return;
+    if (!user) {
+      console.log(`Password reset requested for non-existent email: ${email}`);
+      return;
+    }
 
     const resetToken = this.generatePasswordResetToken(user.id, user.email);
-
     console.log('Reset Token:', resetToken);
 
     try {
-      return await sendPasswordResetEmail(user.email, resetToken, user.fullName);
+      await sendPasswordResetEmail(user.email, resetToken, user.fullName);
+      console.log(`Password reset email sent successfully to ${email}`);
     } catch (error) {
       console.error(
         'Failed to send password reset email:',
         error instanceof Error ? error.message : 'Unknown error'
       );
-      throw new Error('Failed to send password reset email');
+      throw error;
     }
   }
 

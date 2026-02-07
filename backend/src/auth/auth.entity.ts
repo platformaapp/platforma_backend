@@ -1,5 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, CreateDateColumn } from 'typeorm';
 import { User } from '../users/user.entity';
+import type { UserRole } from '../users/user.entity';
 
 @Entity('auth_sessions')
 export class AuthSession {
@@ -20,4 +21,7 @@ export class AuthSession {
 
   @Column({ type: 'boolean', default: true })
   isValid: boolean;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  activeRole: UserRole;
 }

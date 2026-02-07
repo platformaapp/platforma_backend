@@ -34,8 +34,8 @@ export class User {
   @Column({ type: 'varchar', length: 255, name: 'full_name', nullable: true })
   fullName: string;
 
-  @Column({ type: 'varchar', length: 20 })
-  role: UserRole;
+  @Column({ type: 'simple-array', nullable: true })
+  roles: UserRole[];
 
   @Column({ type: 'text', name: 'avatar_url', nullable: true })
   avatarUrl: string | null;
