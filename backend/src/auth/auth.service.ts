@@ -8,7 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThanOrEqual, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { User } from 'src/users/user.entity';
+import { User, UserRole } from 'src/users/user.entity';
 import { AuthSession } from './auth.entity';
 import { RegisterDto } from './dto/registration.dto';
 import { LoginDto } from './dto/login.dto';
@@ -324,6 +324,48 @@ export class AuthService {
       if (error instanceof UnauthorizedException) throw error;
       throw new InternalServerErrorException('Failed to reset password');
     }
+  }
+
+  async switchRole(userId: string, refreshToken: string, newRole: UserRole) {
+    const session = await this.authSessionRepository.findOne({
+      where: {
+        refreshToken: refreshToken,
+        isValid: true,
+        expiresAt: MoreThanOrEqual(new Date()),
+      },
+      relations: ['user'],
+    });
+
+    if (!session) {
+      throw new UnauthorizedException('Invalid or expired session');
+    }
+
+    if (session.user.id !== userId) {
+      throw new UnauthorizedException('Session does not belong to this user');
+    }
+
+    if (!session.user.roles.includes(newRole)) {
+      throw new UnauthorizedException(`You don't have ${newRole} role`);
+    }
+
+    session.activeRole = newRole;
+    await this.authSessionRepository.save(session);
+
+    const newAccessToken = this.jwtService.sign({
+      sub: session.user.id,
+      email: session.user.email,
+      role: newRole,
+      roles: session.user.roles,
+    });
+
+    const { passwordHash: _, ...userWithoutPassword } = session.user;
+    void _;
+
+    return {
+      user: userWithoutPassword,
+      access_token: newAccessToken,
+      active_role: newRole,
+    };
   }
 
   private generateRefreshToken(): string {

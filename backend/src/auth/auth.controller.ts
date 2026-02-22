@@ -25,6 +25,7 @@ import {
   ApiBearerAuth,
   ApiCookieAuth,
 } from '@nestjs/swagger';
+import { SwitchRoleDto } from './dto/switch-role.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -158,10 +159,11 @@ export class AuthController {
     const { email } = body;
     try {
       await this.authService.requestPasswordChange({ email });
+      return { message: 'Password reset link sent to your email' };
     } catch (error) {
       console.error('Error message: ', (error as Error).message);
+      return { message: 'If the email exists, password reset link has been sent' };
     }
-    return { message: 'Password reset link sent to your email' };
   }
 
   @Post('reset')
@@ -180,6 +182,46 @@ export class AuthController {
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     await this.authService.resetPassword(resetPasswordDto);
     return { message: 'Password reset successfully' };
+  }
+
+  @Post('switch-role')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Switch active role' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiCookieAuth('refreshToken')
+  @ApiBody({ type: SwitchRoleDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Role switched successfully',
+    schema: {
+      example: {
+        user: {
+          id: '123',
+          email: 'user@example.com',
+          fullName: 'John Doe',
+          roles: ['student', 'tutor'],
+        },
+        access_token: 'new_jwt_token',
+        active_role: 'tutor',
+      },
+    },
+  })
+  async switchRole(@Body() switchRoleDto: SwitchRoleDto, @Req() req: express.Request) {
+    const cookies = (req.cookies ?? {}) as Record<string, string>;
+    const refreshToken = cookies.refreshToken;
+
+    if (!refreshToken) throw new UnauthorizedException('Refresh token not found');
+
+    if (!req.user) throw new UnauthorizedException('User not authenticated');
+
+    const result = await this.authService.switchRole(
+      req.user.sub,
+      refreshToken,
+      switchRoleDto.role
+    );
+
+    return result;
   }
 
   private setRefreshTokenCookie(res: express.Response, token: string) {

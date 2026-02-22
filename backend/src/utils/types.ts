@@ -1,10 +1,13 @@
 import { BookingStatus } from 'src/student/entities/booking.entity';
-import { User } from 'src/users/user.entity';
+import { User, UserRole } from 'src/users/user.entity';
 
 export interface JwtPayload {
   sub: string;
   email: string;
-  role: string;
+  role: UserRole;
+  roles: UserRole[];
+  iat?: number;
+  exp?: number;
 }
 
 export interface PasswordResetPayload extends JwtPayload {
