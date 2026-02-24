@@ -3,6 +3,7 @@ import {
   Logger,
   InternalServerErrorException,
   BadRequestException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
@@ -38,11 +39,24 @@ export class YookassaService {
     }
   }
 
+  private ensureYookassaConfigured(): void {
+    if (!this.config.shopId || !this.config.secretKey) {
+      this.logger.error(
+        'Yookassa configuration is missing. Check YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY in .env'
+      );
+      throw new ServiceUnavailableException(
+        'Payment service is not configured. Please contact support.'
+      );
+    }
+  }
+
   private async makeYookassaRequest<T>(
     endpoint: string,
     payload: any,
     idempotenceKey: string
   ): Promise<T> {
+    this.ensureYookassaConfigured();
+
     const url = `${this.config.baseUrl}${endpoint}`;
 
     this.logger.debug(`Making request to Yookassa API: ${url}`);
@@ -111,14 +125,24 @@ export class YookassaService {
 
       this.logger.log(`Payment method attachment created successfully: ${data.id}`);
 
+      const confirmationUrl = data.confirmation?.confirmation_url;
+      if (!confirmationUrl) {
+        this.logger.error('YooKassa response missing confirmation_url', data);
+        throw new InternalServerErrorException('Invalid response from payment provider');
+      }
+
       return {
-        confirmationUrl: data.confirmation.confirmation_url,
+        confirmationUrl,
         paymentId: data.id,
       };
     } catch (error) {
       this.logger.error('Failed to create payment method attachment', error);
+      if (error instanceof ServiceUnavailableException) {
+        throw error;
+      }
+      const message = error instanceof Error ? error.message : 'Unknown error';
       throw new InternalServerErrorException(
-        'Failed to initiate card attachment: ' + (error as Error).message
+        'Failed to initiate card attachment: ' + message
       );
     }
   }
