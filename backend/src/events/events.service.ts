@@ -63,8 +63,6 @@ export class EventsService {
     private readonly myOwnConferenceService: MyOwnConferenceService,
     @InjectRepository(Payment)
     private readonly paymentRepository: Repository<Payment>,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
     @InjectRepository(Session)
     private readonly sessionRepository: Repository<Session>
   ) {}
