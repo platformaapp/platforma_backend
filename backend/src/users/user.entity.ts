@@ -43,6 +43,15 @@ export class User {
   @Column({ type: 'text', nullable: true })
   bio: string | null;
 
+  @Column({ type: 'varchar', length: 500, name: 'short_bio', nullable: true })
+  shortBio: string | null;
+
+  @Column({ type: 'decimal', name: 'hourly_rate', nullable: true, precision: 10, scale: 2 })
+  hourlyRate: number | null;
+
+  @Column({ type: 'text', name: 'group_meetings', nullable: true })
+  groupMeetings: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 

@@ -84,6 +84,19 @@ export class TutorService {
     if (updateProfileDto.avatarUrl !== undefined) user.avatarUrl = updateProfileDto.avatarUrl;
     if (updateProfileDto.phone !== undefined) user.phone = updateProfileDto.phone;
 
+    if (updateProfileDto.email && updateProfileDto.email !== user.email) {
+      const existingUserWithEmail = await this.usersRepository.findOne({
+        where: { email: updateProfileDto.email },
+      });
+      if (existingUserWithEmail) throw new ConflictException('Email already exists');
+    }
+
+    if (updateProfileDto.email !== undefined) user.email = updateProfileDto.email;
+    if (updateProfileDto.shortBio !== undefined) user.shortBio = updateProfileDto.shortBio;
+    if (updateProfileDto.hourlyRate !== undefined) user.hourlyRate = updateProfileDto.hourlyRate;
+    if (updateProfileDto.groupMeetings !== undefined)
+      user.groupMeetings = updateProfileDto.groupMeetings;
+
     user.updatedAt = new Date();
     const updatedUser = await this.usersRepository.save(user);
 
