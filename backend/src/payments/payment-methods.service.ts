@@ -68,25 +68,31 @@ export class PaymentMethodsService {
 
     const savedPaymentMethod = await this.paymentMethodRepository.save(paymentMethod);
 
-    const { transaction, redirectUrl, yookassaPaymentId } =
-      await this.transactionsService.createBindTransaction(userId, savedPaymentMethod.id);
+    try {
+      const { transaction, redirectUrl, yookassaPaymentId } =
+        await this.transactionsService.createBindTransaction(userId, savedPaymentMethod.id);
 
-    savedPaymentMethod.cardToken = yookassaPaymentId;
-    savedPaymentMethod.yookassaPaymentId = yookassaPaymentId;
-    savedPaymentMethod.bindTransactionId = transaction.id;
-    await this.paymentMethodRepository.save(savedPaymentMethod);
+      savedPaymentMethod.cardToken = yookassaPaymentId;
+      savedPaymentMethod.yookassaPaymentId = yookassaPaymentId;
+      savedPaymentMethod.bindTransactionId = transaction.id;
+      await this.paymentMethodRepository.save(savedPaymentMethod);
 
-    this.logger.log(
-      `Payment method attachment initiated for user ${userId}, ` +
-        `transaction: ${transaction.id}, ` +
-        `payment method: ${savedPaymentMethod.id}, ` +
-        `yookassa payment: ${yookassaPaymentId}`
-    );
+      this.logger.log(
+        `Payment method attachment initiated for user ${userId}, ` +
+          `transaction: ${transaction.id}, ` +
+          `payment method: ${savedPaymentMethod.id}, ` +
+          `yookassa payment: ${yookassaPaymentId}`
+      );
 
-    return {
-      confirmationUrl: redirectUrl,
-      transactionId: transaction.id,
-    };
+      return {
+        confirmationUrl: redirectUrl,
+        transactionId: transaction.id,
+      };
+    } catch (error) {
+      await this.paymentMethodRepository.remove(savedPaymentMethod);
+      this.logger.warn(`Rolled back payment method ${savedPaymentMethod.id} after bind failure`);
+      throw error;
+    }
   }
 
   async findByUserId(userId: string): Promise<PaymentMethod[]> {

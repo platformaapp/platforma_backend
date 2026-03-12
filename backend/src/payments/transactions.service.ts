@@ -1,4 +1,9 @@
-import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transaction, TransactionStatus, TransactionType } from './entities/transaction.entity';
@@ -24,6 +29,13 @@ export class TransactionsService {
     redirectUrl: string;
     yookassaPaymentId: string;
   }> {
+    if (!FRONTEND_URL || typeof FRONTEND_URL !== 'string' || !FRONTEND_URL.startsWith('http')) {
+      this.logger.error('FRONTEND_URL is not configured. Set FRONTEND_URL in .env');
+      throw new ServiceUnavailableException(
+        'Payment service is not configured. Please contact support.'
+      );
+    }
+
     try {
       const returnUrl = `${FRONTEND_URL}/payment-methods/callback`;
       const { confirmationUrl, paymentId } =

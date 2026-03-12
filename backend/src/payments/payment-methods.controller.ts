@@ -71,6 +71,7 @@ export class PaymentMethodsController {
   })
   @ApiResponse({ status: 400, description: 'Invalid request parameters' })
   @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiResponse({ status: 503, description: 'Payment service not configured' })
   async attachPaymentMethod(
     @Req() req: AuthenticatedRequest,
     @Body() attachPaymentMethodDto: AttachPaymentMethodDto
