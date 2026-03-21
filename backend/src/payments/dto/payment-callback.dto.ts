@@ -1,6 +1,9 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class PaymentCallbackDto {
-  @ApiProperty({ description: 'ID платежа из YooKassa' })
-  payment_id: string;
+  @ApiPropertyOptional({ description: 'ID платежа из YooKassa' })
+  payment_id?: string;
+
+  @ApiPropertyOptional({ description: 'ID способа оплаты (для привязки карты)' })
+  method_id?: string;
 }

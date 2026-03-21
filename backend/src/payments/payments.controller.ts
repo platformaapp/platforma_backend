@@ -3,6 +3,7 @@ import {
   Post,
   Body,
   Req,
+  Res,
   HttpCode,
   HttpStatus,
   UseGuards,
@@ -11,6 +12,7 @@ import {
   Logger,
   Query,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiOperation,
   ApiResponse,
@@ -29,8 +31,6 @@ import { PaymentStatus } from './entities/payment.entity';
 import { PaymentCallbackDto } from './dto/payment-callback.dto';
 
 @ApiTags('Student Payments')
-@ApiBearerAuth('JWT-auth')
-@UseGuards(JwtAuthGuard, StudentGuard)
 @Controller('student/payments')
 export class PaymentsController {
   private readonly logger = new Logger(PaymentsController.name);
@@ -38,6 +38,8 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, StudentGuard)
+  @ApiBearerAuth('JWT-auth')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create payment for session' })
   @ApiResponse({
@@ -79,57 +81,37 @@ export class PaymentsController {
   }
 
   @Get('callback')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Handle payment callback after 3D Secure' })
-  @ApiQuery({ name: 'payment_id', description: 'Payment ID from YooKassa' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Payment callback processed successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        status: { type: 'string', enum: ['succeeded', 'failed'] },
-        message: { type: 'string' },
-        paymentId: { type: 'string' },
-        redirectUrl: { type: 'string' },
-      },
-    },
-  })
-  async handlePaymentCallback(@Query() callbackDto: PaymentCallbackDto): Promise<{
-    status: 'succeeded' | 'failed';
-    message: string;
-    paymentId?: string;
-    redirectUrl?: string;
-  }> {
-    this.logger.log(`Processing payment callback for: ${callbackDto.payment_id}`);
+  @ApiOperation({ summary: 'Handle payment callback after YooKassa redirect' })
+  @ApiQuery({ name: 'payment_id', required: false, description: 'YooKassa payment ID' })
+  @ApiQuery({ name: 'method_id', required: false, description: 'Payment method ID (card binding)' })
+  @ApiResponse({ status: 302, description: 'Redirects to frontend after processing' })
+  async handlePaymentCallback(
+    @Query() callbackDto: PaymentCallbackDto,
+    @Res() res: Response
+  ): Promise<void> {
+    this.logger.log(
+      `Processing payment callback: payment_id=${callbackDto.payment_id}, method_id=${callbackDto.method_id}`
+    );
 
     try {
-      const result = await this.paymentsService.handlePaymentCallback(callbackDto.payment_id);
-
-      return {
-        status: 'succeeded',
-        message: result.message,
-        paymentId: result.paymentId,
-        redirectUrl: result.redirectUrl,
-      };
+      const result = await this.paymentsService.handlePaymentCallback(
+        callbackDto.payment_id,
+        callbackDto.method_id
+      );
+      res.redirect(result.redirectUrl);
     } catch (error) {
       const errorMessage =
-        error instanceof Error
-          ? error.message
-          : typeof error === 'string'
-            ? error
-            : 'Payment processing error';
-
+        error instanceof Error ? error.message : 'Payment processing error';
       this.logger.error(`Payment callback failed: ${errorMessage}`);
-
-      return {
-        status: 'failed',
-        message: errorMessage,
-      };
+      res.redirect(
+        await this.paymentsService.getFailureRedirectUrl(callbackDto.method_id)
+      );
     }
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard, StudentGuard)
+  @ApiBearerAuth('JWT-auth')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get payment status' })
   @ApiParam({ name: 'id', description: 'Payment ID' })

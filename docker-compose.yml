@@ -9,6 +9,7 @@ services:
       NODE_ENV: production
       PORT: 3000
       FRONTEND_URL: https://platformaapp.ru
+      BACKEND_URL: https://platformaapp.ru
       DB_HOST: ${DB_HOST}
       DB_PORT: ${DB_PORT}
       DB_USERNAME: ${DB_USERNAME}

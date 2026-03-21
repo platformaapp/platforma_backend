@@ -267,26 +267,56 @@ export class PaymentsService {
     }
   }
 
-  async handlePaymentCallback(paymentId: string): Promise<{
+  async getFailureRedirectUrl(methodId?: string): Promise<string> {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    if (methodId) {
+      return `${frontendUrl}/profile/payments?status=error`;
+    }
+    return `${frontendUrl}/profile/payments?status=error`;
+  }
+
+  async handlePaymentCallback(paymentId?: string, methodId?: string): Promise<{
     message: string;
     paymentId: string;
     redirectUrl: string;
   }> {
-    this.logger.log(`Handling payment callback for: ${paymentId}`);
+    this.logger.log(`Handling payment callback: payment_id=${paymentId}, method_id=${methodId}`);
+
+    let resolvedPaymentId: string | undefined = paymentId;
 
     try {
-      const yookassaPayment = await this.yookassaService.getPayment(paymentId);
+      let transaction = paymentId
+        ? await this.transactionsService.getTransactionByYookassaId(paymentId)
+        : null;
 
-      const transaction = await this.transactionsService.getTransactionByYookassaId(paymentId);
+      if (!transaction && methodId) {
+        const txByMethod =
+          await this.transactionsService.getLatestBindTransactionByMethodId(methodId);
+        if (txByMethod?.yookassaPaymentId) {
+          transaction = txByMethod;
+          resolvedPaymentId = txByMethod.yookassaPaymentId;
+          // paymentId_ assigned below after resolvedPaymentId is finalized
+          this.logger.log(
+            `Resolved yookassa payment ${resolvedPaymentId} from method_id ${methodId}`
+          );
+        }
+      }
+
+      if (!resolvedPaymentId) {
+        throw new NotFoundException('Cannot resolve yookassa payment id from callback params');
+      }
 
       if (!transaction) {
-        throw new NotFoundException(`Transaction not found for payment: ${paymentId}`);
+        throw new NotFoundException(`Transaction not found for payment: ${resolvedPaymentId}`);
       }
+
+      const yookassaPayment = await this.yookassaService.getPayment(resolvedPaymentId);
+      const paymentId_ = resolvedPaymentId;
 
       switch (yookassaPayment.status) {
         case 'succeeded': {
           await this.transactionsService.updateTransactionStatus(
-            paymentId,
+            paymentId_,
             TransactionStatus.SUCCEEDED
           );
 
@@ -353,7 +383,7 @@ export class PaymentsService {
 
           const frontendUrl = this.configService.get<string>('FRONTEND_URL');
           if (transaction.type === TransactionType.CARD_BINDING) {
-            redirectUrl = `${frontendUrl}/payment-methods?status=success`;
+            redirectUrl = `${frontendUrl}/profile/payments?status=success`;
           } else {
             const payment = await this.paymentRepository.findOne({
               where: { transactionId: transaction.id },
@@ -375,7 +405,7 @@ export class PaymentsService {
         case 'canceled':
         case 'failed':
           await this.transactionsService.updateTransactionStatus(
-            paymentId,
+            paymentId_,
             TransactionStatus.FAILED,
             yookassaPayment.cancellation_details?.reason || 'Payment failed'
           );
@@ -392,10 +422,10 @@ export class PaymentsService {
           );
 
         case 'waiting_for_capture': {
-          await this.yookassaService.capturePayment(paymentId);
+          await this.yookassaService.capturePayment(paymentId_);
 
           await this.transactionsService.updateTransactionStatus(
-            paymentId,
+            paymentId_,
             TransactionStatus.SUCCEEDED
           );
 
@@ -441,9 +471,9 @@ export class PaymentsService {
               );
             }
 
-            captureRedirectUrl = `${this.configService.get<string>('FRONTEND_URL')}/payment-methods?status=success`;
+            captureRedirectUrl = `${this.configService.get<string>('FRONTEND_URL')}/profile/payments?status=success`;
           } else {
-            captureRedirectUrl = `${this.configService.get<string>('FRONTEND_URL')}/payments/status?payment_id=${paymentId}`;
+            captureRedirectUrl = `${this.configService.get<string>('FRONTEND_URL')}/payments/status?payment_id=${paymentId_}`;
           }
 
           return {
@@ -460,7 +490,7 @@ export class PaymentsService {
           return {
             message: 'Платеж обрабатывается',
             paymentId: transaction.id,
-            redirectUrl: `${this.configService.get<string>('FRONTEND_URL')}/payments/status?payment_id=${paymentId}`,
+            redirectUrl: `${this.configService.get<string>('FRONTEND_URL')}/profile/payments?status=pending`,
           };
 
         default:
@@ -481,11 +511,13 @@ export class PaymentsService {
 
       this.logger.error(`Error processing payment callback: ${errorMessage}`);
 
-      await this.transactionsService.updateTransactionStatus(
-        paymentId,
-        TransactionStatus.FAILED,
-        errorMessage
-      );
+      if (resolvedPaymentId) {
+        await this.transactionsService.updateTransactionStatus(
+          resolvedPaymentId,
+          TransactionStatus.FAILED,
+          errorMessage
+        );
+      }
 
       throw new InternalServerErrorException(`Payment processing error: ${errorMessage}`);
     }
