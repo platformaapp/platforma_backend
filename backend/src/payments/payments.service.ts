@@ -391,14 +391,70 @@ export class PaymentsService {
             yookassaPayment.cancellation_details?.reason || 'Платеж отменен'
           );
 
-        case 'waiting_for_capture':
+        case 'waiting_for_capture': {
           await this.yookassaService.capturePayment(paymentId);
 
+          await this.transactionsService.updateTransactionStatus(
+            paymentId,
+            TransactionStatus.SUCCEEDED
+          );
+
+          let captureRedirectUrl: string;
+
+          if (transaction.type === TransactionType.CARD_BINDING) {
+            const paymentMethod = await this.paymentMethodRepository.findOne({
+              where: {
+                bindTransactionId: transaction.id,
+                status: PaymentMethodStatus.PENDING,
+              },
+            });
+
+            if (paymentMethod && yookassaPayment.payment_method?.id) {
+              paymentMethod.cardToken = yookassaPayment.payment_method.id;
+              paymentMethod.status = PaymentMethodStatus.ACTIVE;
+
+              if (yookassaPayment.payment_method.card) {
+                const card = yookassaPayment.payment_method.card;
+                paymentMethod.cardMasked = `${card.first6}******${card.last4}`;
+                paymentMethod.cardType = card.card_type;
+                paymentMethod.expiryMonth = card.expiry_month;
+                paymentMethod.expiryYear = card.expiry_year;
+              }
+
+              await this.paymentMethodRepository.save(paymentMethod);
+
+              const userCards = await this.paymentMethodRepository.count({
+                where: {
+                  userId: transaction.userId,
+                  status: PaymentMethodStatus.ACTIVE,
+                },
+              });
+
+              if (userCards === 1) {
+                await this.userRepository.update(transaction.userId, {
+                  defaultPaymentMethodId: paymentMethod.id,
+                });
+              }
+
+              this.logger.log(
+                `Payment method ${paymentMethod.id} activated via waiting_for_capture callback`
+              );
+            }
+
+            captureRedirectUrl = `${this.configService.get<string>('FRONTEND_URL')}/payment-methods?status=success`;
+          } else {
+            captureRedirectUrl = `${this.configService.get<string>('FRONTEND_URL')}/payments/status?payment_id=${paymentId}`;
+          }
+
           return {
-            message: 'Платеж требует подтверждения',
+            message:
+              transaction.type === TransactionType.CARD_BINDING
+                ? 'Карта успешно привязана'
+                : 'Платеж требует подтверждения',
             paymentId: transaction.id,
-            redirectUrl: `${this.configService.get<string>('FRONTEND_URL')}/payments/status?payment_id=${paymentId}`,
+            redirectUrl: captureRedirectUrl,
           };
+        }
 
         case 'pending':
           return {

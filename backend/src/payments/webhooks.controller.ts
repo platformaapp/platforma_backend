@@ -1,4 +1,4 @@
-import { Controller, Post, Headers, HttpCode, HttpStatus, Logger, Req } from '@nestjs/common';
+import { Controller, Post, HttpCode, HttpStatus, Logger, Req } from '@nestjs/common';
 import { ApiTags, ApiExcludeController } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { PaymentMethodsService } from './payment-methods.service';
@@ -20,40 +20,30 @@ export class WebhooksController {
 
   @Post('yookassa')
   @HttpCode(HttpStatus.OK)
-  async handleYookassaWebhook(@Req() req: Request, @Headers() headers: Record<string, string>) {
-    // Получаем RAW тело как есть
-    const rawBody = req.body as unknown as string | undefined;
-    const signature = headers['signature'] ?? headers['Signature'] ?? headers['HTTP_SIGNATURE'];
-
+  async handleYookassaWebhook(@Req() req: Request) {
     this.logger.log('=== YOOKASSA WEBHOOK RECEIVED ===');
-    this.logger.log('Raw body length:', rawBody?.length ?? 'undefined');
-    this.logger.log('Signature header:', signature);
 
-    if (!rawBody) {
-      this.logger.error('No raw body available');
-      return { status: 'error', message: 'No raw body' };
-    }
+    let webhookData: YookassaWebhookDto;
 
-    if (!signature || Array.isArray(signature)) {
-      this.logger.error('No valid signature found in headers');
-      return { status: 'error', message: 'Missing or invalid signature' };
+    try {
+      const rawBody = req.body as unknown;
+      if (typeof rawBody === 'string') {
+        webhookData = JSON.parse(rawBody) as YookassaWebhookDto;
+      } else if (Buffer.isBuffer(rawBody)) {
+        webhookData = JSON.parse(rawBody.toString('utf-8')) as YookassaWebhookDto;
+      } else if (rawBody && typeof rawBody === 'object') {
+        webhookData = rawBody as YookassaWebhookDto;
+      } else {
+        this.logger.error('No parseable body available');
+        return { status: 'error', message: 'No body' };
+      }
+    } catch {
+      this.logger.error('Failed to parse webhook body');
+      return { status: 'error', message: 'Invalid JSON body' };
     }
 
     try {
-      // Используем оригинальное тело БЕЗ нормализации
-      const isValid = this.yookassaService.verifyWebhookSignature(rawBody, signature);
-
-      if (!isValid) {
-        this.logger.error('Invalid webhook signature');
-        return { status: 'error', message: 'Invalid signature' };
-      }
-
-      this.logger.log('Webhook signature verified successfully');
-
-      // Парсим JSON только после верификации
-      const webhookData = JSON.parse(rawBody) as YookassaWebhookDto;
-
-      console.log(`Webhook event: ${webhookData.event}, Status: ${webhookData.object.status}`);
+      this.logger.log(`Webhook event: ${webhookData.event}, Status: ${webhookData.object.status}`);
 
       // Обработка вебхука
       if (this.isPaymentMethodWebhook(webhookData)) {
