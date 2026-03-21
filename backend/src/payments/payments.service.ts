@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
   InternalServerErrorException,
+  HttpException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -13,7 +14,7 @@ import { PaymentMethod, PaymentMethodStatus } from './entities/payment-method.en
 import { User } from '../users/user.entity';
 import { YookassaService } from './yookassa.service';
 import { YookassaWebhookDto } from './dto/yookassa-webhook.dto';
-import { FRONTEND_URL } from '../utils/constants';
+import { ConfigService } from '@nestjs/config';
 import { TransactionsService } from './transactions.service';
 import { TransactionStatus, TransactionType } from './entities/transaction.entity';
 import { UserEvent } from 'src/events/entities/user-event.entity';
@@ -33,6 +34,7 @@ export class PaymentsService {
     private userRepository: Repository<User>,
     private yookassaService: YookassaService,
     private transactionsService: TransactionsService,
+    private configService: ConfigService,
     @InjectRepository(UserEvent)
     private userEventRepository: Repository<UserEvent>
   ) {}
@@ -140,7 +142,7 @@ export class PaymentsService {
         paymentMethodToken: paymentMethod.cardToken,
         description: `Оплата сессии с репетитором ${session.tutor.fullName}`,
         paymentId: savedPayment.id,
-        returnUrl: `${FRONTEND_URL}/payments/callback`,
+        returnUrl: `${this.configService.get<string>('FRONTEND_URL')}/payments/callback`,
       });
 
       await this.transactionsService.updateTransactionYookassaId(
@@ -349,15 +351,16 @@ export class PaymentsService {
 
           let redirectUrl: string;
 
+          const frontendUrl = this.configService.get<string>('FRONTEND_URL');
           if (transaction.type === TransactionType.CARD_BINDING) {
-            redirectUrl = `${FRONTEND_URL}/payment-methods?status=success`;
+            redirectUrl = `${frontendUrl}/payment-methods?status=success`;
           } else {
             const payment = await this.paymentRepository.findOne({
               where: { transactionId: transaction.id },
             });
 
             const sessionId = payment?.sessionId || '';
-            redirectUrl = `${FRONTEND_URL}/sessions/${sessionId}?payment=success`;
+            redirectUrl = `${frontendUrl}/sessions/${sessionId}?payment=success`;
           }
           return {
             message:
@@ -394,14 +397,14 @@ export class PaymentsService {
           return {
             message: 'Платеж требует подтверждения',
             paymentId: transaction.id,
-            redirectUrl: `${FRONTEND_URL}/payments/status?payment_id=${paymentId}`,
+            redirectUrl: `${this.configService.get<string>('FRONTEND_URL')}/payments/status?payment_id=${paymentId}`,
           };
 
         case 'pending':
           return {
             message: 'Платеж обрабатывается',
             paymentId: transaction.id,
-            redirectUrl: `${FRONTEND_URL}/payments/status?payment_id=${paymentId}`,
+            redirectUrl: `${this.configService.get<string>('FRONTEND_URL')}/payments/status?payment_id=${paymentId}`,
           };
 
         default:
@@ -409,6 +412,10 @@ export class PaymentsService {
           throw new BadRequestException('Неизвестный статус платежа');
       }
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
       const errorMessage =
         error instanceof Error
           ? error.message
