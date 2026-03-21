@@ -3,6 +3,7 @@ import {
   Post,
   Body,
   Get,
+  Put,
   UseGuards,
   Req,
   HttpCode,
@@ -12,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { StudentService } from './student.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { StudentGuard } from '../auth/guards/student.guard';
 import type { AuthenticatedRequest, BookingDetails } from '../utils/types';
@@ -30,6 +32,26 @@ import {
 @UseGuards(JwtAuthGuard, StudentGuard)
 export class StudentController {
   constructor(private readonly studentService: StudentService) {}
+
+  @Get('profile')
+  @ApiOperation({ summary: 'Get student profile' })
+  @ApiResponse({ status: 200, description: 'Student profile retrieved successfully' })
+  async getProfile(@Req() req: AuthenticatedRequest) {
+    return this.studentService.getStudentProfile(req.user.sub);
+  }
+
+  @Put('profile')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update student profile' })
+  @ApiBody({ type: UpdateStudentProfileDto })
+  @ApiResponse({ status: 200, description: 'Profile updated successfully' })
+  @ApiResponse({ status: 409, description: 'Email or phone already in use' })
+  async updateProfile(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: UpdateStudentProfileDto
+  ) {
+    return this.studentService.updateStudentProfile(req.user.sub, dto);
+  }
 
   @Post('bookings')
   @HttpCode(HttpStatus.CREATED)

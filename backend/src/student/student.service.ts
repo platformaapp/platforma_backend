@@ -14,6 +14,7 @@ import { User } from '../users/user.entity';
 import { BookingDetails } from 'src/utils/types';
 import { BookingMapper } from 'src/mapper/booking.mapper';
 import { Session, SessionStatus } from '../session/entities/session.entity';
+import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
 
 @Injectable()
 export class StudentService {
@@ -22,6 +23,9 @@ export class StudentService {
   constructor(
     @InjectRepository(Booking)
     private readonly bookingRepository: Repository<Booking>,
+
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
 
     private readonly dataSource: DataSource,
     private readonly bookingMapper: BookingMapper
@@ -188,5 +192,60 @@ export class StudentService {
 
       return this.bookingMapper.mapToResponseDto(updatedBooking);
     });
+  }
+
+  async getStudentProfile(userId: string): Promise<Partial<User>> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    return {
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      phone: user.phone,
+      avatarUrl: user.avatarUrl,
+      bio: user.bio,
+      roles: user.roles,
+      createdAt: user.createdAt,
+    };
+  }
+
+  async updateStudentProfile(
+    userId: string,
+    dto: UpdateStudentProfileDto
+  ): Promise<Partial<User>> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    if (dto.email && dto.email !== user.email) {
+      const existing = await this.userRepository.findOne({ where: { email: dto.email } });
+      if (existing) throw new ConflictException('Email already in use');
+    }
+
+    if (dto.phone && dto.phone !== user.phone) {
+      const existing = await this.userRepository.findOne({ where: { phone: dto.phone } });
+      if (existing) throw new ConflictException('Phone already in use');
+    }
+
+    if (dto.fullName !== undefined) user.fullName = dto.fullName;
+    if (dto.email !== undefined) user.email = dto.email;
+    if (dto.phone !== undefined) user.phone = dto.phone;
+    if (dto.avatarUrl !== undefined) user.avatarUrl = dto.avatarUrl;
+    if (dto.bio !== undefined) user.bio = dto.bio;
+
+    const saved = await this.userRepository.save(user);
+
+    this.logger.log(`Student profile updated: ${userId}`);
+
+    return {
+      id: saved.id,
+      fullName: saved.fullName,
+      email: saved.email,
+      phone: saved.phone,
+      avatarUrl: saved.avatarUrl,
+      bio: saved.bio,
+      roles: saved.roles,
+      createdAt: saved.createdAt,
+    };
   }
 }
