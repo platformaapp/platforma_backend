@@ -78,32 +78,6 @@ export class PaymentsController {
     };
   }
 
-  @Get(':id')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get payment status' })
-  @ApiParam({ name: 'id', description: 'Payment ID' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Payment status retrieved successfully',
-  })
-  async getPaymentStatus(@Req() req: AuthenticatedRequest, @Param('id') paymentId: string) {
-    const payment = await this.paymentsService.getPaymentStatus(paymentId, req.user.sub);
-
-    return {
-      success: true,
-      message: 'Payment status retrieved successfully',
-      data: {
-        id: payment.id,
-        status: payment.status,
-        amount: payment.amount,
-        currency: payment.currency,
-        createdAt: payment.createdAt,
-        sessionId: payment.sessionId,
-        errorMessage: payment.errorMessage,
-      },
-    };
-  }
-
   @Get('callback')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Handle payment callback after 3D Secure' })
@@ -153,5 +127,31 @@ export class PaymentsController {
         message: errorMessage,
       };
     }
+  }
+
+  @Get(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get payment status' })
+  @ApiParam({ name: 'id', description: 'Payment ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Payment status retrieved successfully',
+  })
+  async getPaymentStatus(@Req() req: AuthenticatedRequest, @Param('id') paymentId: string) {
+    const payment = await this.paymentsService.getPaymentStatus(paymentId, req.user.sub);
+
+    return {
+      success: true,
+      message: 'Payment status retrieved successfully',
+      data: {
+        id: payment.id,
+        status: payment.status,
+        amount: payment.amount,
+        currency: payment.currency,
+        createdAt: payment.createdAt,
+        sessionId: payment.sessionId,
+        errorMessage: payment.errorMessage,
+      },
+    };
   }
 }

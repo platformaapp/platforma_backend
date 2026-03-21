@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transaction, TransactionStatus, TransactionType } from './entities/transaction.entity';
 import { YookassaService } from './yookassa.service';
-import { FRONTEND_URL } from '../utils/constants';
+import { ConfigService } from '@nestjs/config';
 import { YookassaWebhook } from '../utils/types';
 
 @Injectable()
@@ -13,7 +13,8 @@ export class TransactionsService {
   constructor(
     @InjectRepository(Transaction)
     private transactionRepository: Repository<Transaction>,
-    private yookassaService: YookassaService
+    private yookassaService: YookassaService,
+    private configService: ConfigService
   ) {}
 
   async createBindTransaction(
@@ -25,7 +26,8 @@ export class TransactionsService {
     yookassaPaymentId: string;
   }> {
     try {
-      const returnUrl = `${FRONTEND_URL}/payment-methods/callback`;
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+      const returnUrl = `${frontendUrl}/payment-methods/callback`;
       const { confirmationUrl, paymentId } =
         await this.yookassaService.createPaymentMethodAttachment(returnUrl);
 
