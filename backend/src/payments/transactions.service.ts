@@ -26,8 +26,8 @@ export class TransactionsService {
     yookassaPaymentId: string;
   }> {
     try {
-      const backendUrl = this.configService.get<string>('BACKEND_URL', 'http://localhost:3000');
-      const returnUrl = `${backendUrl}/api/student/payments/callback?method_id=${paymentMethodId}`;
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+      const returnUrl = `${frontendUrl}/payment-methods/callback`;
       const { confirmationUrl, paymentId } =
         await this.yookassaService.createPaymentMethodAttachment(returnUrl);
 
@@ -123,16 +123,6 @@ export class TransactionsService {
     return this.transactionRepository.findOne({
       where: { yookassaPaymentId },
       relations: ['user', 'paymentMethod'],
-    });
-  }
-
-  async getLatestBindTransactionByMethodId(paymentMethodId: string): Promise<Transaction | null> {
-    return this.transactionRepository.findOne({
-      where: {
-        paymentMethodId,
-        type: TransactionType.CARD_BINDING,
-      },
-      order: { createdAt: 'DESC' },
     });
   }
 
