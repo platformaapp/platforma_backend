@@ -183,15 +183,6 @@ export class EventsService {
           await this.videoRoomRepository.save(videoRoom);
           this.logger.log(`Video room created for event ${savedEventId}: ${videoRoom.id}`);
 
-          if (session) {
-            const freshEvent = await this.eventsRepository.findOne({
-              where: { id: savedEventId },
-              relations: ['videoRoom'],
-            });
-            if (freshEvent) {
-              await this.autoRegisterStudentForSessionEvent(freshEvent, session);
-            }
-          }
         } catch (error) {
           this.logger.error(`Failed to create webinar room for event ${savedEventId}`, error);
         }
