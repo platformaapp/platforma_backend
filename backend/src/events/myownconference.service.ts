@@ -191,6 +191,55 @@ export class MyOwnConferenceService {
     }
   }
 
+  async getWebinarStatus(alias: string): Promise<{ status: string; isActive: boolean }> {
+    const requestData = {
+      key: this.apiKey,
+      action: 'webinarsGetInfo',
+      params: { alias },
+    };
+
+    try {
+      const response = await this.sendRequest<WebinarInfoResponse>(requestData);
+
+      if (response.response.error) {
+        throw new Error(`MyOwnConference API Error: ${response.response.error}`);
+      }
+
+      const status = (response.response as any).status || 'unknown';
+      const isActive = status === 'active' || status === 'started';
+
+      return { status, isActive };
+    } catch (error) {
+      this.logger.error(`Failed to get webinar status for ${alias}`, error);
+      throw error;
+    }
+  }
+
+  async getRecordingUrl(alias: string): Promise<string | null> {
+    const requestData = {
+      key: this.apiKey,
+      action: 'recordingsList',
+      params: { alias },
+    };
+
+    try {
+      const response = await this.sendRequest<any>(requestData, 15000);
+
+      if (response.response.error) {
+        return null;
+      }
+
+      const recordings: any[] = response.response.list || response.response.recordings || [];
+      if (recordings.length === 0) return null;
+
+      const latest = recordings[recordings.length - 1];
+      return latest?.url || latest?.recordingUrl || latest?.link || null;
+    } catch (error) {
+      this.logger.warn(`Failed to get recording for ${alias}`, error);
+      return null;
+    }
+  }
+
   async getAttendeeLink(alias: string, email: string): Promise<string> {
     const requestData = {
       key: this.apiKey,

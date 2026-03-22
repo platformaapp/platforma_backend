@@ -11,6 +11,7 @@ import { VideoRoom } from './entities/video-room.entity';
 import { Event } from './entities/event.entity';
 import { EmailService } from '../notifications/email.service';
 import { MyOwnConferenceService } from './myownconference.service';
+import { EventsSchedulerService } from './events-scheduler.service';
 import { Payment } from 'src/payments/entities/payment.entity';
 
 @Module({
@@ -20,6 +21,6 @@ import { Payment } from 'src/payments/entities/payment.entity';
     JwtModule,
   ],
   controllers: [EventsController],
-  providers: [EventsService, EmailService, MyOwnConferenceService],
+  providers: [EventsService, EmailService, MyOwnConferenceService, EventsSchedulerService],
 })
 export class EventsModule {}
