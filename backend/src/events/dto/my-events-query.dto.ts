@@ -8,6 +8,12 @@ export enum MyEventsFilter {
   PERSONAL = 'personal',
 }
 
+export enum MyEventsTimeFilter {
+  ALL = 'all',
+  UPCOMING = 'upcoming',
+  PAST = 'past',
+}
+
 export class MyEventsQueryDto {
   @IsIn(['student', 'tutor', 'admin'])
   role: UserRole;
@@ -15,6 +21,10 @@ export class MyEventsQueryDto {
   @IsOptional()
   @IsEnum(MyEventsFilter)
   filter?: MyEventsFilter = MyEventsFilter.ALL;
+
+  @IsOptional()
+  @IsEnum(MyEventsTimeFilter)
+  time?: MyEventsTimeFilter = MyEventsTimeFilter.ALL;
 
   @IsOptional()
   @Type(() => Number)

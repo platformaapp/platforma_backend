@@ -42,7 +42,7 @@ import {
   TimeLeftDto,
   UserInfoDto,
 } from './dto/my-events-response.dto';
-import { MyEventsFilter, MyEventsQueryDto } from './dto/my-events-query.dto';
+import { MyEventsFilter, MyEventsQueryDto, MyEventsTimeFilter } from './dto/my-events-query.dto';
 import { EventWithParticipantsDto, ParticipantDto } from './dto/event-with-participants.dto';
 import { CancelRegistrationResponseDto } from './dto/cancel-registration-response.dto';
 
@@ -1014,7 +1014,7 @@ export class EventsService {
   }
 
   async getEventsFeed(query: EventsFeedQueryDto, userId?: string): Promise<EventsFeedResponseDto> {
-    const { page, limit } = query;
+    const { page, limit, type } = query;
     const skip = (page - 1) * limit;
 
     if (page < 1) {
@@ -1027,12 +1027,23 @@ export class EventsService {
 
     const now = new Date();
 
-    const [events, total] = await this.eventsRepository
+    let qb = this.eventsRepository
       .createQueryBuilder('event')
       .leftJoinAndSelect('event.mentor', 'mentor')
       .leftJoinAndSelect('event.userEvents', 'userEvents')
-      .where('event.status = :status', { status: EventStatus.SCHEDULED })
-      .andWhere('event.datetimeStart > :now', { now })
+      .where('event.status IN (:...statuses)', {
+        statuses: [EventStatus.SCHEDULED, EventStatus.ACTIVE],
+      })
+      .andWhere('event.datetimeStart > :now', { now });
+
+    if (type) {
+      qb = qb.andWhere('event.type = :type', { type });
+    } else {
+      // By default only show standalone events in the public feed
+      qb = qb.andWhere('event.type = :type', { type: EventType.STANDALONE });
+    }
+
+    const [events, total] = await qb
       .orderBy('event.datetimeStart', 'ASC')
       .skip(skip)
       .take(limit)
@@ -1107,7 +1118,7 @@ export class EventsService {
   }
 
   async getMyEvents(query: MyEventsQueryDto, userId: string): Promise<MyEventsResponseDto> {
-    const { role, filter, page, per_page } = query;
+    const { role, filter, time, page, per_page } = query;
 
     if (page < 1) {
       throw new BadRequestException('Некорректный номер страницы');
@@ -1131,22 +1142,22 @@ export class EventsService {
       throw new BadRequestException('Указанная роль не соответствует ролям пользователя');
     }
 
+    const now = new Date();
+
     let queryBuilder = this.eventsRepository
       .createQueryBuilder('event')
       .leftJoinAndSelect('event.mentor', 'mentor')
       .leftJoinAndSelect('event.userEvents', 'userEvents')
       .leftJoinAndSelect('event.session', 'session')
       .leftJoinAndSelect('session.student', 'student')
-      .orderBy('event.datetimeStart', 'ASC');
-
-    queryBuilder = queryBuilder.andWhere('event.datetimeStart IS NOT NULL');
+      .where('event.datetimeStart IS NOT NULL');
 
     if (role === 'tutor') {
-      queryBuilder = queryBuilder.where('event.mentorId = :userId', { userId });
+      queryBuilder = queryBuilder.andWhere('event.mentorId = :userId', { userId });
     } else if (role === 'student') {
       queryBuilder = queryBuilder
         .innerJoin('event.userEvents', 'myUserEvents')
-        .where('myUserEvents.userId = :userId', { userId })
+        .andWhere('myUserEvents.userId = :userId', { userId })
         .andWhere('myUserEvents.status IN (:...statuses)', {
           statuses: [ParticipationStatus.REGISTERED, ParticipationStatus.ATTENDED],
         });
@@ -1163,6 +1174,15 @@ export class EventsService {
         type: EventType.SESSION_BASED,
       });
     }
+
+    if (time === MyEventsTimeFilter.UPCOMING) {
+      queryBuilder = queryBuilder.andWhere('event.datetimeStart >= :now', { now });
+    } else if (time === MyEventsTimeFilter.PAST) {
+      queryBuilder = queryBuilder.andWhere('event.datetimeStart < :now', { now });
+    }
+
+    const sortDirection = time === MyEventsTimeFilter.PAST ? 'DESC' : 'ASC';
+    queryBuilder = queryBuilder.orderBy('event.datetimeStart', sortDirection);
 
     const [events, total] = await queryBuilder.skip(skip).take(per_page).getManyAndCount();
 
