@@ -155,44 +155,59 @@ export class EventsService {
 
     const savedEvent = await this.eventsRepository.save(event);
 
-    try {
-      let webinarName = savedEvent.title;
-      if (session) {
-        const studentName = session.student.fullName || session.student.email.split('@')[0];
-        webinarName = `${savedEvent.title} - ${studentName}`;
-      }
+    // Run webinar creation and notifications in background — do not block the response
+    const savedEventId = savedEvent.id;
+    setImmediate(() => {
+      (async () => {
+        try {
+          let webinarName = savedEvent.title;
+          if (session) {
+            const studentName = session.student.fullName || session.student.email.split('@')[0];
+            webinarName = `${savedEvent.title} - ${studentName}`;
+          }
 
-      const webinarResponse = await this.myOwnConferenceService.createWebinar({
-        name: webinarName,
-        start: this.myOwnConferenceService.formatDateForAPI(savedEvent.datetimeStart),
-        duration: savedEvent.durationMinutes,
-      });
+          const webinarResponse = await this.myOwnConferenceService.createWebinar({
+            name: webinarName,
+            start: this.myOwnConferenceService.formatDateForAPI(savedEvent.datetimeStart),
+            duration: savedEvent.durationMinutes,
+          });
 
-      const videoRoom = this.videoRoomRepository.create({
-        event: savedEvent,
-        provider: VideoProvider.MY_OWN_CONFERENCE,
-        url: webinarResponse.webinarLink,
-        externalId: webinarResponse.alias,
-        moderatorUrl: webinarResponse.mainModeratorLink,
-      });
+          const videoRoom = this.videoRoomRepository.create({
+            event: { id: savedEventId },
+            provider: VideoProvider.MY_OWN_CONFERENCE,
+            url: webinarResponse.webinarLink,
+            externalId: webinarResponse.alias,
+            moderatorUrl: webinarResponse.mainModeratorLink,
+          });
 
-      await this.videoRoomRepository.save(videoRoom);
+          await this.videoRoomRepository.save(videoRoom);
+          this.logger.log(`Video room created for event ${savedEventId}: ${videoRoom.id}`);
 
-      savedEvent.videoRoom = videoRoom;
-      savedEvent.videoRoomId = videoRoom.id;
-    } catch (error) {
-      this.logger.error('Failed to create webinar room', error);
-    }
+          if (session) {
+            const freshEvent = await this.eventsRepository.findOne({
+              where: { id: savedEventId },
+              relations: ['videoRoom'],
+            });
+            if (freshEvent) {
+              await this.autoRegisterStudentForSessionEvent(freshEvent, session);
+            }
+          }
+        } catch (error) {
+          this.logger.error(`Failed to create webinar room for event ${savedEventId}`, error);
+        }
+
+        try {
+          await this.sendEventCreatedNotification(savedEvent);
+        } catch (error) {
+          this.logger.error(`Failed to send event created notification for ${savedEventId}`, error);
+        }
+      })();
+    });
 
     if (session) {
       await this.autoRegisterStudentForSessionEvent(savedEvent, session);
     }
 
-    try {
-      await this.sendEventCreatedNotification(savedEvent);
-    } catch (error) {
-      console.error('Event created but notification failed:', error);
-    }
     return savedEvent;
   }
 
