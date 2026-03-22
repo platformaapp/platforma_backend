@@ -216,23 +216,36 @@ export class MyOwnConferenceService {
     }
   }
 
-  private async sendRequest<T = any>(data: any): Promise<T> {
+  private async sendRequest<T = any>(data: any, timeoutMs = 10000): Promise<T> {
     const formData = new URLSearchParams();
     formData.append('request', JSON.stringify(data));
 
-    const response = await fetch(this.baseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: formData.toString(),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (!response.ok) {
-      throw new Error(`HTTP Error: ${response.status}`);
+    try {
+      const response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData.toString(),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP Error: ${response.status}`);
+      }
+
+      return (await response.json()) as T;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`MyOwnConference API timeout after ${timeoutMs}ms`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
     }
-
-    return (await response.json()) as T;
   }
 
   formatDateForAPI(date: Date): string {
