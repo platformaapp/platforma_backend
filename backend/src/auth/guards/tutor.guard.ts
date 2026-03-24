@@ -12,6 +12,6 @@ export class TutorGuard extends JwtAuthGuard {
     const request = context.switchToHttp().getRequest<Request>();
     const user: JwtPayload = request.user;
 
-    return user && user.role === 'tutor';
+    return !!user && (user.role === 'tutor' || (Array.isArray(user.roles) && user.roles.includes('tutor')));
   }
 }
