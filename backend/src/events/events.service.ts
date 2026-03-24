@@ -307,21 +307,26 @@ export class EventsService {
 
     const updatedEvent = await this.eventsRepository.save(event);
 
-    if (isDateTimeChanged && event.userEvents && event.userEvents.length > 0) {
-      await this.notifyParticipantsAboutTimeChange(updatedEvent, originalDateTimeStart);
-    }
+    // Run external calls in background — do not block the response
+    setImmediate(() => {
+      (async () => {
+        if (isDateTimeChanged && event.userEvents && event.userEvents.length > 0) {
+          await this.notifyParticipantsAboutTimeChange(updatedEvent, originalDateTimeStart);
+        }
 
-    if (updatedEvent.videoRoom?.externalId) {
-      try {
-        await this.myOwnConferenceService.updateWebinar(updatedEvent.videoRoom.externalId, {
-          name: updatedEvent.title,
-          start: this.myOwnConferenceService.formatDateForAPI(updatedEvent.datetimeStart),
-          duration: updatedEvent.durationMinutes,
-        });
-      } catch (error) {
-        this.logger.error('Failed to update webinar room', error);
-      }
-    }
+        if (updatedEvent.videoRoom?.externalId) {
+          try {
+            await this.myOwnConferenceService.updateWebinar(updatedEvent.videoRoom.externalId, {
+              name: updatedEvent.title,
+              start: this.myOwnConferenceService.formatDateForAPI(updatedEvent.datetimeStart),
+              duration: updatedEvent.durationMinutes,
+            });
+          } catch (error) {
+            this.logger.error('Failed to update webinar room', error);
+          }
+        }
+      })();
+    });
 
     return updatedEvent;
   }
@@ -415,19 +420,28 @@ export class EventsService {
 
     const savedUserEvent = await this.userEventRepository.save(userEvent);
 
-    if (event.videoRoom?.externalId) {
-      try {
-        await this.myOwnConferenceService.addAttendeeToWebinar(
-          event.videoRoom.externalId,
-          student.email,
-          student.fullName || student.email.split('@')[0]
-        );
-      } catch (error) {
-        this.logger.error('Failed to add attendee to webinar', error);
-      }
-    }
+    // Run external calls in background — do not block the response
+    setImmediate(() => {
+      (async () => {
+        if (event.videoRoom?.externalId) {
+          try {
+            await this.myOwnConferenceService.addAttendeeToWebinar(
+              event.videoRoom.externalId,
+              student.email,
+              student.fullName || student.email.split('@')[0]
+            );
+          } catch (error) {
+            this.logger.error('Failed to add attendee to webinar', error);
+          }
+        }
 
-    await this.notifyMentorAboutNewRegistration(event, student);
+        try {
+          await this.notifyMentorAboutNewRegistration(event, student);
+        } catch (error) {
+          this.logger.error('Failed to notify mentor about registration', error);
+        }
+      })();
+    });
 
     return savedUserEvent;
   }
@@ -1387,16 +1401,32 @@ export class EventsService {
 
     await this.userEventRepository.save(userEvent);
 
-    await this.sendCancellationNotifications(
-      event,
-      userEvent.user,
-      previousStatus,
-      previousPaymentStatus
-    );
+    // Run notifications in background — do not block the response
+    const capturedPreviousStatus = previousStatus;
+    const capturedPreviousPaymentStatus = previousPaymentStatus;
+    const capturedUserEventUser = userEvent.user;
+    setImmediate(() => {
+      (async () => {
+        try {
+          await this.sendCancellationNotifications(
+            event,
+            capturedUserEventUser,
+            capturedPreviousStatus,
+            capturedPreviousPaymentStatus
+          );
+        } catch (error) {
+          this.logger.error('Failed to send cancellation notifications', error);
+        }
 
-    if (event.type === EventType.SESSION_BASED) {
-      await this.handleSessionBasedEventCancellation(event, userId);
-    }
+        if (event.type === EventType.SESSION_BASED) {
+          try {
+            await this.handleSessionBasedEventCancellation(event, userId);
+          } catch (error) {
+            this.logger.error('Failed to handle session-based event cancellation', error);
+          }
+        }
+      })();
+    });
 
     return {
       success: true,
