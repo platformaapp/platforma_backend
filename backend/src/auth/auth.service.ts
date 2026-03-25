@@ -326,6 +326,21 @@ export class AuthService {
     }
   }
 
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string
+  ): Promise<void> {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('User not found');
+
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) throw new UnauthorizedException('Текущий пароль неверный');
+
+    user.passwordHash = await bcrypt.hash(newPassword, 12);
+    await this.usersRepository.save(user);
+  }
+
   async switchRole(userId: string, refreshToken: string, newRole: UserRole) {
     const session = await this.authSessionRepository.findOne({
       where: {

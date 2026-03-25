@@ -26,6 +26,8 @@ import {
   ApiCookieAuth,
 } from '@nestjs/swagger';
 import { SwitchRoleDto } from './dto/switch-role.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import type { AuthenticatedRequest } from '../utils/types';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -182,6 +184,22 @@ export class AuthController {
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     await this.authService.resetPassword(resetPasswordDto);
     return { message: 'Password reset successfully' };
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Change password for authenticated user' })
+  @ApiBody({ type: ChangePasswordDto })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Password changed successfully' })
+  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Current password is incorrect' })
+  async changePassword(
+    @Body() dto: ChangePasswordDto,
+    @Req() req: AuthenticatedRequest
+  ) {
+    await this.authService.changePassword(req.user.sub, dto.currentPassword, dto.newPassword);
+    return { message: 'Пароль успешно изменён' };
   }
 
   @Post('switch-role')
