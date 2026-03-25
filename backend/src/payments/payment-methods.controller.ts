@@ -85,6 +85,7 @@ export class PaymentMethodsController {
       data: {
         confirmationUrl: result.confirmationUrl,
         attachmentId: result.transactionId,
+        yookassaPaymentId: result.yookassaPaymentId,
       },
     };
   }

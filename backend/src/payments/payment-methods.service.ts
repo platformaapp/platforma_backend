@@ -40,7 +40,7 @@ export class PaymentMethodsService {
   async attachPaymentMethod(
     userId: string,
     provider: PaymentProvider = PaymentProvider.YOOKASSA
-  ): Promise<{ confirmationUrl: string; transactionId: string }> {
+  ): Promise<{ confirmationUrl: string; transactionId: string; yookassaPaymentId: string }> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
@@ -86,6 +86,7 @@ export class PaymentMethodsService {
     return {
       confirmationUrl: redirectUrl,
       transactionId: transaction.id,
+      yookassaPaymentId,
     };
   }
 
