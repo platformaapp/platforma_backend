@@ -10,6 +10,8 @@ import {
   Param,
   Logger,
   Query,
+  DefaultValuePipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiOperation,
@@ -36,6 +38,40 @@ export class PaymentsController {
   private readonly logger = new Logger(PaymentsController.name);
 
   constructor(private readonly paymentsService: PaymentsService) {}
+
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get student payment history' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Payment history retrieved successfully' })
+  async getPayments(
+    @Req() req: AuthenticatedRequest,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number
+  ) {
+    const result = await this.paymentsService.getStudentPayments(req.user.sub, page, limit);
+    return {
+      success: true,
+      data: result.data.map((p) => ({
+        id: p.id,
+        amount: p.amount,
+        currency: p.currency,
+        status: p.status,
+        createdAt: p.createdAt,
+        paidAt: p.paidAt,
+        sessionId: p.sessionId,
+        tutorName: p.tutor?.fullName || null,
+        errorMessage: p.errorMessage || null,
+      })),
+      pagination: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        hasNext: page * limit < result.total,
+      },
+    };
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -76,6 +112,20 @@ export class PaymentsController {
       amount: result.amount,
       currency: result.currency,
     };
+  }
+
+  @Post('event/:eventId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Pay for event registration' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiQuery({ name: 'paymentMethodId', required: false, description: 'Payment method ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Payment initiated or completed' })
+  async payForEvent(
+    @Req() req: AuthenticatedRequest,
+    @Param('eventId') eventId: string,
+    @Query('paymentMethodId') paymentMethodId?: string
+  ) {
+    return this.paymentsService.createEventPayment(req.user.sub, eventId, paymentMethodId);
   }
 
   @Get('callback')

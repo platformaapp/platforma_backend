@@ -17,7 +17,8 @@ import { YookassaWebhookDto } from './dto/yookassa-webhook.dto';
 import { ConfigService } from '@nestjs/config';
 import { TransactionsService } from './transactions.service';
 import { TransactionStatus, TransactionType } from './entities/transaction.entity';
-import { UserEvent } from 'src/events/entities/user-event.entity';
+import { UserEvent, ParticipationStatus, PaymentStatus as UserEventPaymentStatus } from 'src/events/entities/user-event.entity';
+import { Event } from 'src/events/entities/event.entity';
 
 @Injectable()
 export class PaymentsService {
@@ -36,7 +37,9 @@ export class PaymentsService {
     private transactionsService: TransactionsService,
     private configService: ConfigService,
     @InjectRepository(UserEvent)
-    private userEventRepository: Repository<UserEvent>
+    private userEventRepository: Repository<UserEvent>,
+    @InjectRepository(Event)
+    private eventRepository: Repository<Event>
   ) {}
 
   async createSessionPayment(
@@ -209,6 +212,24 @@ export class PaymentsService {
     }
 
     return payment;
+  }
+
+  async getStudentPayments(
+    userId: string,
+    page = 1,
+    limit = 20
+  ): Promise<{ data: Payment[]; total: number; page: number; limit: number }> {
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await this.paymentRepository.findAndCount({
+      where: { userId },
+      relations: ['session', 'tutor'],
+      order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
+    });
+
+    return { data, total, page, limit };
   }
 
   async handlePaymentWebhook(webhookData: YookassaWebhookDto): Promise<void> {
@@ -488,6 +509,75 @@ export class PaymentsService {
       );
 
       throw new InternalServerErrorException(`Payment processing error: ${errorMessage}`);
+    }
+  }
+
+  async createEventPayment(
+    userId: string,
+    eventId: string,
+    paymentMethodId?: string
+  ): Promise<{ confirmationUrl?: string; status: string; message: string }> {
+    const event = await this.eventRepository.findOne({
+      where: { id: eventId },
+      relations: ['mentor'],
+    });
+
+    if (!event) throw new NotFoundException('Событие не найдено');
+    if (event.price <= 0) throw new BadRequestException('Событие бесплатное, оплата не требуется');
+
+    const userEvent = await this.userEventRepository.findOne({
+      where: { eventId, userId },
+    });
+
+    if (!userEvent) throw new BadRequestException('Вы не зарегистрированы на это событие');
+    if (userEvent.paymentStatus === UserEventPaymentStatus.PAID) {
+      throw new BadRequestException('Событие уже оплачено');
+    }
+
+    let paymentMethod: PaymentMethod;
+    if (paymentMethodId) {
+      paymentMethod = await this.paymentMethodRepository.findOne({
+        where: { id: paymentMethodId, userId, status: PaymentMethodStatus.ACTIVE },
+      });
+      if (!paymentMethod) throw new NotFoundException('Способ оплаты не найден или неактивен');
+    } else {
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      if (!user?.defaultPaymentMethodId) {
+        throw new BadRequestException('Не выбран способ оплаты');
+      }
+      paymentMethod = await this.paymentMethodRepository.findOne({
+        where: { id: user.defaultPaymentMethodId, userId, status: PaymentMethodStatus.ACTIVE },
+      });
+      if (!paymentMethod) throw new NotFoundException('Способ оплаты по умолчанию не найден');
+    }
+
+    try {
+      const yookassaPayment = await this.yookassaService.createSessionPayment({
+        amount: Number(event.price),
+        paymentMethodToken: paymentMethod.cardToken,
+        description: `Оплата мероприятия: ${event.title}`,
+        paymentId: userEvent.id,
+        returnUrl: `${this.configService.get<string>('FRONTEND_URL')}/events/${eventId}?payment=success`,
+      });
+
+      if (yookassaPayment.status === 'succeeded') {
+        await this.userEventRepository.update(userEvent.id, {
+          paymentStatus: UserEventPaymentStatus.PAID,
+          status: ParticipationStatus.REGISTERED,
+        });
+
+        return { status: 'succeeded', message: 'Оплата прошла успешно' };
+      }
+
+      return {
+        status: yookassaPayment.status,
+        confirmationUrl: yookassaPayment.confirmation_url,
+        message: 'Требуется подтверждение оплаты',
+      };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Event payment failed for event ${eventId}: ${msg}`);
+      throw new InternalServerErrorException(`Ошибка оплаты: ${msg}`);
     }
   }
 }
