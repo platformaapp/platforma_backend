@@ -1057,6 +1057,21 @@ export class EventsService {
       qb = qb.andWhere('event.type = :type', { type: EventType.STANDALONE });
     }
 
+    if (userId) {
+      qb = qb.andWhere(
+        `NOT EXISTS (
+          SELECT 1 FROM user_events ue
+          WHERE ue.event_id = event.id
+            AND ue.user_id = :feedUserId
+            AND ue.status != :cancelledParticipation
+        )`,
+        {
+          feedUserId: userId,
+          cancelledParticipation: ParticipationStatus.CANCELLED,
+        }
+      );
+    }
+
     const [events, total] = await qb
       .orderBy('event.datetimeStart', 'ASC')
       .skip(skip)
@@ -1173,7 +1188,11 @@ export class EventsService {
         .innerJoin('event.userEvents', 'myUserEvents')
         .andWhere('myUserEvents.userId = :userId', { userId })
         .andWhere('myUserEvents.status IN (:...statuses)', {
-          statuses: [ParticipationStatus.REGISTERED, ParticipationStatus.ATTENDED],
+          statuses: [
+            ParticipationStatus.PENDING,
+            ParticipationStatus.REGISTERED,
+            ParticipationStatus.ATTENDED,
+          ],
         });
     } else {
       throw new BadRequestException('Некорректная роль');
