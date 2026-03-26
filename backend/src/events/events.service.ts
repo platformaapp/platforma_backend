@@ -387,26 +387,7 @@ export class EventsService {
     let paymentStatus = PaymentStatus.PENDING;
     let participationStatus = ParticipationStatus.PENDING;
 
-    if (event.price > 0) {
-      const successfulPayments = await this.paymentRepository.find({
-        where: {
-          userId: studentId,
-          status: PaymentEntityStatus.SUCCESS,
-        },
-      });
-
-      this.logger.log(
-        `Found ${successfulPayments.length} successful payments for user during registration`
-      );
-
-      if (successfulPayments.length > 0) {
-        paymentStatus = PaymentStatus.PAID;
-        participationStatus = ParticipationStatus.REGISTERED;
-        this.logger.log(`User has successful payments, setting registration as PAID`);
-      } else {
-        this.logger.log(`No successful payments found, registration will be PENDING`);
-      }
-    } else {
+    if (event.price <= 0) {
       paymentStatus = PaymentStatus.PAID;
       participationStatus = ParticipationStatus.REGISTERED;
     }
@@ -1173,7 +1154,7 @@ export class EventsService {
         .innerJoin('event.userEvents', 'myUserEvents')
         .andWhere('myUserEvents.userId = :userId', { userId })
         .andWhere('myUserEvents.status IN (:...statuses)', {
-          statuses: [ParticipationStatus.REGISTERED, ParticipationStatus.ATTENDED],
+          statuses: [ParticipationStatus.REGISTERED, ParticipationStatus.ATTENDED, ParticipationStatus.PENDING],
         });
     } else {
       throw new BadRequestException('Некорректная роль');

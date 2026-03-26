@@ -319,6 +319,24 @@ export class PaymentsService {
     });
 
     if (!payment) {
+      // Платёж мероприятия не создаёт запись в таблице payments.
+      // Идентификатор user_event передаётся в metadata.payment_id.
+      const metadataPaymentId = (object.metadata as Record<string, string> | undefined)
+        ?.payment_id;
+      if (metadataPaymentId) {
+        if (object.status === 'succeeded') {
+          await this.userEventRepository.update(metadataPaymentId, {
+            paymentStatus: UserEventPaymentStatus.PAID,
+            status: ParticipationStatus.REGISTERED,
+          });
+          this.logger.log(`UserEvent ${metadataPaymentId} marked as PAID via webhook`);
+        } else {
+          this.logger.log(
+            `Event payment webhook with status ${object.status} for userEvent ${metadataPaymentId}, no action needed`
+          );
+        }
+        return;
+      }
       this.logger.error(`Payment not found for providerPaymentId: ${object.id}`);
       throw new NotFoundException('Payment not found');
     }
