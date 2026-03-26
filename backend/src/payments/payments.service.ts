@@ -243,14 +243,14 @@ export class PaymentsService {
   }> {
     const skip = (page - 1) * limit;
 
-    const [sessionPayments, paidEvents] = await Promise.all([
+    const [sessionPayments, allEvents] = await Promise.all([
       this.paymentRepository.find({
         where: { userId },
         relations: ['session', 'tutor'],
         order: { createdAt: 'DESC' },
       }),
       this.userEventRepository.find({
-        where: { userId, paymentStatus: UserEventPaymentStatus.PAID },
+        where: { userId },
         relations: ['event', 'event.mentor'],
         order: { updatedAt: 'DESC' },
       }),
@@ -274,25 +274,25 @@ export class PaymentsService {
       sortAt: p.paidAt ?? p.createdAt,
     }));
 
-    const eventItems = paidEvents.map((ue) => {
+    const eventItems = allEvents.map((ue) => {
       const ev = ue.event;
-      const paidAt = ue.updatedAt;
+      const isPaid = ue.paymentStatus === UserEventPaymentStatus.PAID;
       return {
         row: {
           id: ue.id,
           kind: 'event' as const,
           amount: ev ? Number(ev.price) : 0,
           currency: 'RUB',
-          status: PaymentStatus.SUCCESS,
+          status: isPaid ? PaymentStatus.SUCCESS : (PaymentStatus.PENDING as PaymentStatus),
           createdAt: ue.createdAt,
-          paidAt,
+          paidAt: isPaid ? ue.updatedAt : null,
           sessionId: null,
           eventId: ue.eventId,
           eventTitle: ev?.title ?? null,
           counterpartyName: ev?.mentor?.fullName ?? null,
           errorMessage: null,
         } satisfies StudentPaymentHistoryItem,
-        sortAt: paidAt,
+        sortAt: ue.createdAt,
       };
     });
 
