@@ -20,6 +20,22 @@ import { TransactionStatus, TransactionType } from './entities/transaction.entit
 import { UserEvent, ParticipationStatus, PaymentStatus as UserEventPaymentStatus } from 'src/events/entities/user-event.entity';
 import { Event } from 'src/events/entities/event.entity';
 
+/** Строка истории платежей в профиле (сессии + мероприятия). */
+export type StudentPaymentHistoryItem = {
+  id: string;
+  kind: 'session' | 'event';
+  amount: number;
+  currency: string;
+  status: PaymentStatus;
+  createdAt: Date;
+  paidAt: Date | null;
+  sessionId: string | null;
+  eventId: string | null;
+  eventTitle: string | null;
+  counterpartyName: string | null;
+  errorMessage: string | null;
+};
+
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
@@ -214,20 +230,78 @@ export class PaymentsService {
     return payment;
   }
 
+  /** История для профиля: оплаты сессий (таблица payments) + оплаченные мероприятия (user_events), т.к. события раньше не создавали запись в payments. */
   async getStudentPayments(
     userId: string,
     page = 1,
     limit = 20
-  ): Promise<{ data: Payment[]; total: number; page: number; limit: number }> {
+  ): Promise<{
+    data: StudentPaymentHistoryItem[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const skip = (page - 1) * limit;
 
-    const [data, total] = await this.paymentRepository.findAndCount({
-      where: { userId },
-      relations: ['session', 'tutor'],
-      order: { createdAt: 'DESC' },
-      skip,
-      take: limit,
+    const [sessionPayments, paidEvents] = await Promise.all([
+      this.paymentRepository.find({
+        where: { userId },
+        relations: ['session', 'tutor'],
+        order: { createdAt: 'DESC' },
+      }),
+      this.userEventRepository.find({
+        where: { userId, paymentStatus: UserEventPaymentStatus.PAID },
+        relations: ['event', 'event.mentor'],
+        order: { updatedAt: 'DESC' },
+      }),
+    ]);
+
+    const sessionItems = sessionPayments.map((p) => ({
+      row: {
+        id: p.id,
+        kind: 'session' as const,
+        amount: Number(p.amount),
+        currency: p.currency,
+        status: p.status,
+        createdAt: p.createdAt,
+        paidAt: p.paidAt ?? null,
+        sessionId: p.sessionId ?? null,
+        eventId: null,
+        eventTitle: null,
+        counterpartyName: p.tutor?.fullName ?? null,
+        errorMessage: p.errorMessage ?? null,
+      } satisfies StudentPaymentHistoryItem,
+      sortAt: p.paidAt ?? p.createdAt,
+    }));
+
+    const eventItems = paidEvents.map((ue) => {
+      const ev = ue.event;
+      const paidAt = ue.updatedAt;
+      return {
+        row: {
+          id: ue.id,
+          kind: 'event' as const,
+          amount: ev ? Number(ev.price) : 0,
+          currency: 'RUB',
+          status: PaymentStatus.SUCCESS,
+          createdAt: ue.createdAt,
+          paidAt,
+          sessionId: null,
+          eventId: ue.eventId,
+          eventTitle: ev?.title ?? null,
+          counterpartyName: ev?.mentor?.fullName ?? null,
+          errorMessage: null,
+        } satisfies StudentPaymentHistoryItem,
+        sortAt: paidAt,
+      };
     });
+
+    const merged = [...sessionItems, ...eventItems].sort(
+      (a, b) => b.sortAt.getTime() - a.sortAt.getTime()
+    );
+
+    const total = merged.length;
+    const data = merged.slice(skip, skip + limit).map((m) => m.row);
 
     return { data, total, page, limit };
   }

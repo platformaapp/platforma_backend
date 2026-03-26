@@ -53,8 +53,8 @@ export class PaymentMethodsService {
       },
     });
 
-    if (activeCardsCount >= 3) {
-      throw new ConflictException('Максимум можно привязать 3 карты');
+    if (activeCardsCount >= 1) {
+      throw new ConflictException('Можно привязать только одну карту. Удалите текущую, чтобы привязать другую.');
     }
 
     const paymentMethod = this.paymentMethodRepository.create({

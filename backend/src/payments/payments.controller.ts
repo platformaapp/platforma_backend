@@ -55,13 +55,17 @@ export class PaymentsController {
       success: true,
       data: result.data.map((p) => ({
         id: p.id,
+        kind: p.kind,
         amount: p.amount,
         currency: p.currency,
         status: p.status,
         createdAt: p.createdAt,
         paidAt: p.paidAt,
         sessionId: p.sessionId,
-        tutorName: p.tutor?.fullName || null,
+        eventId: p.eventId,
+        eventTitle: p.eventTitle,
+        tutorName: p.counterpartyName,
+        counterpartyName: p.counterpartyName,
         errorMessage: p.errorMessage || null,
       })),
       pagination: {
