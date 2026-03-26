@@ -53,6 +53,15 @@ export class StudentController {
     return this.studentService.updateStudentProfile(req.user.sub, dto);
   }
 
+  @Get('tutors/:tutorId/slots')
+  @ApiOperation({ summary: 'Get available slots for a tutor' })
+  @ApiParam({ name: 'tutorId', description: 'Tutor user ID' })
+  @ApiResponse({ status: 200, description: 'Available slots retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Tutor not found' })
+  async getTutorSlots(@Param('tutorId') tutorId: string) {
+    return this.studentService.getTutorAvailableSlots(tutorId);
+  }
+
   @Post('bookings')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a booking' })

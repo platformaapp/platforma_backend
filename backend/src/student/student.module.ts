@@ -11,10 +11,11 @@ import { AuthModule } from 'src/auth/auth.module';
 import { BookingMapper } from 'src/mapper/booking.mapper';
 import { SessionModule } from '../session/session.module';
 import { Session } from '../session/entities/session.entity';
+import { Payment } from '../payments/entities/payment.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Booking, Slot, User, Session]),
+    TypeOrmModule.forFeature([Booking, Slot, User, Session, Payment]),
     SessionModule,
     SlotsModule,
     UsersModule,

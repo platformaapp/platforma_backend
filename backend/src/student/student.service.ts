@@ -7,7 +7,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, MoreThanOrEqual } from 'typeorm';
 import { Booking, BookingStatus } from './entities/booking.entity';
 import { Slot, SlotStatus } from '../slots/entities/slot.entity';
 import { User } from '../users/user.entity';
@@ -15,6 +15,7 @@ import { BookingDetails } from 'src/utils/types';
 import { BookingMapper } from 'src/mapper/booking.mapper';
 import { Session, SessionStatus } from '../session/entities/session.entity';
 import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
+import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 
 @Injectable()
 export class StudentService {
@@ -26,6 +27,9 @@ export class StudentService {
 
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+
+    @InjectRepository(Payment)
+    private readonly paymentRepository: Repository<Payment>,
 
     private readonly dataSource: DataSource,
     private readonly bookingMapper: BookingMapper
@@ -107,6 +111,20 @@ export class StudentService {
       });
 
       const savedSession = await manager.save(session);
+
+      if (Number(slot.price) <= 0) {
+        const freePayment = manager.create(Payment, {
+          userId: studentId,
+          tutorId: slot.tutor.id,
+          sessionId: savedSession.id,
+          amount: 0,
+          currency: 'RUB',
+          status: PaymentStatus.SUCCESS,
+          paidAt: new Date(),
+        });
+        await manager.save(freePayment);
+        this.logger.log(`Free payment record created for session ${savedSession.id}`);
+      }
 
       this.logger.log(
         `Booking ${savedBooking.id} and session ${savedSession.id} created, waiting for payment`
@@ -247,5 +265,21 @@ export class StudentService {
       roles: saved.roles,
       createdAt: saved.createdAt,
     };
+  }
+
+  async getTutorAvailableSlots(tutorId: string): Promise<Slot[]> {
+    const tutor = await this.userRepository.findOne({ where: { id: tutorId } });
+    if (!tutor) throw new NotFoundException('Тьютор не найден');
+
+    const today = new Date().toISOString().split('T')[0];
+
+    return this.dataSource.getRepository(Slot).find({
+      where: {
+        tutor: { id: tutorId },
+        status: SlotStatus.FREE,
+        date: MoreThanOrEqual(today),
+      },
+      order: { date: 'ASC', time: 'ASC' },
+    });
   }
 }
