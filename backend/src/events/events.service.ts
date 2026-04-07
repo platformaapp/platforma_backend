@@ -864,14 +864,11 @@ export class EventsService {
           throw new ForbiddenException('Сессия не оплачена');
         }
       } else {
-        const successfulPayments = await this.paymentRepository.find({
-          where: {
-            userId: userId,
-            status: PaymentEntityStatus.SUCCESS,
-          },
-        });
+        if (!userRegistration) {
+          throw new ForbiddenException('Вы не записаны на это событие');
+        }
 
-        if (!successfulPayments.length) {
+        if (userRegistration.paymentStatus !== PaymentStatus.PAID) {
           throw new ForbiddenException('Необходимо оплатить событие для доступа к видеочату');
         }
       }
