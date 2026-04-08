@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import type { UserRole } from 'src/users/user.entity';
 
 export class SwitchRoleDto {
@@ -10,4 +10,12 @@ export class SwitchRoleDto {
   })
   @IsEnum(['student', 'tutor', 'admin'])
   role: UserRole;
+
+  @ApiPropertyOptional({
+    description: 'Refresh token (if not sent via cookie)',
+    example: 'abc123...',
+  })
+  @IsOptional()
+  @IsString()
+  refresh_token?: string;
 }

@@ -227,7 +227,7 @@ export class AuthController {
   })
   async switchRole(@Body() switchRoleDto: SwitchRoleDto, @Req() req: express.Request) {
     const cookies = (req.cookies ?? {}) as Record<string, string>;
-    const refreshToken = cookies.refreshToken;
+    const refreshToken = cookies.refreshToken ?? switchRoleDto.refresh_token;
 
     if (!refreshToken) throw new UnauthorizedException('Refresh token not found');
 
