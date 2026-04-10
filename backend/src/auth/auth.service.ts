@@ -248,16 +248,18 @@ export class AuthService {
 
     const resetToken = this.generatePasswordResetToken(user.id, user.email);
 
-    try {
-      await this.emailService.sendPasswordResetEmail(user.email, resetToken, user.fullName);
-      console.log(`Password reset email sent successfully to ${email}`);
-    } catch (error) {
-      console.error(
-        'Failed to send password reset email:',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
-      throw error;
-    }
+    // Fire-and-forget: do not block HTTP response while SMTP is connecting
+    setImmediate(() => {
+      this.emailService
+        .sendPasswordResetEmail(user.email, resetToken, user.fullName)
+        .then(() => console.log(`Password reset email sent successfully to ${email}`))
+        .catch((error: unknown) =>
+          console.error(
+            'Failed to send password reset email:',
+            error instanceof Error ? error.message : String(error)
+          )
+        );
+    });
   }
 
   async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<void> {
