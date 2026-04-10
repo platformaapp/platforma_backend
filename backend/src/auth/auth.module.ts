@@ -11,6 +11,7 @@ import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JWT_SECRET } from 'src/utils/constants';
+import { EmailService } from '../notifications/email.service';
 
 @Module({
   imports: [
@@ -27,7 +28,7 @@ import { JWT_SECRET } from 'src/utils/constants';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard],
+  providers: [AuthService, JwtStrategy, JwtAuthGuard, EmailService],
   exports: [AuthService, JwtModule, JwtAuthGuard],
 })
 export class AuthModule {}

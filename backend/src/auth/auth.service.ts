@@ -14,10 +14,10 @@ import { RegisterDto } from './dto/registration.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponse, JwtError, PasswordResetPayload } from 'src/utils/types';
 import { randomBytes } from 'crypto';
-import { sendPasswordResetEmail } from 'src/utils/sendEmail';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { JWT_SECRET } from 'src/utils/constants';
+import { EmailService } from '../notifications/email.service';
 
 function isJwtError(error: unknown): error is JwtError {
   return (
@@ -34,7 +34,8 @@ export class AuthService {
     @InjectRepository(AuthSession)
     private authSessionRepository: Repository<AuthSession>,
     private jwtService: JwtService,
-    private configService: ConfigService
+    private configService: ConfigService,
+    private emailService: EmailService
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponse> {
@@ -246,10 +247,9 @@ export class AuthService {
     }
 
     const resetToken = this.generatePasswordResetToken(user.id, user.email);
-    console.log('Reset Token:', resetToken);
 
     try {
-      await sendPasswordResetEmail(user.email, resetToken, user.fullName);
+      await this.emailService.sendPasswordResetEmail(user.email, resetToken, user.fullName);
       console.log(`Password reset email sent successfully to ${email}`);
     } catch (error) {
       console.error(

@@ -94,5 +94,6 @@ export const sendPasswordResetEmail = async (
       'Error sending password reset email:',
       err instanceof Error ? err.message : 'Unknown error'
     );
+    throw err;
   }
 };

@@ -730,4 +730,54 @@ export class EmailService {
       );
     }
   }
+
+  async sendPasswordResetEmail(email: string, resetToken: string, fullName: string): Promise<void> {
+    const frontendUrl = process.env.FRONTEND_URL || '';
+    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+    const mailOptions = {
+      from: '"Platforma" <platformaapp@platformaapp.ru>',
+      to: email,
+      subject: 'Сброс пароля',
+      html: `
+        <div style="max-width:600px;margin:0 auto;background:#fff;">
+          <div style="background:#007bff;padding:20px;text-align:center;">
+            <h1 style="color:#fff;margin:0;">🔐 Сброс пароля</h1>
+          </div>
+          <div style="padding:30px;">
+            <h2 style="color:#333;margin-top:0;">Здравствуйте, ${fullName || 'пользователь'}!</h2>
+            <p style="color:#666;line-height:1.6;">
+              Вы запросили сброс пароля. Нажмите кнопку ниже, чтобы установить новый пароль:
+            </p>
+            <div style="text-align:center;margin:30px 0;">
+              <a href="${resetUrl}" style="background:#007bff;color:#fff;padding:15px 30px;
+                 text-decoration:none;border-radius:5px;font-size:16px;display:inline-block;">
+                Сбросить пароль
+              </a>
+            </div>
+            <p style="color:#666;font-size:14px;">
+              Или скопируйте ссылку:<br>
+              <a href="${resetUrl}" style="color:#007bff;word-break:break-all;">${resetUrl}</a>
+            </p>
+            <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:15px;margin:20px 0;">
+              <p style="color:#856404;margin:0;">
+                ⏰ <strong>Ссылка действительна 1 час.</strong>
+              </p>
+            </div>
+            <p style="color:#999;font-size:12px;border-top:1px solid #eee;padding-top:20px;">
+              Если вы не запрашивали сброс пароля — проигнорируйте это письмо.
+            </p>
+          </div>
+          <div style="background:#f8f9fa;padding:20px;text-align:center;">
+            <p style="color:#6c757d;font-size:12px;margin:0;">
+              © ${new Date().getFullYear()} Platforma. Все права защищены.
+            </p>
+          </div>
+        </div>
+      `,
+    };
+
+    await this.transporter.sendMail(mailOptions);
+    console.log(`Password reset email sent to ${email}`);
+  }
 }
