@@ -24,8 +24,11 @@ export class EmailService {
       connectionTimeout: 30000,
       socketTimeout: 30000,
       greetingTimeout: 30000,
+      debug: true,
+      logger: true,
       tls: {
         rejectUnauthorized: false,
+        ciphers: 'HIGH:MEDIUM:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK',
       },
     });
   }
