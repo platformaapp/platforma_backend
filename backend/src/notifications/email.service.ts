@@ -23,6 +23,9 @@ export class EmailService {
       connectionTimeout: 10000,
       socketTimeout: 10000,
       greetingTimeout: 10000,
+      tls: {
+        rejectUnauthorized: false,
+      },
     });
   }
 
@@ -785,7 +788,7 @@ export class EmailService {
       `,
     };
 
-    await this.transporter.sendMail(mailOptions);
-    console.log(`Password reset email sent to ${email}`);
+    const info = await this.transporter.sendMail(mailOptions);
+    console.log(`Password reset email sent to ${email}, messageId: ${info.messageId}, response: ${info.response}`);
   }
 }
