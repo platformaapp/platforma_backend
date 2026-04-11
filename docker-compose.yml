@@ -17,8 +17,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
       SMTP_HOST: mail.hosting.reg.ru
-      SMTP_PORT: "587"
-      SMTP_SECURE: "false"
+      SMTP_PORT: "465"
+      SMTP_SECURE: "true"
       SMTP_USER: platformaapp@platformaapp.ru
       SMTP_PASS: 8QLq8vVu4iVi7bn
       YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID}
