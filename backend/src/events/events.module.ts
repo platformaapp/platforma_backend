@@ -13,6 +13,7 @@ import { EmailService } from '../notifications/email.service';
 import { MyOwnConferenceService } from './myownconference.service';
 import { EventsSchedulerService } from './events-scheduler.service';
 import { Payment } from 'src/payments/entities/payment.entity';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 
 @Module({
   imports: [
@@ -21,6 +22,6 @@ import { Payment } from 'src/payments/entities/payment.entity';
     JwtModule,
   ],
   controllers: [EventsController],
-  providers: [EventsService, EmailService, MyOwnConferenceService, EventsSchedulerService],
+  providers: [EventsService, EmailService, MyOwnConferenceService, EventsSchedulerService, OptionalJwtAuthGuard],
 })
 export class EventsModule {}

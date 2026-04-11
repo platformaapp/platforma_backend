@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { EventsService } from './events.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { CreateEventDto } from './dto/create-event.dto';
 import { EventResponseDto } from './dto/event-response.dto';
 import type { AuthenticatedRequest } from '../utils/types';
@@ -47,7 +48,7 @@ export class EventsController {
   }
 
   @Get('feed')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(OptionalJwtAuthGuard)
   async getEventsFeed(
     @Query() query: EventsFeedQueryDto,
     @Req() req?: AuthenticatedRequest
@@ -66,7 +67,7 @@ export class EventsController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(OptionalJwtAuthGuard)
   async getEventWithParticipants(
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: AuthenticatedRequest
@@ -132,13 +133,13 @@ export class EventsController {
   }
 
   @Get(':id/detail')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(OptionalJwtAuthGuard)
   async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<EventDetailResponseDto> {
     return await this.eventsService.getEventDetails(id);
   }
 
   @Get(':id/countdown')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(OptionalJwtAuthGuard)
   async getCountdown(@Param('id', ParseUUIDPipe) id: string): Promise<CountdownResponseDto> {
     return await this.eventsService.getEventCountdown(id);
   }
