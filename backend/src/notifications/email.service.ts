@@ -13,16 +13,17 @@ export class EmailService {
     const user = this.configService.get<string>('SMTP_USER');
     const pass = this.configService.get<string>('SMTP_PASS');
 
-    console.log(`[EmailService] SMTP config: host=${host}, port=${port}, secure=${secure}, user=${user}`);
+    console.log(`[EmailService] SMTP config: host=${host}, port=587, secure=false (STARTTLS), user=${user}`);
 
     this.transporter = nodemailer.createTransport({
       host,
-      port,
-      secure,
+      port: 587,
+      secure: false,
+      requireTLS: true,
       auth: { user, pass },
-      connectionTimeout: 10000,
-      socketTimeout: 10000,
-      greetingTimeout: 10000,
+      connectionTimeout: 30000,
+      socketTimeout: 30000,
+      greetingTimeout: 30000,
       tls: {
         rejectUnauthorized: false,
       },
