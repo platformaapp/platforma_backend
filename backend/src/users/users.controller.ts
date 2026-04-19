@@ -1,37 +1,32 @@
-import { Body, Controller, Get, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Get, HttpStatus, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('Users')
-@ApiBearerAuth('JWT-auth')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({
-    summary: 'Get all users',
-    description: 'Retrieve a list of all users. Requires JWT authentication.',
-  })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Successfully retrieved list of users',
-    schema: {
-      example: [
-        {
-          id: 1,
-          email: 'user@example.com',
-          firstName: 'John',
-          lastName: 'Doe',
-          createdAt: '2024-01-15T10:00:00.000Z',
-          updatedAt: '2024-01-15T10:00:00.000Z',
-        },
-      ],
-    },
-  })
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all users. Requires JWT authentication.' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Successfully retrieved list of users' })
   findAll() {
     return this.usersService.findAll();
+  }
+
+  @Get('tutors')
+  @ApiOperation({ summary: 'Get all tutors (public)' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'List of users with tutor role',
+    schema: {
+      example: [{ id: 'uuid', fullName: 'Иван Иванов', avatarUrl: null, bio: 'Описание', roles: ['tutor'] }],
+    },
+  })
+  findTutors() {
+    return this.usersService.findTutors();
   }
 }

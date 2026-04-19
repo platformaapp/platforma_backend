@@ -26,4 +26,13 @@ export class UsersService {
       order: { createdAt: 'DESC' },
     });
   }
+
+  async findTutors(): Promise<Partial<User>[]> {
+    return await this.usersRepository
+      .createQueryBuilder('user')
+      .select(['user.id', 'user.fullName', 'user.avatarUrl', 'user.bio', 'user.roles'])
+      .where(':role = ANY(user.roles)', { role: 'tutor' })
+      .orderBy('user.createdAt', 'DESC')
+      .getMany();
+  }
 }
