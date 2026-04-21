@@ -144,7 +144,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    if (!user.roles.includes(loginDto.role)) {
+    if (!user.roles?.includes(loginDto.role)) {
       throw new UnauthorizedException(`You don't have ${loginDto.role} role`);
     }
 
@@ -287,13 +287,22 @@ export class AuthService {
     const user = await this.usersRepository.findOne({ where: { id: payload.sub } });
     if (!user) throw new UnauthorizedException('User not found');
 
-    user.passwordHash = await bcrypt.hash(password, 12);
-    await this.usersRepository.save(user);
-
-    await this.authSessionRepository.update(
-      { user: { id: user.id }, isValid: true },
-      { isValid: false }
+    await this.usersRepository.update(
+      { id: user.id },
+      { passwordHash: await bcrypt.hash(password, 12) }
     );
+
+    try {
+      await this.authSessionRepository.update(
+        { user: { id: user.id }, isValid: true },
+        { isValid: false }
+      );
+    } catch (sessionError: unknown) {
+      console.error(
+        '[resetPassword] Failed to invalidate sessions:',
+        sessionError instanceof Error ? sessionError.message : sessionError
+      );
+    }
   }
 
   async changePassword(
