@@ -8,7 +8,7 @@ export class TimeLeftDto {
 export class UserInfoDto {
   id: string;
   name: string;
-  avatar: string | null;
+  avatarUrl: string | null;
 }
 
 export class MyEventItemDto {
