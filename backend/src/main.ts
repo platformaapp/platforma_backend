@@ -6,11 +6,18 @@ import { ValidationPipe } from '@nestjs/common';
 import { setupSwagger } from './config';
 import { Request } from 'express';
 import * as bodyParser from 'body-parser';
+import * as express from 'express';
+import { join } from 'path';
+import { mkdirSync } from 'fs';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
   });
+
+  const uploadsDir = join('/app', 'uploads');
+  mkdirSync(uploadsDir, { recursive: true });
+  app.use('/api/uploads', express.static(uploadsDir));
 
   app.use(
     '/api/webhooks/yookassa',

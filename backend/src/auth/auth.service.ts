@@ -1,7 +1,6 @@
 import {
   ConflictException,
   Injectable,
-  InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -263,69 +262,38 @@ export class AuthService {
   }
 
   async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<void> {
-    try {
-      const { reset_token, password } = resetPasswordDto;
+    const { reset_token, password } = resetPasswordDto;
 
-      if (!reset_token || typeof reset_token !== 'string' || reset_token.split('.').length !== 3) {
-        throw new UnauthorizedException('Invalid reset token format');
-      }
-
-      const jwtSecret = this.configService.get<string>('JWT_SECRET') || JWT_SECRET;
-
-      try {
-        const payload = this.jwtService.verify<PasswordResetPayload>(reset_token, {
-          secret: jwtSecret,
-        });
-
-        if (payload.type !== 'password_reset') {
-          throw new UnauthorizedException('Invalid reset token type');
-        }
-
-        const user = await this.usersRepository.findOne({
-          where: { id: payload.sub },
-        });
-
-        if (!user) {
-          throw new UnauthorizedException('User not found');
-        }
-
-        const saltRounds = 12;
-
-        user.passwordHash = await bcrypt.hash(password, saltRounds);
-        await this.usersRepository.save(user);
-
-        await this.authSessionRepository.update(
-          { user: { id: user.id }, isValid: true },
-          { isValid: false }
-        );
-      } catch (jwtError: unknown) {
-        if (isJwtError(jwtError)) {
-          if (jwtError.name === 'TokenExpiredError') {
-            throw new UnauthorizedException('Reset token has expired');
-          }
-          if (jwtError.name === 'JsonWebTokenError') {
-            throw new UnauthorizedException('Invalid reset token');
-          }
-        }
-
-        if (jwtError instanceof UnauthorizedException) {
-          throw jwtError;
-        }
-        console.error(
-          'JWT verification error:',
-          jwtError instanceof Error ? jwtError.message : 'Unknown error'
-        );
-        throw new UnauthorizedException('Invalid reset token');
-      }
-    } catch (error) {
-      console.error(
-        'Error resetting password:',
-        error instanceof Error ? error.message : 'Unknown error'
-      );
-
-      if (error instanceof UnauthorizedException) throw error;
-      throw new InternalServerErrorException('Failed to reset password');
+    if (!reset_token || typeof reset_token !== 'string' || reset_token.split('.').length !== 3) {
+      throw new UnauthorizedException('Invalid reset token format');
     }
+
+    const jwtSecret = this.configService.get<string>('JWT_SECRET') || JWT_SECRET;
+
+    let payload: PasswordResetPayload;
+    try {
+      payload = this.jwtService.verify<PasswordResetPayload>(reset_token, { secret: jwtSecret });
+    } catch (jwtError: unknown) {
+      if (isJwtError(jwtError) && jwtError.name === 'TokenExpiredError') {
+        throw new UnauthorizedException('Reset token has expired');
+      }
+      throw new UnauthorizedException('Invalid reset token');
+    }
+
+    if (payload.type !== 'password_reset') {
+      throw new UnauthorizedException('Invalid reset token type');
+    }
+
+    const user = await this.usersRepository.findOne({ where: { id: payload.sub } });
+    if (!user) throw new UnauthorizedException('User not found');
+
+    user.passwordHash = await bcrypt.hash(password, 12);
+    await this.usersRepository.save(user);
+
+    await this.authSessionRepository.update(
+      { user: { id: user.id }, isValid: true },
+      { isValid: false }
+    );
   }
 
   async changePassword(

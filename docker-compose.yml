@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    volumes:
+      - uploads_data:/app/uploads
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -27,3 +29,6 @@ services:
       YOOKASSA_WEBHOOK_URL: ${YOOKASSA_WEBHOOK_URL}
       MY_OWN_CONF_API_KEY: ${MY_OWN_CONF_API_KEY}
     restart: unless-stopped
+
+volumes:
+  uploads_data:

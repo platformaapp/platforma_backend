@@ -12,6 +12,7 @@ import { EventsModule } from './events/events.module';
 import { TutorModule } from './tutor/tutor.module';
 import { StudentModule } from './student/student.module';
 import { SessionModule } from './session/session.module';
+import { UploadsModule } from './uploads/uploads.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { SessionModule } from './session/session.module';
     TutorModule,
     StudentModule,
     SessionModule,
+    UploadsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -28,11 +28,10 @@ export class UsersService {
   }
 
   async findTutors(): Promise<Partial<User>[]> {
-    return await this.usersRepository
-      .createQueryBuilder('user')
-      .select(['user.id', 'user.fullName', 'user.avatarUrl', 'user.bio', 'user.roles'])
-      .where("'tutor' = ANY(string_to_array(user.roles, ','))")
-      .orderBy('user.createdAt', 'DESC')
-      .getMany();
+    const users = await this.usersRepository.find({
+      select: ['id', 'fullName', 'avatarUrl', 'bio', 'roles'],
+      order: { createdAt: 'DESC' },
+    });
+    return users.filter((u) => u.roles?.includes('tutor'));
   }
 }
