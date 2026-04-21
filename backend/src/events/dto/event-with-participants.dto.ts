@@ -1,7 +1,7 @@
 export class ParticipantDto {
   id: string;
   name: string;
-  avatarUrl: string | null;
+  avatar: string | null;
   email: string;
   status: string;
   payment_status: string;
@@ -16,7 +16,7 @@ export class EventWithParticipantsDto {
   mentor: {
     id: string;
     name: string;
-    avatarUrl: string | null;
+    avatar: string | null;
     bio: string | null;
   };
   session?: {
@@ -24,7 +24,7 @@ export class EventWithParticipantsDto {
     student: {
       id: string;
       name: string;
-      avatarUrl: string | null;
+      avatar: string | null;
     };
     status: string;
   };
@@ -37,7 +37,7 @@ export class EventWithParticipantsDto {
   max_participants: number;
   registered_count: number;
   status: string;
-  coverUrl: string | null;
+  cover_url: string | null;
   recording_url: string | null;
   video_room?: {
     id: string;

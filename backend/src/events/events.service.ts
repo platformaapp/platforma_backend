@@ -1193,7 +1193,7 @@ export class EventsService {
         const teacher: UserInfoDto = {
           id: event.mentor.id,
           name: event.mentor.fullName || event.mentor.email.split('@')[0],
-          avatarUrl: event.mentor.avatarUrl,
+          avatar: event.mentor.avatarUrl,
         };
 
         let student: UserInfoDto | undefined;
@@ -1201,7 +1201,7 @@ export class EventsService {
           student = {
             id: event.session.student.id,
             name: event.session.student.fullName || event.session.student.email.split('@')[0],
-            avatarUrl: event.session.student.avatarUrl,
+            avatar: event.session.student.avatarUrl,
           };
         }
 
@@ -1292,7 +1292,7 @@ export class EventsService {
       mentor: {
         id: event.mentor.id,
         name: event.mentor.fullName || event.mentor.email.split('@')[0],
-        avatarUrl: event.mentor.avatarUrl,
+        avatar: event.mentor.avatarUrl,
         bio: event.mentor.bio,
       },
       ...(event.type === EventType.SESSION_BASED &&
@@ -1302,7 +1302,7 @@ export class EventsService {
             student: {
               id: event.session.student.id,
               name: event.session.student.fullName || event.session.student.email.split('@')[0],
-              avatarUrl: event.session.student.avatarUrl,
+              avatar: event.session.student.avatarUrl,
             },
             status: event.session.status,
           },
@@ -1316,7 +1316,7 @@ export class EventsService {
       max_participants: event.maxParticipants,
       registered_count: registeredCount,
       status: event.status,
-      coverUrl: event.coverUrl,
+      cover_url: event.coverUrl,
       recording_url: event.recordingUrl,
       ...(event.videoRoom && {
         video_room: {
@@ -1551,7 +1551,7 @@ export class EventsService {
     return userEvents.map((userEvent) => ({
       id: userEvent.user.id,
       name: userEvent.user.fullName || userEvent.user.email.split('@')[0],
-      avatarUrl: userEvent.user.avatarUrl,
+      avatar: userEvent.user.avatarUrl,
       email: userEvent.user.email,
       status: userEvent.status,
       payment_status: userEvent.paymentStatus,
