@@ -4,6 +4,7 @@ import {
   IsPositive,
   IsDateString,
   IsOptional,
+  IsUrl,
   Min,
   Max,
 } from 'class-validator';
@@ -38,4 +39,8 @@ export class UpdateEventDto {
   @IsOptional()
   @Type(() => Number)
   max_participants?: number;
+
+  @IsOptional()
+  @IsUrl()
+  coverUrl?: string;
 }

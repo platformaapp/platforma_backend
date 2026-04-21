@@ -151,6 +151,7 @@ export class EventsService {
       session: session ? { id: session.id } : undefined,
       sessionId: session?.id,
       type: session ? EventType.SESSION_BASED : EventType.STANDALONE,
+      coverUrl: createEventDto.coverUrl || null,
     });
 
     const savedEvent = await this.eventsRepository.save(event);
@@ -301,6 +302,10 @@ export class EventsService {
 
     if (updateEventDto.max_participants !== undefined) {
       event.maxParticipants = updateEventDto.max_participants;
+    }
+
+    if (updateEventDto.coverUrl !== undefined) {
+      event.coverUrl = updateEventDto.coverUrl;
     }
 
     event.updatedAt = new Date();

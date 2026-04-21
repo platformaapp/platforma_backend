@@ -31,7 +31,7 @@ export class UsersService {
     return await this.usersRepository
       .createQueryBuilder('user')
       .select(['user.id', 'user.fullName', 'user.avatarUrl', 'user.bio', 'user.roles'])
-      .where(':role = ANY(user.roles)', { role: 'tutor' })
+      .where("'tutor' = ANY(string_to_array(user.roles, ','))")
       .orderBy('user.createdAt', 'DESC')
       .getMany();
   }

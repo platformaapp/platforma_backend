@@ -5,6 +5,7 @@ import {
   IsPositive,
   IsDateString,
   IsOptional,
+  IsUrl,
   Min,
   Max,
   IsEnum,
@@ -47,4 +48,8 @@ export class CreateEventDto {
   @IsOptional()
   @IsEnum(EventType)
   type?: EventType;
+
+  @IsOptional()
+  @IsUrl()
+  coverUrl?: string;
 }

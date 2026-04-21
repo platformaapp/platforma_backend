@@ -743,7 +743,7 @@ export class EmailService {
   }
 
   async sendPasswordResetEmail(email: string, resetToken: string, fullName: string): Promise<void> {
-    const resetUrl = `platformaapp://reset-password?token=${resetToken}`;
+    const resetUrl = `https://platformaapp.ru/reset-password?token=${resetToken}`;
 
     const mailOptions = {
       from: '"Platforma" <platformaapp@platformaapp.ru>',
