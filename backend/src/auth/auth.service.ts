@@ -288,10 +288,9 @@ export class AuthService {
     const user = await this.usersRepository.findOne({ where: { id: payload.sub } });
     if (!user) throw new UnauthorizedException('User not found');
 
-    await this.usersRepository.update(
-      { id: user.id },
-      { passwordHash: await bcrypt.hash(password, 12) }
-    );
+    user.passwordHash = await bcrypt.hash(password, 12);
+    await this.usersRepository.save(user);
+    console.log(`[resetPassword] Password updated for user ${user.id}`);
 
     try {
       await this.authSessionRepository.update(
