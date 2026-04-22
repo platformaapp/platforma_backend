@@ -43,11 +43,12 @@ export class AuthService {
     });
 
     if (existingUser) {
-      if (existingUser.roles.includes(registerDto.role)) {
+      const currentRoles: UserRole[] = existingUser.roles ?? [];
+      if (currentRoles.includes(registerDto.role)) {
         throw new ConflictException(`User already registered with role: ${registerDto.role}`);
       }
 
-      existingUser.roles.push(registerDto.role);
+      existingUser.roles = [...currentRoles, registerDto.role];
       const updatedUser = await this.usersRepository.save(existingUser);
 
       const payload = {
