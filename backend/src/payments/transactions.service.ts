@@ -27,20 +27,25 @@ export class TransactionsService {
   }> {
     try {
       const frontendUrl = this.configService.get<string>('FRONTEND_URL');
-      const returnUrl = `${frontendUrl}/payment-methods/callback`;
-      const { confirmationUrl, paymentId } =
-        await this.yookassaService.createPaymentMethodAttachment(returnUrl);
 
+      // Create the transaction first so we have its ID for the callback URL.
+      // The callback URL points to the backend, which updates cardToken before
+      // redirecting the user to the frontend — no webhook required.
       const transaction = this.transactionRepository.create({
         userId,
-        yookassaPaymentId: paymentId,
-        paymentMethodId: paymentMethodId,
+        paymentMethodId,
         amount: 1.0,
         description: 'Привязка карты',
         type: TransactionType.CARD_BINDING,
         status: TransactionStatus.PENDING,
       });
+      await this.transactionRepository.save(transaction);
 
+      const callbackUrl = `${frontendUrl}/api/student/payment-methods/binding-callback?tx=${transaction.id}`;
+      const { confirmationUrl, paymentId } =
+        await this.yookassaService.createPaymentMethodAttachment(callbackUrl);
+
+      transaction.yookassaPaymentId = paymentId;
       await this.transactionRepository.save(transaction);
 
       this.logger.log(

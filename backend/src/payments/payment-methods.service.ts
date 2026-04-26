@@ -19,7 +19,8 @@ import { Payment } from './entities/payment.entity';
 import { CardDetails } from '../utils/types';
 // import { FRONTEND_URL } from '../utils/constants';
 import { YookassaWebhookDto } from './dto/yookassa-webhook.dto';
-import { TransactionStatus } from './entities/transaction.entity';
+import { TransactionStatus, TransactionType } from './entities/transaction.entity';
+import { ConfigService } from '@nestjs/config';
 import { TransactionsService } from './transactions.service';
 
 @Injectable()
@@ -34,7 +35,8 @@ export class PaymentMethodsService {
     @InjectRepository(Payment)
     private paymentRepository: Repository<Payment>,
     private yookassaService: YookassaService,
-    private transactionsService: TransactionsService
+    private transactionsService: TransactionsService,
+    private configService: ConfigService
   ) {}
 
   async attachPaymentMethod(
@@ -333,6 +335,79 @@ export class PaymentMethodsService {
       .getCount();
 
     return activePayments > 0;
+  }
+
+  /**
+   * Called when the user's browser is redirected back from YooKassa after 3DS card binding.
+   * Updates cardToken to the real saved payment_method_id and activates the payment method.
+   * Returns the frontend URL to redirect the user to.
+   */
+  async handleBindingCallback(transactionId: string): Promise<string> {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://platformaapp.ru');
+
+    try {
+      const transaction = await this.transactionsService.getTransactionById(transactionId);
+
+      if (!transaction || transaction.type !== TransactionType.CARD_BINDING) {
+        this.logger.warn(`Invalid or missing card binding transaction: ${transactionId}`);
+        return `${frontendUrl}/payment-methods?status=error`;
+      }
+
+      if (!transaction.yookassaPaymentId) {
+        this.logger.warn(`Transaction ${transactionId} has no yookassaPaymentId yet`);
+        return `${frontendUrl}/payment-methods?status=error`;
+      }
+
+      const yookassaPayment = await this.yookassaService.getPayment(transaction.yookassaPaymentId);
+      this.logger.log(
+        `Card binding callback: tx=${transactionId}, yk_payment=${transaction.yookassaPaymentId}, status=${yookassaPayment.status}`
+      );
+
+      if (yookassaPayment.status === 'waiting_for_capture') {
+        await this.yookassaService.capturePayment(transaction.yookassaPaymentId);
+      }
+
+      if (
+        yookassaPayment.status === 'succeeded' ||
+        yookassaPayment.status === 'waiting_for_capture'
+      ) {
+        const paymentMethod = await this.paymentMethodRepository.findOne({
+          where: { bindTransactionId: transaction.id },
+        });
+
+        if (paymentMethod && yookassaPayment.payment_method?.id) {
+          const card = yookassaPayment.payment_method.card;
+          await this.updatePaymentMethodOnSuccess(
+            paymentMethod,
+            yookassaPayment.payment_method.id,
+            card
+              ? {
+                  first6: card.first6,
+                  last4: card.last4,
+                  cardType: card.card_type,
+                  expiryMonth: card.expiry_month,
+                  expiryYear: card.expiry_year,
+                }
+              : undefined
+          );
+        }
+
+        return `${frontendUrl}/payment-methods?status=success`;
+      }
+
+      // Payment was cancelled or failed
+      const paymentMethod = await this.paymentMethodRepository.findOne({
+        where: { bindTransactionId: transaction.id },
+      });
+      if (paymentMethod) {
+        await this.updatePaymentMethodOnFailure(paymentMethod, yookassaPayment.status);
+      }
+
+      return `${frontendUrl}/payment-methods?status=failed`;
+    } catch (error) {
+      this.logger.error(`Card binding callback error for tx ${transactionId}: ${(error as Error).message}`);
+      return `${frontendUrl}/payment-methods?status=error`;
+    }
   }
 
   async getDefaultPaymentMethod(userId: string): Promise<PaymentMethod | null> {

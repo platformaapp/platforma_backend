@@ -11,7 +11,10 @@ import {
   Logger,
   Get,
   Patch,
+  Query,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { PaymentMethodsService } from './payment-methods.service';
 import { AttachPaymentMethodDto } from './dto/attach-payment-method.dto';
@@ -27,6 +30,20 @@ export class PaymentMethodsController {
   private readonly logger = new Logger(PaymentMethodsController.name);
 
   constructor(private readonly paymentMethodsService: PaymentMethodsService) {}
+
+  /**
+   * Public endpoint — no JWT required.
+   * YooKassa redirects the user's browser here after 3DS card binding.
+   * Backend updates cardToken, then redirects to frontend.
+   */
+  @Get('binding-callback')
+  async handleBindingCallback(
+    @Query('tx') transactionId: string,
+    @Res() res: Response
+  ): Promise<void> {
+    const redirectUrl = await this.paymentMethodsService.handleBindingCallback(transactionId);
+    res.redirect(redirectUrl);
+  }
 
   @Get()
   @HttpCode(HttpStatus.OK)

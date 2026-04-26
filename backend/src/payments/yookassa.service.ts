@@ -36,6 +36,11 @@ export class YookassaService {
         `Yookassa service initialized with shopId: ${this.config.shopId.substring(0, 10)}...`
       );
     }
+
+    const frontendUrl = configService.get<string>('FRONTEND_URL', 'https://platformaapp.ru');
+    this.logger.warn(
+      `[ACTION REQUIRED] YooKassa webhook URL must be configured in the merchant dashboard: ${frontendUrl}/api/webhooks/yookassa`
+    );
   }
 
   private async makeYookassaRequest<T>(
