@@ -38,6 +38,9 @@ RUN npm ci --only=production && npm cache clean --force
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 
+# Create uploads directory so Docker initialises the named volume with nestjs ownership
+RUN mkdir -p /app/uploads
+
 # Change ownership to app user
 RUN chown -R nestjs:nodejs /app
 USER nestjs

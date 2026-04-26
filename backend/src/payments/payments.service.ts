@@ -686,38 +686,50 @@ export class PaymentsService {
       if (!paymentMethod) throw new NotFoundException('Способ оплаты по умолчанию не найден');
     }
 
+    let yookassaPayment: { id: string; status: string; confirmation_url?: string };
+
     try {
-      const yookassaPayment = await this.yookassaService.createSessionPayment({
+      yookassaPayment = await this.yookassaService.createSessionPayment({
         amount: Number(event.price),
         paymentMethodToken: paymentMethod.cardToken,
         description: `Оплата мероприятия: ${event.title}`,
         paymentId: userEvent.id,
         returnUrl: `${this.configService.get<string>('FRONTEND_URL')}/events/${eventId}?payment=callback`,
       });
+      this.logger.log(
+        `YooKassa payment created for event ${eventId}: id=${yookassaPayment.id}, status=${yookassaPayment.status}, has_confirmation_url=${!!yookassaPayment.confirmation_url}`
+      );
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`YooKassa API call failed for event ${eventId}: ${msg}`);
+      throw new InternalServerErrorException(`Ошибка создания платежа: ${msg}`);
+    }
 
-      // Store the YooKassa payment ID so we can query status later (e.g. after 3DS redirect)
+    // Store YooKassa payment ID for later status polling.
+    // Isolated from the main flow — if the column doesn't exist yet (migration pending),
+    // we still return the confirmationUrl so the user can complete 3DS.
+    try {
       await this.userEventRepository.update(userEvent.id, {
         yookassaPaymentId: yookassaPayment.id,
       });
-
-      if (yookassaPayment.status === 'succeeded') {
-        await this.userEventRepository.update(userEvent.id, {
-          paymentStatus: UserEventPaymentStatus.PAID,
-          status: ParticipationStatus.REGISTERED,
-        });
-
-        return { status: 'succeeded', message: 'Оплата прошла успешно' };
-      }
-
-      return {
-        status: yookassaPayment.status,
-        confirmationUrl: yookassaPayment.confirmation_url,
-        message: 'Требуется подтверждение оплаты',
-      };
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Event payment failed for event ${eventId}: ${msg}`);
-      throw new InternalServerErrorException(`Ошибка оплаты: ${msg}`);
+    } catch (dbErr) {
+      this.logger.error(
+        `Failed to store yookassaPaymentId for userEvent ${userEvent.id} — migration may not have run yet. Webhook will still update paymentStatus. Error: ${(dbErr as Error).message}`
+      );
     }
+
+    if (yookassaPayment.status === 'succeeded') {
+      await this.userEventRepository.update(userEvent.id, {
+        paymentStatus: UserEventPaymentStatus.PAID,
+        status: ParticipationStatus.REGISTERED,
+      });
+      return { status: 'succeeded', message: 'Оплата прошла успешно' };
+    }
+
+    return {
+      status: yookassaPayment.status,
+      confirmationUrl: yookassaPayment.confirmation_url,
+      message: 'Требуется подтверждение оплаты',
+    };
   }
 }
