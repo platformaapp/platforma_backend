@@ -7,4 +7,8 @@ export class RegisterResponseDto {
     payment_status: string;
     created_at: string;
   };
+  /** Present only for paid events. If set, redirect the user here for 3DS confirmation. */
+  confirmation_url?: string;
+  /** True when event.price > 0 and payment was initiated (or already paid). */
+  payment_required?: boolean;
 }

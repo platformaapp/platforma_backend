@@ -45,6 +45,7 @@ import {
 import { MyEventsFilter, MyEventsQueryDto, MyEventsTimeFilter } from './dto/my-events-query.dto';
 import { EventWithParticipantsDto, ParticipantDto } from './dto/event-with-participants.dto';
 import { CancelRegistrationResponseDto } from './dto/cancel-registration-response.dto';
+import { PaymentsService } from '../payments/payments.service';
 
 @Injectable()
 export class EventsService {
@@ -64,7 +65,8 @@ export class EventsService {
     @InjectRepository(Payment)
     private readonly paymentRepository: Repository<Payment>,
     @InjectRepository(Session)
-    private readonly sessionRepository: Repository<Session>
+    private readonly sessionRepository: Repository<Session>,
+    private readonly paymentsService: PaymentsService
   ) {}
 
   async createEvent(createEventDto: CreateEventDto, mentorId: string): Promise<Event> {
@@ -336,7 +338,11 @@ export class EventsService {
     return updatedEvent;
   }
 
-  async registerForEvent(eventId: string, studentId: string): Promise<UserEvent> {
+  async registerForEvent(
+    eventId: string,
+    studentId: string,
+    paymentMethodId?: string
+  ): Promise<{ userEvent: UserEvent; paymentRequired: boolean; confirmationUrl?: string }> {
     const event = await this.eventsRepository.findOne({
       where: { id: eventId },
       relations: ['userEvents'],
@@ -376,9 +382,10 @@ export class EventsService {
 
     if (existingRegistration) {
       if (existingRegistration.status === ParticipationStatus.CANCELLED) {
-        existingRegistration.status = ParticipationStatus.REGISTERED;
+        existingRegistration.status = ParticipationStatus.PENDING;
         existingRegistration.paymentStatus = PaymentStatus.PENDING;
-        return await this.userEventRepository.save(existingRegistration);
+        const saved = await this.userEventRepository.save(existingRegistration);
+        return this.initiateEventPaymentIfNeeded(saved, event, studentId, paymentMethodId);
       } else {
         throw new ConflictException('Вы уже записаны на это событие');
       }
@@ -429,7 +436,39 @@ export class EventsService {
       })();
     });
 
-    return savedUserEvent;
+    return this.initiateEventPaymentIfNeeded(savedUserEvent, event, studentId, paymentMethodId);
+  }
+
+  private async initiateEventPaymentIfNeeded(
+    userEvent: UserEvent,
+    event: Event,
+    studentId: string,
+    paymentMethodId?: string
+  ): Promise<{ userEvent: UserEvent; paymentRequired: boolean; confirmationUrl?: string }> {
+    if (event.price <= 0) {
+      return { userEvent, paymentRequired: false };
+    }
+
+    try {
+      const paymentResult = await this.paymentsService.createEventPayment(
+        studentId,
+        event.id,
+        paymentMethodId
+      );
+
+      // Refresh the userEvent from DB to get the updated paymentStatus and yookassaPaymentId
+      const refreshed = await this.userEventRepository.findOne({ where: { id: userEvent.id } });
+
+      return {
+        userEvent: refreshed ?? userEvent,
+        paymentRequired: true,
+        confirmationUrl: paymentResult.confirmationUrl,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to initiate payment for event ${event.id}: ${(error as Error).message}`);
+      // Return the registration even if payment initiation failed — client can retry via POST /student/payments/event/:id
+      return { userEvent, paymentRequired: true };
+    }
   }
 
   async getRegisteredParticipantsCount(eventId: string): Promise<number> {

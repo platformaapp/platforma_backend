@@ -14,12 +14,14 @@ import { MyOwnConferenceService } from './myownconference.service';
 import { EventsSchedulerService } from './events-scheduler.service';
 import { Payment } from 'src/payments/entities/payment.entity';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Session, User, UserEvent, VideoRoom, Event, Payment]),
     AuthModule,
     JwtModule,
+    PaymentsModule,
   ],
   controllers: [EventsController],
   providers: [EventsService, EmailService, MyOwnConferenceService, EventsSchedulerService, OptionalJwtAuthGuard],

@@ -27,6 +27,6 @@ import { Event } from 'src/events/entities/event.entity';
   ],
   controllers: [PaymentMethodsController, PaymentsController, WebhooksController],
   providers: [PaymentMethodsService, PaymentsService, YookassaService, TransactionsService],
-  exports: [PaymentMethodsService, YookassaService, TransactionsService],
+  exports: [PaymentMethodsService, PaymentsService, YookassaService, TransactionsService],
 })
 export class PaymentsModule {}

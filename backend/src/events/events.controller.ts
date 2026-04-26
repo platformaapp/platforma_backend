@@ -101,19 +101,24 @@ export class EventsController {
   @HttpCode(HttpStatus.CREATED)
   async register(
     @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: AuthenticatedRequest
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { payment_method_id?: string }
   ): Promise<RegisterResponseDto> {
-    const userEvent = await this.eventsService.registerForEvent(id, req.user.sub);
+    const result = await this.eventsService.registerForEvent(id, req.user.sub, body?.payment_method_id);
 
     return {
       success: true,
-      message: 'Вы успешно записались на событие',
+      message: result.confirmationUrl
+        ? 'Зарегистрированы. Требуется подтверждение оплаты.'
+        : 'Вы успешно записались на событие',
       userEvent: {
-        id: userEvent.id,
-        status: userEvent.status,
-        payment_status: userEvent.paymentStatus,
-        created_at: userEvent.createdAt.toISOString(),
+        id: result.userEvent.id,
+        status: result.userEvent.status,
+        payment_status: result.userEvent.paymentStatus,
+        created_at: result.userEvent.createdAt.toISOString(),
       },
+      payment_required: result.paymentRequired,
+      confirmation_url: result.confirmationUrl,
     };
   }
 
