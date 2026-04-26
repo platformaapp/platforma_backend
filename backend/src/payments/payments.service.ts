@@ -604,6 +604,49 @@ export class PaymentsService {
     }
   }
 
+  async syncEventPaymentStatus(
+    userId: string,
+    eventId: string
+  ): Promise<{ paymentStatus: string; synced: boolean }> {
+    const userEvent = await this.userEventRepository.findOne({
+      where: { eventId, userId },
+    });
+
+    if (!userEvent) {
+      throw new NotFoundException('Регистрация на событие не найдена');
+    }
+
+    if (userEvent.paymentStatus === UserEventPaymentStatus.PAID) {
+      return { paymentStatus: 'paid', synced: false };
+    }
+
+    if (!userEvent.yookassaPaymentId) {
+      return { paymentStatus: userEvent.paymentStatus, synced: false };
+    }
+
+    const yookassaPayment = await this.yookassaService.getPayment(userEvent.yookassaPaymentId);
+    this.logger.log(
+      `Syncing event payment ${userEvent.yookassaPaymentId}: YooKassa status = ${yookassaPayment.status}`
+    );
+
+    if (yookassaPayment.status === 'succeeded') {
+      await this.userEventRepository.update(userEvent.id, {
+        paymentStatus: UserEventPaymentStatus.PAID,
+        status: ParticipationStatus.REGISTERED,
+      });
+      return { paymentStatus: 'paid', synced: true };
+    }
+
+    if (yookassaPayment.status === 'canceled' || yookassaPayment.status === 'failed') {
+      await this.userEventRepository.update(userEvent.id, {
+        paymentStatus: UserEventPaymentStatus.FAILED,
+      });
+      return { paymentStatus: 'failed', synced: true };
+    }
+
+    return { paymentStatus: yookassaPayment.status, synced: false };
+  }
+
   async createEventPayment(
     userId: string,
     eventId: string,
@@ -649,7 +692,12 @@ export class PaymentsService {
         paymentMethodToken: paymentMethod.cardToken,
         description: `Оплата мероприятия: ${event.title}`,
         paymentId: userEvent.id,
-        returnUrl: `${this.configService.get<string>('FRONTEND_URL')}/events/${eventId}?payment=success`,
+        returnUrl: `${this.configService.get<string>('FRONTEND_URL')}/events/${eventId}?payment=callback`,
+      });
+
+      // Store the YooKassa payment ID so we can query status later (e.g. after 3DS redirect)
+      await this.userEventRepository.update(userEvent.id, {
+        yookassaPaymentId: yookassaPayment.id,
       });
 
       if (yookassaPayment.status === 'succeeded') {

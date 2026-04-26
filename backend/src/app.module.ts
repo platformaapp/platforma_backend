@@ -31,6 +31,8 @@ import { UploadsModule } from './uploads/uploads.module';
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_NAME'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        migrations: [__dirname + '/migrations/*{.ts,.js}'],
+        migrationsRun: true,
         synchronize: configService.get('NODE_ENV') === 'development',
         logging: false,
       }),

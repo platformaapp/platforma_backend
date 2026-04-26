@@ -132,6 +132,24 @@ export class PaymentsController {
     return this.paymentsService.createEventPayment(req.user.sub, eventId, paymentMethodId);
   }
 
+  @Get('event/:eventId/status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Sync and get event payment status',
+    description:
+      'Queries YooKassa for the latest payment status and updates the registration. ' +
+      'Call this after returning from a 3DS redirect or when polling for payment confirmation.',
+  })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Payment status returned' })
+  async getEventPaymentStatus(
+    @Req() req: AuthenticatedRequest,
+    @Param('eventId') eventId: string
+  ) {
+    const result = await this.paymentsService.syncEventPaymentStatus(req.user.sub, eventId);
+    return { success: true, ...result };
+  }
+
   @Get('callback')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Handle payment callback after 3D Secure' })

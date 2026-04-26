@@ -68,6 +68,9 @@ export class UserEvent {
   })
   paymentStatus: PaymentStatus;
 
+  @Column({ name: 'yookassa_payment_id', nullable: true, type: 'varchar' })
+  yookassaPaymentId: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
