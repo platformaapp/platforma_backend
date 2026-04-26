@@ -342,7 +342,7 @@ export class EventsService {
     eventId: string,
     studentId: string,
     paymentMethodId?: string
-  ): Promise<{ userEvent: UserEvent; paymentRequired: boolean; confirmationUrl?: string }> {
+  ): Promise<{ userEvent: UserEvent; paymentRequired: boolean; confirmationUrl?: string; yookassaPaymentId?: string }> {
     const event = await this.eventsRepository.findOne({
       where: { id: eventId },
       relations: ['userEvents'],
@@ -444,7 +444,7 @@ export class EventsService {
     event: Event,
     studentId: string,
     paymentMethodId?: string
-  ): Promise<{ userEvent: UserEvent; paymentRequired: boolean; confirmationUrl?: string }> {
+  ): Promise<{ userEvent: UserEvent; paymentRequired: boolean; confirmationUrl?: string; yookassaPaymentId?: string }> {
     if (event.price <= 0) {
       return { userEvent, paymentRequired: false };
     }
@@ -456,17 +456,16 @@ export class EventsService {
         paymentMethodId
       );
 
-      // Refresh the userEvent from DB to get the updated paymentStatus and yookassaPaymentId
       const refreshed = await this.userEventRepository.findOne({ where: { id: userEvent.id } });
 
       return {
         userEvent: refreshed ?? userEvent,
         paymentRequired: true,
         confirmationUrl: paymentResult.confirmationUrl,
+        yookassaPaymentId: paymentResult.yookassaPaymentId,
       };
     } catch (error) {
       this.logger.error(`Failed to initiate payment for event ${event.id}: ${(error as Error).message}`);
-      // Return the registration even if payment initiation failed — client can retry via POST /student/payments/event/:id
       return { userEvent, paymentRequired: true };
     }
   }

@@ -119,6 +119,7 @@ export class EventsController {
       },
       payment_required: result.paymentRequired,
       confirmation_url: result.confirmationUrl,
+      yookassa_payment_id: result.yookassaPaymentId,
     };
   }
 

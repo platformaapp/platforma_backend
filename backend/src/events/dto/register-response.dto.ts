@@ -11,4 +11,6 @@ export class RegisterResponseDto {
   confirmation_url?: string;
   /** True when event.price > 0 and payment was initiated (or already paid). */
   payment_required?: boolean;
+  /** YooKassa payment ID — pass as ?yookassa_payment_id= to the status-sync endpoint when polling. */
+  yookassa_payment_id?: string;
 }

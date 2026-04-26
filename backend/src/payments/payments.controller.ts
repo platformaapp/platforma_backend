@@ -138,15 +138,18 @@ export class PaymentsController {
     summary: 'Sync and get event payment status',
     description:
       'Queries YooKassa for the latest payment status and updates the registration. ' +
-      'Call this after returning from a 3DS redirect or when polling for payment confirmation.',
+      'Call this after returning from a 3DS redirect or when polling for payment confirmation. ' +
+      'Pass yookassa_payment_id if the ID was returned in the register response but not yet stored in DB.',
   })
   @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiQuery({ name: 'yookassa_payment_id', required: false, description: 'YooKassa payment ID (optional fallback)' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Payment status returned' })
   async getEventPaymentStatus(
     @Req() req: AuthenticatedRequest,
-    @Param('eventId') eventId: string
+    @Param('eventId') eventId: string,
+    @Query('yookassa_payment_id') yookassaPaymentId?: string
   ) {
-    const result = await this.paymentsService.syncEventPaymentStatus(req.user.sub, eventId);
+    const result = await this.paymentsService.syncEventPaymentStatus(req.user.sub, eventId, yookassaPaymentId);
     return { success: true, ...result };
   }
 

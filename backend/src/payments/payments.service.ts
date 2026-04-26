@@ -606,7 +606,8 @@ export class PaymentsService {
 
   async syncEventPaymentStatus(
     userId: string,
-    eventId: string
+    eventId: string,
+    yookassaPaymentIdParam?: string
   ): Promise<{ paymentStatus: string; synced: boolean }> {
     const userEvent = await this.userEventRepository.findOne({
       where: { eventId, userId },
@@ -620,13 +621,24 @@ export class PaymentsService {
       return { paymentStatus: 'paid', synced: false };
     }
 
-    if (!userEvent.yookassaPaymentId) {
+    const effectiveYookassaId = userEvent.yookassaPaymentId ?? yookassaPaymentIdParam;
+
+    if (!effectiveYookassaId) {
       return { paymentStatus: userEvent.paymentStatus, synced: false };
     }
 
-    const yookassaPayment = await this.yookassaService.getPayment(userEvent.yookassaPaymentId);
+    // If we got the ID from the query param but it wasn't stored in DB, persist it now
+    if (!userEvent.yookassaPaymentId && yookassaPaymentIdParam) {
+      try {
+        await this.userEventRepository.update(userEvent.id, { yookassaPaymentId: yookassaPaymentIdParam });
+      } catch (dbErr) {
+        this.logger.warn(`Could not persist yookassaPaymentId from query param: ${(dbErr as Error).message}`);
+      }
+    }
+
+    const yookassaPayment = await this.yookassaService.getPayment(effectiveYookassaId);
     this.logger.log(
-      `Syncing event payment ${userEvent.yookassaPaymentId}: YooKassa status = ${yookassaPayment.status}`
+      `Syncing event payment ${effectiveYookassaId}: YooKassa status = ${yookassaPayment.status}`
     );
 
     if (yookassaPayment.status === 'succeeded') {
@@ -651,7 +663,7 @@ export class PaymentsService {
     userId: string,
     eventId: string,
     paymentMethodId?: string
-  ): Promise<{ confirmationUrl?: string; status: string; message: string }> {
+  ): Promise<{ confirmationUrl?: string; status: string; message: string; yookassaPaymentId?: string }> {
     const event = await this.eventRepository.findOne({
       where: { id: eventId },
       relations: ['mentor'],
@@ -723,13 +735,14 @@ export class PaymentsService {
         paymentStatus: UserEventPaymentStatus.PAID,
         status: ParticipationStatus.REGISTERED,
       });
-      return { status: 'succeeded', message: 'Оплата прошла успешно' };
+      return { status: 'succeeded', message: 'Оплата прошла успешно', yookassaPaymentId: yookassaPayment.id };
     }
 
     return {
       status: yookassaPayment.status,
       confirmationUrl: yookassaPayment.confirmation_url,
       message: 'Требуется подтверждение оплаты',
+      yookassaPaymentId: yookassaPayment.id,
     };
   }
 }
