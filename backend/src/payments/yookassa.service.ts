@@ -226,7 +226,7 @@ export class YookassaService {
       },
     };
 
-    this.logger.debug(`Creating session payment with payload: ${JSON.stringify(payload)}`);
+    this.logger.log(`Creating session payment: amount=${amount}, payment_method_id_prefix=${String(params.paymentMethodToken).substring(0, 8)}..., paymentId=${params.paymentId}`);
 
     try {
       const data = await this.makeYookassaRequest<YookassaPaymentResponse>(

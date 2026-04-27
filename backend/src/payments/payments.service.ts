@@ -681,40 +681,52 @@ export class PaymentsService {
       throw new BadRequestException('Событие уже оплачено');
     }
 
-    let paymentMethod: PaymentMethod;
-    if (paymentMethodId) {
-      paymentMethod = await this.paymentMethodRepository.findOne({
-        where: { id: paymentMethodId, userId, status: PaymentMethodStatus.ACTIVE },
-      });
-      if (!paymentMethod) throw new NotFoundException('Способ оплаты не найден или неактивен');
-    } else {
-      const user = await this.userRepository.findOne({ where: { id: userId } });
-      if (!user?.defaultPaymentMethodId) {
-        throw new BadRequestException('Не выбран способ оплаты');
-      }
-      paymentMethod = await this.paymentMethodRepository.findOne({
-        where: { id: user.defaultPaymentMethodId, userId, status: PaymentMethodStatus.ACTIVE },
-      });
-      if (!paymentMethod) throw new NotFoundException('Способ оплаты по умолчанию не найден');
-    }
+    // Resolve payment method — try to auto-heal PENDING methods whose webhook was never received.
+    let paymentMethod = await this.resolvePaymentMethod(userId, paymentMethodId);
+
+    const returnUrl = `${this.configService.get<string>('FRONTEND_URL')}/events/${eventId}?payment=callback`;
 
     let yookassaPayment: { id: string; status: string; confirmation_url?: string };
 
     try {
+      this.logger.log(
+        `Creating YooKassa payment for event ${eventId}: pm=${paymentMethod.id}, cardToken_prefix=${paymentMethod.cardToken?.substring(0, 8)}...`
+      );
       yookassaPayment = await this.yookassaService.createSessionPayment({
         amount: Number(event.price),
         paymentMethodToken: paymentMethod.cardToken,
         description: `Оплата мероприятия: ${event.title}`,
         paymentId: userEvent.id,
-        returnUrl: `${this.configService.get<string>('FRONTEND_URL')}/events/${eventId}?payment=callback`,
+        returnUrl,
       });
       this.logger.log(
         `YooKassa payment created for event ${eventId}: id=${yookassaPayment.id}, status=${yookassaPayment.status}, has_confirmation_url=${!!yookassaPayment.confirmation_url}`
       );
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`YooKassa API call failed for event ${eventId}: ${msg}`);
-      throw new InternalServerErrorException(`Ошибка создания платежа: ${msg}`);
+    } catch (firstError) {
+      const firstMsg = firstError instanceof Error ? firstError.message : String(firstError);
+      this.logger.error(`YooKassa API call failed for event ${eventId} (cardToken_prefix=${paymentMethod.cardToken?.substring(0, 8)}...): ${firstMsg}`);
+
+      // Recovery attempt: cardToken might still be the 1-rub payment ID (not the saved method ID).
+      // Query the original payment to extract the real payment_method_id and retry once.
+      const recovered = await this.tryRecoverCardToken(paymentMethod);
+      if (recovered) {
+        try {
+          yookassaPayment = await this.yookassaService.createSessionPayment({
+            amount: Number(event.price),
+            paymentMethodToken: paymentMethod.cardToken,
+            description: `Оплата мероприятия: ${event.title}`,
+            paymentId: userEvent.id,
+            returnUrl,
+          });
+          this.logger.log(`YooKassa payment created after cardToken recovery: id=${yookassaPayment.id}, status=${yookassaPayment.status}`);
+        } catch (retryError) {
+          const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
+          this.logger.error(`YooKassa retry also failed after recovery: ${retryMsg}`);
+          throw new InternalServerErrorException(`Ошибка создания платежа: ${retryMsg}`);
+        }
+      } else {
+        throw new InternalServerErrorException(`Ошибка создания платежа: ${firstMsg}`);
+      }
     }
 
     // Store YooKassa payment ID for later status polling.
@@ -744,5 +756,99 @@ export class PaymentsService {
       message: 'Требуется подтверждение оплаты',
       yookassaPaymentId: yookassaPayment.id,
     };
+  }
+
+  /**
+   * Resolves the payment method for a user.
+   * If the method is PENDING (YooKassa webhook never arrived after binding),
+   * queries YooKassa to check if the binding actually succeeded and heals the record.
+   */
+  private async resolvePaymentMethod(userId: string, paymentMethodId?: string): Promise<PaymentMethod> {
+    let paymentMethod: PaymentMethod | null;
+
+    if (paymentMethodId) {
+      paymentMethod = await this.paymentMethodRepository.findOne({
+        where: { id: paymentMethodId, userId },
+      });
+    } else {
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      if (!user?.defaultPaymentMethodId) {
+        throw new BadRequestException('Не выбран способ оплаты');
+      }
+      paymentMethod = await this.paymentMethodRepository.findOne({
+        where: { id: user.defaultPaymentMethodId, userId },
+      });
+    }
+
+    if (!paymentMethod) throw new NotFoundException('Способ оплаты не найден');
+
+    // Auto-heal: if PENDING, try to recover from YooKassa (webhook may not have arrived)
+    if (paymentMethod.status === PaymentMethodStatus.PENDING) {
+      this.logger.warn(
+        `Payment method ${paymentMethod.id} is PENDING — attempting auto-heal from YooKassa`
+      );
+      await this.tryRecoverCardToken(paymentMethod);
+    }
+
+    if (paymentMethod.status !== PaymentMethodStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Способ оплаты не активен. Удалите карту и привяжите заново.'
+      );
+    }
+
+    return paymentMethod;
+  }
+
+  /**
+   * Attempts to recover the correct cardToken (saved payment_method_id) from the original
+   * 1-ruble binding payment stored in yookassaPaymentId. Updates the DB record on success.
+   * Returns true if recovery succeeded.
+   */
+  private async tryRecoverCardToken(paymentMethod: PaymentMethod): Promise<boolean> {
+    if (!paymentMethod.yookassaPaymentId) return false;
+
+    try {
+      const originalPayment = await this.yookassaService.getPayment(paymentMethod.yookassaPaymentId);
+      const pmId = originalPayment.payment_method?.id;
+
+      if (!pmId || pmId === paymentMethod.cardToken) return false;
+
+      this.logger.log(
+        `Recovering cardToken for pm ${paymentMethod.id}: ${paymentMethod.cardToken?.substring(0, 8)}... → ${pmId.substring(0, 8)}...`
+      );
+
+      const card = originalPayment.payment_method?.card;
+      await this.paymentMethodRepository.update(paymentMethod.id, {
+        cardToken: pmId,
+        yookassaPaymentId: pmId,
+        status: PaymentMethodStatus.ACTIVE,
+        ...(card && {
+          cardMasked: `${card.first6}******${card.last4}`,
+          cardType: card.card_type,
+          expiryMonth: card.expiry_month,
+          expiryYear: card.expiry_year,
+        }),
+      });
+
+      paymentMethod.cardToken = pmId;
+      paymentMethod.status = PaymentMethodStatus.ACTIVE;
+
+      // Set as default if this is the first active card
+      const activeCount = await this.paymentMethodRepository.count({
+        where: { userId: paymentMethod.userId, status: PaymentMethodStatus.ACTIVE },
+      });
+      if (activeCount === 1) {
+        await this.userRepository.update(paymentMethod.userId, {
+          defaultPaymentMethodId: paymentMethod.id,
+        });
+      }
+
+      return true;
+    } catch (err) {
+      this.logger.warn(
+        `cardToken recovery failed for pm ${paymentMethod.id}: ${(err as Error).message}`
+      );
+      return false;
+    }
   }
 }
