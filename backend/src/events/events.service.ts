@@ -1078,6 +1078,10 @@ export class EventsService {
       qb = qb.andWhere('event.type = :type', { type: EventType.STANDALONE });
     }
 
+    if (userId) {
+      qb = qb.andWhere('event.mentorId != :userId', { userId });
+    }
+
     const [events, total] = await qb
       .orderBy('event.datetimeStart', 'ASC')
       .skip(skip)
