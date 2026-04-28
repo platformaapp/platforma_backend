@@ -1,16 +1,21 @@
 import {
   Controller,
   Post,
+  Get,
+  Param,
+  Res,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  NotFoundException,
   UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
 import { randomUUID } from 'crypto';
-import { mkdirSync } from 'fs';
+import { mkdirSync, existsSync } from 'fs';
+import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 const UPLOADS_DIR = '/app/uploads';
@@ -19,6 +24,18 @@ mkdirSync(UPLOADS_DIR, { recursive: true });
 
 @Controller('uploads')
 export class UploadsController {
+  @Get(':filename')
+  serveFile(@Param('filename') filename: string, @Res() res: Response): void {
+    if (!filename || filename.includes('..') || /[/\\]/.test(filename)) {
+      throw new BadRequestException('Invalid filename');
+    }
+    const filePath = join(UPLOADS_DIR, filename);
+    if (!existsSync(filePath)) {
+      throw new NotFoundException('File not found');
+    }
+    res.sendFile(filePath);
+  }
+
   @Post('image')
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(

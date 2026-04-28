@@ -136,6 +136,10 @@ export interface YookassaPayment {
       expiry_year: string;
     };
   };
+  confirmation?: {
+    type?: string;
+    confirmation_url?: string;
+  };
   cancellation_details?: {
     reason?: string;
   };

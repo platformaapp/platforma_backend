@@ -608,7 +608,7 @@ export class PaymentsService {
     userId: string,
     eventId: string,
     yookassaPaymentIdParam?: string
-  ): Promise<{ paymentStatus: string; synced: boolean }> {
+  ): Promise<{ paymentStatus: string; synced: boolean; confirmationUrl?: string }> {
     const userEvent = await this.userEventRepository.findOne({
       where: { eventId, userId },
     });
@@ -656,7 +656,11 @@ export class PaymentsService {
       return { paymentStatus: 'failed', synced: true };
     }
 
-    return { paymentStatus: yookassaPayment.status, synced: false };
+    return {
+      paymentStatus: yookassaPayment.status,
+      synced: false,
+      confirmationUrl: yookassaPayment.confirmation?.confirmation_url,
+    };
   }
 
   async createEventPayment(
