@@ -17,6 +17,10 @@ async function bootstrap() {
 
   const uploadsDir = join('/app', 'uploads');
   mkdirSync(uploadsDir, { recursive: true });
+  // Serve uploads at both paths: with and without /api/ prefix.
+  // Some nginx configurations strip the /api/ prefix before proxying,
+  // so we must handle both /uploads/* and /api/uploads/*.
+  app.use('/uploads', express.static(uploadsDir));
   app.use('/api/uploads', express.static(uploadsDir));
 
   app.use(

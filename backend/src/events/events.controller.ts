@@ -108,9 +108,11 @@ export class EventsController {
 
     return {
       success: true,
-      message: result.confirmationUrl
-        ? 'Зарегистрированы. Требуется подтверждение оплаты.'
-        : 'Вы успешно записались на событие',
+      message: result.paymentError
+        ? 'Зарегистрированы, но оплата не прошла. Повторите попытку.'
+        : result.confirmationUrl
+          ? 'Зарегистрированы. Требуется подтверждение оплаты.'
+          : 'Вы успешно записались на событие',
       userEvent: {
         id: result.userEvent.id,
         status: result.userEvent.status,
@@ -120,6 +122,7 @@ export class EventsController {
       payment_required: result.paymentRequired,
       confirmation_url: result.confirmationUrl,
       yookassa_payment_id: result.yookassaPaymentId,
+      payment_error: result.paymentError,
     };
   }
 

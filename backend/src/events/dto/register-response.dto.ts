@@ -13,4 +13,6 @@ export class RegisterResponseDto {
   payment_required?: boolean;
   /** YooKassa payment ID — pass as ?yookassa_payment_id= to the status-sync endpoint when polling. */
   yookassa_payment_id?: string;
+  /** Set when payment creation failed. User should retry via POST /student/payments/event/:id */
+  payment_error?: string;
 }
