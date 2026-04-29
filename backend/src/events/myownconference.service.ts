@@ -21,6 +21,9 @@ export class MyOwnConferenceService {
   constructor(private configService: ConfigService) {
     this.apiKey = this.configService.get<string>('MY_OWN_CONF_API_KEY');
     this.baseUrl = 'https://api.mywebinar.com';
+    if (!this.apiKey) {
+      this.logger.error('MY_OWN_CONF_API_KEY is not set — video room creation will fail');
+    }
   }
 
   async createWebinar(params: CreateWebinarParams): Promise<WebinarResponse> {
