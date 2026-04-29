@@ -14,7 +14,7 @@ import {
   Query,
   Res,
 } from '@nestjs/common';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { PaymentMethodsService } from './payment-methods.service';
 import { AttachPaymentMethodDto } from './dto/attach-payment-method.dto';

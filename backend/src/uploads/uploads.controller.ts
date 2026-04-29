@@ -15,7 +15,7 @@ import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { randomUUID } from 'crypto';
 import { mkdirSync, existsSync } from 'fs';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 const UPLOADS_DIR = '/app/uploads';
