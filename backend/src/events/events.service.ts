@@ -948,7 +948,27 @@ export class EventsService {
     }
 
     if (!event.videoRoom) {
-      throw new NotFoundException('Видеокомната для события не найдена');
+      this.logger.warn(`Video room missing for event ${eventId}, attempting on-demand creation`);
+      try {
+        const webinarResponse = await this.myOwnConferenceService.createWebinar({
+          name: event.title,
+          start: this.myOwnConferenceService.formatDateForAPI(event.datetimeStart),
+          duration: event.durationMinutes,
+        });
+        const videoRoom = this.videoRoomRepository.create({
+          event: { id: eventId } as Event,
+          provider: VideoProvider.MY_OWN_CONFERENCE,
+          url: webinarResponse.webinarLink,
+          externalId: webinarResponse.alias,
+          moderatorUrl: webinarResponse.mainModeratorLink,
+        });
+        event.videoRoom = await this.videoRoomRepository.save(videoRoom);
+      } catch (createErr) {
+        this.logger.error(`On-demand video room creation failed for event ${eventId}`, createErr);
+        throw new NotFoundException(
+          'Видеокомната не найдена. Попробуйте позже или обратитесь к организатору.'
+        );
+      }
     }
 
     try {

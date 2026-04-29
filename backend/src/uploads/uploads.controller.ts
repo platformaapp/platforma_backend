@@ -17,6 +17,7 @@ import { randomUUID } from 'crypto';
 import { mkdirSync, existsSync } from 'fs';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ConfigService } from '@nestjs/config';
 
 const UPLOADS_DIR = '/app/uploads';
 
@@ -24,6 +25,8 @@ mkdirSync(UPLOADS_DIR, { recursive: true });
 
 @Controller('uploads')
 export class UploadsController {
+  constructor(private readonly configService: ConfigService) {}
+
   @Get(':filename')
   serveFile(@Param('filename') filename: string, @Res() res: Response): void {
     if (!filename || filename.includes('..') || /[/\\]/.test(filename)) {
@@ -61,6 +64,7 @@ export class UploadsController {
     if (!file) {
       throw new BadRequestException('Файл не загружен');
     }
-    return { url: `https://platformaapp.ru/api/uploads/${file.filename}` };
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://platformaapp.ru');
+    return { url: `${frontendUrl}/api/uploads/${file.filename}` };
   }
 }
