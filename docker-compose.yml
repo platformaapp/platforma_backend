@@ -7,7 +7,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - uploads_data:/app/uploads
+      - /var/platforma/uploads:/app/uploads
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -31,5 +31,30 @@ services:
       MY_OWN_CONF_API_KEY: ${MY_OWN_CONF_API_KEY}
     restart: unless-stopped
 
-volumes:
-  uploads_data:
+# Uploads are stored on the host at /var/platforma/uploads (bind mount).
+# Create it once: sudo mkdir -p /var/platforma/uploads
+# This survives docker-compose down -v and is accessible directly by nginx.
+#
+# Recommended nginx block (add to your server {} section):
+#
+#   # Serve uploaded files directly — fast, no backend involved
+#   location /api/uploads/ {
+#       alias /var/platforma/uploads/;
+#       expires 30d;
+#       add_header Cache-Control "public, immutable";
+#   }
+#
+#   # Proxy all other API requests to the backend
+#   location /api/ {
+#       proxy_pass http://127.0.0.1:3000;
+#       proxy_set_header Host $host;
+#       proxy_set_header X-Real-IP $remote_addr;
+#       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#       proxy_set_header X-Forwarded-Proto $scheme;
+#   }
+#
+#   # React SPA
+#   location / {
+#       root /var/www/html;
+#       try_files $uri $uri/ /index.html;
+#   }
