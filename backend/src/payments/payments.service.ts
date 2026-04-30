@@ -330,9 +330,14 @@ export class PaymentsService {
             status: ParticipationStatus.REGISTERED,
           });
           this.logger.log(`UserEvent ${metadataPaymentId} marked as PAID via webhook`);
+        } else if (object.status === 'canceled' || object.status === 'failed') {
+          await this.userEventRepository.update(metadataPaymentId, {
+            paymentStatus: UserEventPaymentStatus.FAILED,
+          });
+          this.logger.log(`UserEvent ${metadataPaymentId} marked as FAILED via webhook (status: ${object.status})`);
         } else {
           this.logger.log(
-            `Event payment webhook with status ${object.status} for userEvent ${metadataPaymentId}, no action needed`
+            `Event payment webhook with status ${object.status} for userEvent ${metadataPaymentId}, no action`
           );
         }
         return;
@@ -685,6 +690,32 @@ export class PaymentsService {
       throw new BadRequestException('Событие уже оплачено');
     }
 
+    // If there is already a live pending YooKassa payment, return its confirmation URL
+    // instead of creating a duplicate charge.
+    if (
+      userEvent.paymentStatus === UserEventPaymentStatus.PENDING &&
+      userEvent.yookassaPaymentId
+    ) {
+      try {
+        const existing = await this.yookassaService.getPayment(userEvent.yookassaPaymentId);
+        if (existing.status === 'pending') {
+          this.logger.log(
+            `Reusing existing pending YooKassa payment ${existing.id} for event ${eventId}`
+          );
+          return {
+            status: existing.status,
+            confirmationUrl: existing.confirmation?.confirmation_url,
+            message: 'Оплата уже создана, перейдите по ссылке для подтверждения',
+            yookassaPaymentId: existing.id,
+          };
+        }
+      } catch (checkErr) {
+        this.logger.warn(
+          `Could not check existing payment ${userEvent.yookassaPaymentId}: ${(checkErr as Error).message}`
+        );
+      }
+    }
+
     // Resolve payment method — try to auto-heal PENDING methods whose webhook was never received.
     let paymentMethod = await this.resolvePaymentMethod(userId, paymentMethodId);
 
@@ -702,6 +733,7 @@ export class PaymentsService {
         description: `Оплата мероприятия: ${event.title}`,
         paymentId: userEvent.id,
         returnUrl,
+        metadataType: 'event_payment',
       });
       this.logger.log(
         `YooKassa payment created for event ${eventId}: id=${yookassaPayment.id}, status=${yookassaPayment.status}, has_confirmation_url=${!!yookassaPayment.confirmation_url}`
@@ -721,6 +753,7 @@ export class PaymentsService {
             description: `Оплата мероприятия: ${event.title}`,
             paymentId: userEvent.id,
             returnUrl,
+            metadataType: 'event_payment',
           });
           this.logger.log(`YooKassa payment created after cardToken recovery: id=${yookassaPayment.id}, status=${yookassaPayment.status}`);
         } catch (retryError) {

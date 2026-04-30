@@ -222,7 +222,7 @@ export class YookassaService {
       },
       metadata: {
         payment_id: params.paymentId,
-        type: 'session_payment',
+        type: params.metadataType ?? 'session_payment',
       },
     };
 

@@ -63,15 +63,17 @@ export class WebhooksController {
   }
 
   private isPaymentMethodWebhook(webhookData: YookassaWebhookDto): boolean {
-    // Привязка карты: есть saved: true и нет метаданных сессии
+    const metaType = webhookData.object.metadata?.type;
     return (
       webhookData.object.payment_method?.saved === true &&
-      webhookData.object.metadata?.type !== 'session_payment'
+      metaType !== 'session_payment' &&
+      metaType !== 'event_payment'
     );
   }
 
   private isSessionPaymentWebhook(webhookData: YookassaWebhookDto): boolean {
-    // Платеж сессии: есть метаданные с типом session_payment
-    return webhookData.object.metadata?.type === 'session_payment';
+    const metaType = webhookData.object.metadata?.type;
+    // Handles both session_payment (old name kept for backwards compat) and event_payment.
+    return metaType === 'session_payment' || metaType === 'event_payment';
   }
 }

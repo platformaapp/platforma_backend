@@ -115,6 +115,7 @@ export interface CreateSessionPaymentParams {
   description: string;
   paymentId: string;
   returnUrl: string;
+  metadataType?: 'session_payment' | 'event_payment';
 }
 
 export interface YookassaPayment {
