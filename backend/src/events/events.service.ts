@@ -950,9 +950,12 @@ export class EventsService {
     if (!event.videoRoom) {
       this.logger.warn(`Video room missing for event ${eventId}, attempting on-demand creation`);
       try {
-        // If the event has already started, the original datetimeStart is in the past.
-        // Most webinar APIs reject past start times, so use current time in that case.
-        const webinarStart = event.datetimeStart < now ? now : event.datetimeStart;
+        // If the event has already started, use now + 2 min so the API never
+        // sees a start time in the past (accounts for network latency + timezone math).
+        const webinarStart =
+          event.datetimeStart < now
+            ? new Date(now.getTime() + 2 * 60 * 1000)
+            : event.datetimeStart;
         const webinarResponse = await this.myOwnConferenceService.createWebinar({
           name: event.title,
           start: this.myOwnConferenceService.formatDateForAPI(webinarStart),
