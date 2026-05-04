@@ -187,7 +187,21 @@ export class EventsService {
           this.logger.log(`Video room created for event ${savedEventId}: ${videoRoom.id}`);
 
         } catch (error) {
-          this.logger.error(`Failed to create webinar room for event ${savedEventId}`, error);
+          this.logger.warn(`MyOwnConference failed for event ${savedEventId}, falling back to Jitsi: ${(error as Error).message}`);
+          try {
+            const jitsi = this.buildJitsiRoom(savedEventId);
+            const fallbackRoom = this.videoRoomRepository.create({
+              event: { id: savedEventId },
+              provider: VideoProvider.JITSI,
+              url: jitsi.url,
+              externalId: jitsi.externalId,
+              moderatorUrl: jitsi.moderatorUrl,
+            });
+            await this.videoRoomRepository.save(fallbackRoom);
+            this.logger.log(`Jitsi fallback room created for event ${savedEventId}`);
+          } catch (jitsiErr) {
+            this.logger.error(`Jitsi fallback also failed for event ${savedEventId}`, jitsiErr);
+          }
         }
 
         try {
@@ -970,10 +984,17 @@ export class EventsService {
         });
         event.videoRoom = await this.videoRoomRepository.save(videoRoom);
       } catch (createErr) {
-        this.logger.error(`On-demand video room creation failed for event ${eventId}`, createErr);
-        throw new NotFoundException(
-          'Видеокомната не найдена. Попробуйте позже или обратитесь к организатору.'
-        );
+        this.logger.warn(`MyOwnConference on-demand failed for event ${eventId}, using Jitsi: ${(createErr as Error).message}`);
+        const jitsi = this.buildJitsiRoom(eventId);
+        const fallbackRoom = this.videoRoomRepository.create({
+          event: { id: eventId } as Event,
+          provider: VideoProvider.JITSI,
+          url: jitsi.url,
+          externalId: jitsi.externalId,
+          moderatorUrl: jitsi.moderatorUrl,
+        });
+        event.videoRoom = await this.videoRoomRepository.save(fallbackRoom);
+        this.logger.log(`Jitsi fallback room saved for event ${eventId}`);
       }
     }
 
@@ -1052,8 +1073,11 @@ export class EventsService {
         case VideoProvider.TELEMOST:
           throw new BadRequestException('Интеграция с Telemost пока не реализована');
 
-        case VideoProvider.JITSI:
-          throw new BadRequestException('Интеграция с Jitsi пока не реализована');
+        case VideoProvider.JITSI: {
+          const jitsi = this.buildJitsiRoom(event_id);
+          videoRoomData = jitsi;
+          break;
+        }
 
         default:
           throw new BadRequestException(`Провайдер ${provider} не поддерживается`);
@@ -1820,5 +1844,11 @@ export class EventsService {
     }
 
     return `До события: ${parts.join(' ')}`;
+  }
+
+  private buildJitsiRoom(eventId: string): { url: string; moderatorUrl: string; externalId: string } {
+    const roomName = `platforma-${eventId}`;
+    const url = `https://meet.jit.si/${roomName}`;
+    return { url, moderatorUrl: url, externalId: roomName };
   }
 }
