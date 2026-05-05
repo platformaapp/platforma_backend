@@ -22,7 +22,7 @@
     "migration:create": "npx typeorm migration:create ./src/migrations/empty",
     "migration:run": "npm run build && npx typeorm migration:run -d ./typeorm.config.ts",
     "migration:revert": "npm run build && npx typeorm migration:revert -d ./typeorm.config.ts",
-    "seed:admin": "ts-node -r tsconfig-paths/register src/seeds/seed-admin.ts"
+    "seed:admin": "npx ts-node -r tsconfig-paths/register src/seeds/seed-admin.ts"
   },
   "dependencies": {
     "@a2seven/yoo-checkout": "^1.1.4",
