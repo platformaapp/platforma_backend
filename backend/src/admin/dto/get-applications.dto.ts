@@ -1,7 +1,7 @@
 import { IsOptional, IsIn, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ApplicationStatus } from '../entities/tutor-application.entity';
+import type { ApplicationStatus } from '../entities/tutor-application.entity';
 
 export class GetApplicationsDto {
   @ApiPropertyOptional({ default: 1 })
