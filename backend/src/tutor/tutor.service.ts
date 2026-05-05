@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/users/user.entity';
 import { Event } from 'src/events/entities/event.entity';
+import { TutorApplication } from 'src/admin/entities/tutor-application.entity';
 import { FindManyOptions, In, Not, Repository } from 'typeorm';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { Slot, SlotStatus } from 'src/slots/entities/slot.entity';
@@ -40,10 +41,14 @@ export class TutorService {
 
     @InjectRepository(Booking)
     private readonly bookingRepository: Repository<Booking>,
+
+    @InjectRepository(TutorApplication)
+    private readonly tutorApplicationRepository: Repository<TutorApplication>,
+
     private readonly bookingMapper: BookingMapper
   ) {}
 
-  async getTutorProfile(userId: string): Promise<Partial<User>> {
+  async getTutorProfile(userId: string): Promise<Partial<User> & { isVerified: boolean; applicationStatus: string | null }> {
     const user = await this.usersRepository.findOne({
       where: { id: userId },
       select: [
@@ -57,6 +62,7 @@ export class TutorService {
         'shortBio',
         'hourlyRate',
         'groupMeetings',
+        'specialization',
         'createdAt',
         'updatedAt',
       ],
@@ -64,7 +70,16 @@ export class TutorService {
 
     if (!user) throw new NotFoundException('User not found');
 
-    return user;
+    const application = await this.tutorApplicationRepository.findOne({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
+
+    return {
+      ...user,
+      isVerified: application?.status === 'approved',
+      applicationStatus: application?.status ?? null,
+    };
   }
 
   async updateTutorProfile(

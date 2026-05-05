@@ -398,6 +398,40 @@ export class PaymentsService {
       const transaction = await this.transactionsService.getTransactionByYookassaId(paymentId);
 
       if (!transaction) {
+        // Event payments do not create a Transaction record.
+        // Check if this yookassaPaymentId belongs to a UserEvent and sync its status.
+        const userEvent = await this.userEventRepository.findOne({
+          where: { yookassaPaymentId: paymentId },
+        });
+
+        if (userEvent) {
+          const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+          if (yookassaPayment.status === 'succeeded') {
+            await this.userEventRepository.update(userEvent.id, {
+              paymentStatus: UserEventPaymentStatus.PAID,
+              status: ParticipationStatus.REGISTERED,
+            });
+            this.logger.log(`UserEvent ${userEvent.id} marked as PAID via callback`);
+            return {
+              message: 'Оплата мероприятия прошла успешно',
+              paymentId,
+              redirectUrl: `${frontendUrl}/events/${userEvent.eventId}?payment=success`,
+            };
+          } else if (yookassaPayment.status === 'canceled' || yookassaPayment.status === 'failed') {
+            await this.userEventRepository.update(userEvent.id, {
+              paymentStatus: UserEventPaymentStatus.FAILED,
+            });
+            throw new BadRequestException(
+              yookassaPayment.cancellation_details?.reason || 'Платеж отменен'
+            );
+          }
+          return {
+            message: 'Платеж обрабатывается',
+            paymentId,
+            redirectUrl: `${frontendUrl}/events/${userEvent.eventId}?payment=callback`,
+          };
+        }
+
         throw new NotFoundException(`Transaction not found for payment: ${paymentId}`);
       }
 

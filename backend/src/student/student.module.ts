@@ -12,10 +12,11 @@ import { BookingMapper } from 'src/mapper/booking.mapper';
 import { SessionModule } from '../session/session.module';
 import { Session } from '../session/entities/session.entity';
 import { Payment } from '../payments/entities/payment.entity';
+import { TutorApplication } from 'src/admin/entities/tutor-application.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Booking, Slot, User, Session, Payment]),
+    TypeOrmModule.forFeature([Booking, Slot, User, Session, Payment, TutorApplication]),
     SessionModule,
     SlotsModule,
     UsersModule,

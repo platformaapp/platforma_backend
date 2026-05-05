@@ -1221,7 +1221,6 @@ export class EventsService {
     let queryBuilder = this.eventsRepository
       .createQueryBuilder('event')
       .leftJoinAndSelect('event.mentor', 'mentor')
-      .leftJoinAndSelect('event.userEvents', 'userEvents')
       .leftJoinAndSelect('event.session', 'session')
       .leftJoinAndSelect('session.student', 'student')
       .where('event.datetimeStart IS NOT NULL');

@@ -9,10 +9,11 @@ import { Event } from 'src/events/entities/event.entity';
 import { Payment } from 'src/payments/entities/payment.entity';
 import { Booking } from 'src/student/entities/booking.entity';
 import { StudentModule } from 'src/student/student.module';
+import { TutorApplication } from 'src/admin/entities/tutor-application.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Slot, Event, Payment, Booking]),
+    TypeOrmModule.forFeature([User, Slot, Event, Payment, Booking, TutorApplication]),
     AuthModule,
     StudentModule,
   ],

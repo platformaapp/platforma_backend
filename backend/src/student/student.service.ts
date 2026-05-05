@@ -16,6 +16,7 @@ import { BookingMapper } from 'src/mapper/booking.mapper';
 import { Session, SessionStatus } from '../session/entities/session.entity';
 import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
+import { TutorApplication } from '../admin/entities/tutor-application.entity';
 
 @Injectable()
 export class StudentService {
@@ -30,6 +31,9 @@ export class StudentService {
 
     @InjectRepository(Payment)
     private readonly paymentRepository: Repository<Payment>,
+
+    @InjectRepository(TutorApplication)
+    private readonly tutorApplicationRepository: Repository<TutorApplication>,
 
     private readonly dataSource: DataSource,
     private readonly bookingMapper: BookingMapper
@@ -59,6 +63,16 @@ export class StudentService {
       if (slot.tutor.id === studentId) {
         this.logger.warn(`A student is trying to book his slot: ${studentId}`);
         throw new BadRequestException('You cannot book your own slot');
+      }
+
+      const tutorApplication = await this.tutorApplicationRepository.findOne({
+        where: { userId: slot.tutor.id },
+        order: { createdAt: 'DESC' },
+      });
+
+      if (!tutorApplication || tutorApplication.status !== 'approved') {
+        this.logger.warn(`Tutor ${slot.tutor.id} is not verified, booking blocked`);
+        throw new ForbiddenException('Этот наставник ещё не прошёл верификацию');
       }
 
       const slotDateTime = new Date(`${slot.date}T${slot.time}`);
