@@ -17,6 +17,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { JWT_SECRET } from 'src/utils/constants';
 import { EmailService } from '../notifications/email.service';
+import { TutorApplication } from 'src/admin/entities/tutor-application.entity';
 
 function isJwtError(error: unknown): error is JwtError {
   return (
@@ -32,6 +33,8 @@ export class AuthService {
     private usersRepository: Repository<User>,
     @InjectRepository(AuthSession)
     private authSessionRepository: Repository<AuthSession>,
+    @InjectRepository(TutorApplication)
+    private tutorApplicationRepository: Repository<TutorApplication>,
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService
@@ -50,6 +53,18 @@ export class AuthService {
 
       existingUser.roles = [...currentRoles, registerDto.role];
       const updatedUser = await this.usersRepository.save(existingUser);
+
+      if (registerDto.role === 'tutor') {
+        const existingApplication = await this.tutorApplicationRepository.findOne({
+          where: { userId: existingUser.id },
+          order: { createdAt: 'DESC' },
+        });
+        if (!existingApplication) {
+          await this.tutorApplicationRepository.save(
+            this.tutorApplicationRepository.create({ userId: existingUser.id, status: 'pending' })
+          );
+        }
+      }
 
       const payload = {
         sub: updatedUser.id,
@@ -105,6 +120,12 @@ export class AuthService {
     });
 
     const savedUser = await this.usersRepository.save(user);
+
+    if (registerDto.role === 'tutor') {
+      await this.tutorApplicationRepository.save(
+        this.tutorApplicationRepository.create({ userId: savedUser.id, status: 'pending' })
+      );
+    }
 
     const payload = {
       sub: savedUser.id,

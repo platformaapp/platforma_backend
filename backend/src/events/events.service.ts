@@ -465,9 +465,12 @@ export class EventsService {
 
       const refreshed = await this.userEventRepository.findOne({ where: { id: userEvent.id } });
 
+      // When a saved card auto-pays without 3DS, status is 'succeeded' and no confirmationUrl
+      const autoPaySucceeded = !paymentResult.confirmationUrl && paymentResult.status === 'succeeded';
+
       return {
         userEvent: refreshed ?? userEvent,
-        paymentRequired: true,
+        paymentRequired: !autoPaySucceeded,
         confirmationUrl: paymentResult.confirmationUrl,
         yookassaPaymentId: paymentResult.yookassaPaymentId,
       };
@@ -1267,12 +1270,8 @@ export class EventsService {
     const [events, total] = await queryBuilder.skip(skip).take(per_page).getManyAndCount();
 
     const data: MyEventItemDto[] = events
-      .filter((event): event is Event & { datetimeStart: Date } => !!event.datetimeStart)
+      .filter((event): event is Event & { datetimeStart: Date } => !!event.datetimeStart && !!event.mentor)
       .map((event) => {
-        if (!event.mentor) {
-          throw new BadRequestException(`Событие ${event.id} не имеет наставника`);
-        }
-
         const teacher: UserInfoDto = {
           id: event.mentor.id,
           name: event.mentor.fullName || event.mentor.email.split('@')[0],
