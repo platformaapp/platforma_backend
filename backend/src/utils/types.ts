@@ -111,7 +111,7 @@ export interface YookassaWebhook {
 
 export interface CreateSessionPaymentParams {
   amount: number;
-  paymentMethodToken: string;
+  paymentMethodToken?: string;
   description: string;
   paymentId: string;
   returnUrl: string;

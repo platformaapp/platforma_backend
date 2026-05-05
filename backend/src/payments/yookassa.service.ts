@@ -208,12 +208,11 @@ export class YookassaService {
       throw new BadRequestException('Invalid amount provided');
     }
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       amount: {
         value: amount.toFixed(2),
         currency: 'RUB',
       },
-      payment_method_id: params.paymentMethodToken,
       capture: true,
       description: params.description,
       confirmation: {
@@ -225,6 +224,10 @@ export class YookassaService {
         type: params.metadataType ?? 'session_payment',
       },
     };
+
+    if (params.paymentMethodToken) {
+      payload.payment_method_id = params.paymentMethodToken;
+    }
 
     this.logger.log(`Creating session payment: amount=${amount}, payment_method_id_prefix=${String(params.paymentMethodToken).substring(0, 8)}..., paymentId=${params.paymentId}`);
 

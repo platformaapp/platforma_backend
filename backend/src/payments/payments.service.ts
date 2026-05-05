@@ -750,20 +750,41 @@ export class PaymentsService {
       }
     }
 
-    // Resolve payment method — try to auto-heal PENDING methods whose webhook was never received.
-    let paymentMethod = await this.resolvePaymentMethod(userId, paymentMethodId);
-
     const returnUrl = `${this.configService.get<string>('FRONTEND_URL')}/events/${eventId}?payment=callback`;
 
     let yookassaPayment: { id: string; status: string; confirmation_url?: string };
 
+    // Try to resolve a saved payment method. If none is attached, fall back to
+    // a fresh YooKassa redirect payment so the user can enter card details.
+    let savedCardToken: string | undefined;
+    try {
+      const paymentMethod = await this.resolvePaymentMethod(userId, paymentMethodId);
+      savedCardToken = paymentMethod.cardToken ?? undefined;
+      this.logger.log(
+        `Using saved payment method for event ${eventId}: cardToken_prefix=${savedCardToken?.substring(0, 8)}...`
+      );
+    } catch (resolveError) {
+      const msg = resolveError instanceof Error ? resolveError.message : String(resolveError);
+      if (
+        resolveError instanceof BadRequestException &&
+        (msg.includes('Не выбран способ оплаты') || msg.includes('payment method'))
+      ) {
+        this.logger.log(
+          `No saved payment method for user ${userId} — creating redirect payment for event ${eventId}`
+        );
+        // savedCardToken stays undefined; YooKassa will present its hosted payment form
+      } else {
+        throw resolveError;
+      }
+    }
+
     try {
       this.logger.log(
-        `Creating YooKassa payment for event ${eventId}: pm=${paymentMethod.id}, cardToken_prefix=${paymentMethod.cardToken?.substring(0, 8)}...`
+        `Creating YooKassa payment for event ${eventId}: savedCard=${savedCardToken ? `${savedCardToken.substring(0, 8)}...` : 'none (redirect)'}`
       );
       yookassaPayment = await this.yookassaService.createSessionPayment({
         amount: Number(event.price),
-        paymentMethodToken: paymentMethod.cardToken,
+        paymentMethodToken: savedCardToken,
         description: `Оплата мероприятия: ${event.title}`,
         paymentId: userEvent.id,
         returnUrl,
@@ -774,26 +795,32 @@ export class PaymentsService {
       );
     } catch (firstError) {
       const firstMsg = firstError instanceof Error ? firstError.message : String(firstError);
-      this.logger.error(`YooKassa API call failed for event ${eventId} (cardToken_prefix=${paymentMethod.cardToken?.substring(0, 8)}...): ${firstMsg}`);
+      this.logger.error(`YooKassa API call failed for event ${eventId}: ${firstMsg}`);
 
-      // Recovery attempt: cardToken might still be the 1-rub payment ID (not the saved method ID).
-      // Query the original payment to extract the real payment_method_id and retry once.
-      const recovered = await this.tryRecoverCardToken(paymentMethod);
-      if (recovered) {
-        try {
-          yookassaPayment = await this.yookassaService.createSessionPayment({
-            amount: Number(event.price),
-            paymentMethodToken: paymentMethod.cardToken,
-            description: `Оплата мероприятия: ${event.title}`,
-            paymentId: userEvent.id,
-            returnUrl,
-            metadataType: 'event_payment',
-          });
-          this.logger.log(`YooKassa payment created after cardToken recovery: id=${yookassaPayment.id}, status=${yookassaPayment.status}`);
-        } catch (retryError) {
-          const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
-          this.logger.error(`YooKassa retry also failed after recovery: ${retryMsg}`);
-          throw new InternalServerErrorException(`Ошибка создания платежа: ${retryMsg}`);
+      if (savedCardToken) {
+        // Recovery attempt: cardToken might still be the 1-rub payment ID (not the saved method ID).
+        const paymentMethod = await this.paymentMethodRepository.findOne({
+          where: { cardToken: savedCardToken, userId },
+        });
+        const recovered = paymentMethod ? await this.tryRecoverCardToken(paymentMethod) : false;
+        if (recovered) {
+          try {
+            yookassaPayment = await this.yookassaService.createSessionPayment({
+              amount: Number(event.price),
+              paymentMethodToken: paymentMethod!.cardToken,
+              description: `Оплата мероприятия: ${event.title}`,
+              paymentId: userEvent.id,
+              returnUrl,
+              metadataType: 'event_payment',
+            });
+            this.logger.log(`YooKassa payment created after cardToken recovery: id=${yookassaPayment.id}, status=${yookassaPayment.status}`);
+          } catch (retryError) {
+            const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
+            this.logger.error(`YooKassa retry also failed after recovery: ${retryMsg}`);
+            throw new InternalServerErrorException(`Ошибка создания платежа: ${retryMsg}`);
+          }
+        } else {
+          throw new InternalServerErrorException(`Ошибка создания платежа: ${firstMsg}`);
         }
       } else {
         throw new InternalServerErrorException(`Ошибка создания платежа: ${firstMsg}`);

@@ -283,20 +283,27 @@ export class EventsService {
       );
     }
 
-    if (isPriceChanged) {
-      const paidRegistrations = await this.userEventRepository.count({
-        where: {
-          eventId,
-          paymentStatus: PaymentStatus.PAID,
-        },
-      });
+    const paidRegistrations = await this.userEventRepository.count({
+      where: { eventId, paymentStatus: PaymentStatus.PAID },
+    });
 
-      if (paidRegistrations > 0) {
+    if (paidRegistrations > 0) {
+      const blockedFields: string[] = [];
+      if (updateEventDto.title !== undefined) blockedFields.push('title');
+      if (updateEventDto.description !== undefined) blockedFields.push('description');
+      if (updateEventDto.datetime_start !== undefined) blockedFields.push('datetime_start');
+      if (updateEventDto.datetime_end !== undefined) blockedFields.push('datetime_end');
+      if (updateEventDto.price !== undefined) blockedFields.push('price');
+      if (updateEventDto.max_participants !== undefined) blockedFields.push('max_participants');
+
+      if (blockedFields.length > 0) {
         throw new BadRequestException(
-          'Нельзя изменять цену, так как уже есть оплаченные регистрации'
+          'Нельзя изменять параметры события, так как уже есть оплаченные регистрации. Разрешено менять только обложку.'
         );
       }
+    }
 
+    if (isPriceChanged) {
       event.price = updateEventDto.price;
       event.platformFee = Number((updateEventDto.price * 0.1).toFixed(2));
       event.mentorRevenue = Number((updateEventDto.price * 0.9).toFixed(2));
@@ -1360,6 +1367,10 @@ export class EventsService {
 
     const registeredCount = await this.getRegisteredParticipantsCount(eventId);
 
+    const paidRegistrationsCount = await this.userEventRepository.count({
+      where: { eventId, paymentStatus: PaymentStatus.PAID },
+    });
+
     return {
       id: event.id,
       title: event.title,
@@ -1391,6 +1402,10 @@ export class EventsService {
       mentor_revenue: Number(event.mentorRevenue),
       max_participants: event.maxParticipants,
       registered_count: registeredCount,
+      paid_registrations_count: paidRegistrationsCount,
+      has_paid_registrations: paidRegistrationsCount > 0,
+      hasPaidRegistrations: paidRegistrationsCount > 0,
+      paidRegistrationsCount,
       status: event.status,
       cover_url: event.coverUrl,
       recording_url: event.recordingUrl,
