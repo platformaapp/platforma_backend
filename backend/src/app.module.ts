@@ -13,6 +13,7 @@ import { TutorModule } from './tutor/tutor.module';
 import { StudentModule } from './student/student.module';
 import { SessionModule } from './session/session.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { UploadsModule } from './uploads/uploads.module';
     StudentModule,
     SessionModule,
     UploadsModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],
