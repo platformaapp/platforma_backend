@@ -36,6 +36,10 @@ export class EventWithParticipantsDto {
   mentor_revenue: number;
   max_participants: number;
   registered_count: number;
+  paid_registrations_count: number;
+  has_paid_registrations: boolean;
+  hasPaidRegistrations: boolean;
+  paidRegistrationsCount: number;
   status: string;
   cover_url: string | null;
   recording_url: string | null;
