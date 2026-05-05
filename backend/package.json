@@ -22,7 +22,7 @@
     "migration:create": "npx typeorm migration:create ./src/migrations/empty",
     "migration:run": "npm run build && npx typeorm migration:run -d ./typeorm.config.ts",
     "migration:revert": "npm run build && npx typeorm migration:revert -d ./typeorm.config.ts",
-    "seed:admin": "docker compose --project-directory .. -f ../docker-compose.yml run --rm --network host -v \"$(pwd)/src/seeds/seed-admin.js:/app/src/seeds/seed-admin.js\" -v \"$(pwd)/../.env:/app/.env\" backend node /app/src/seeds/seed-admin.js"
+    "seed:admin": "test -f node_modules/pg/package.json || npm install --omit=dev --silent; node src/seeds/seed-admin.js"
   },
   "dependencies": {
     "@a2seven/yoo-checkout": "^1.1.4",
