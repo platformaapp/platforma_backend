@@ -18,13 +18,28 @@ if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
   process.exit(1);
 }
 
+const DB_HOST = process.env.DB_HOST;
+const DB_PORT = process.env.DB_PORT || '5432';
+const DB_USERNAME = process.env.DB_USERNAME;
+const DB_PASSWORD = process.env.DB_PASSWORD;
+const DB_NAME = process.env.DB_NAME;
+
+if (!DB_HOST || !DB_USERNAME || !DB_PASSWORD || !DB_NAME) {
+  console.error('Error: DB_HOST, DB_USERNAME, DB_PASSWORD, DB_NAME must be set in .env');
+  console.error(`  DB_HOST=${DB_HOST ?? '(not set)'}`);
+  console.error(`  DB_USERNAME=${DB_USERNAME ?? '(not set)'}`);
+  console.error(`  DB_PASSWORD=${DB_PASSWORD ? '(set)' : '(not set)'}`);
+  console.error(`  DB_NAME=${DB_NAME ?? '(not set)'}`);
+  process.exit(1);
+}
+
 async function seedAdmin() {
   const client = new Client({
-    host: process.env.DB_HOST,
-    port: Number(process.env.DB_PORT || 5432),
-    user: process.env.DB_USERNAME,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
+    host: DB_HOST,
+    port: Number(DB_PORT),
+    user: DB_USERNAME,
+    password: DB_PASSWORD,
+    database: DB_NAME,
   });
 
   await client.connect();
