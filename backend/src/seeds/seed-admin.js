@@ -3,8 +3,12 @@
 
 const { Client } = require('pg');
 const bcrypt = require('bcrypt');
-const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+
+// In Docker the env vars are injected by docker-compose.
+// On the host, load from .env if present.
+try {
+  require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
+} catch (_) {}
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
