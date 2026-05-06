@@ -13,7 +13,6 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { IsNumber, IsOptional, Max, Min } from 'class-validator';
-import { Type } from 'class-transformer';
 import { AdminService } from './admin.service';
 import { AdminJwtGuard } from './guards/admin-jwt.guard';
 
@@ -39,12 +38,12 @@ export class AdminUsersController {
   @ApiQuery({ name: 'role', required: false, type: String })
   @ApiQuery({ name: 'search', required: false, type: String })
   getUsers(
-    @Query('page') @Type(() => Number) page = 1,
-    @Query('per_page') @Type(() => Number) perPage = 20,
+    @Query('page') page?: string,
+    @Query('per_page') perPage?: string,
     @Query('role') role?: string,
     @Query('search') search?: string
   ) {
-    return this.adminService.getUsers(Number(page), Number(perPage), role, search);
+    return this.adminService.getUsers(Number(page ?? 1), Number(perPage ?? 20), role, search);
   }
 
   @Post(':id/block')

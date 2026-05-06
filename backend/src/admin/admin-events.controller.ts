@@ -10,7 +10,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 import { AdminService } from './admin.service';
 import { AdminJwtGuard } from './guards/admin-jwt.guard';
 
@@ -27,11 +26,11 @@ export class AdminEventsController {
   @ApiQuery({ name: 'per_page', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
   getEvents(
-    @Query('page') @Type(() => Number) page = 1,
-    @Query('per_page') @Type(() => Number) perPage = 20,
+    @Query('page') page?: string,
+    @Query('per_page') perPage?: string,
     @Query('search') search?: string
   ) {
-    return this.adminService.getEvents(Number(page), Number(perPage), search);
+    return this.adminService.getEvents(Number(page ?? 1), Number(perPage ?? 20), search);
   }
 
   @Post(':id/block')
