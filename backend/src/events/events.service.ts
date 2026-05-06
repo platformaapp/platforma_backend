@@ -368,6 +368,10 @@ export class EventsService {
       throw new BadRequestException('Событие отменено');
     }
 
+    if (event.isBlocked) {
+      throw new BadRequestException('Событие недоступно для записи');
+    }
+
     const student = await this.usersRepository.findOne({
       where: { id: studentId },
     });
@@ -1114,7 +1118,9 @@ export class EventsService {
       .where('event.status IN (:...statuses)', {
         statuses: [EventStatus.SCHEDULED, EventStatus.ACTIVE],
       })
-      .andWhere('event.datetimeStart > :now', { now });
+      .andWhere('event.datetimeStart > :now', { now })
+      .andWhere('event.isBlocked = false')
+      .andWhere('mentor.isBlocked = false');
 
     if (type) {
       qb = qb.andWhere('event.type = :type', { type });

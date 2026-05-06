@@ -55,6 +55,12 @@ export class User {
   @Column({ type: 'text', name: 'group_meetings', nullable: true })
   groupMeetings: string | null;
 
+  @Column({ type: 'boolean', name: 'is_blocked', default: false })
+  isBlocked: boolean;
+
+  @Column({ type: 'decimal', name: 'commission_rate', nullable: true, precision: 5, scale: 2 })
+  commissionRate: number | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 

@@ -6,15 +6,20 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AdminService } from './admin.service';
 import { AdminAuthController } from './admin-auth.controller';
 import { AdminTutorApplicationsController } from './admin-tutor-applications.controller';
+import { AdminSettingsController } from './admin-settings.controller';
+import { AdminUsersController } from './admin-users.controller';
+import { AdminEventsController } from './admin-events.controller';
 import { TutorApplication } from './entities/tutor-application.entity';
+import { PlatformSettings } from './entities/platform-settings.entity';
 import { User } from 'src/users/user.entity';
+import { Event } from 'src/events/entities/event.entity';
 import { AdminJwtStrategy } from './strategies/admin-jwt.strategy';
 import { AdminJwtGuard } from './guards/admin-jwt.guard';
 import { JWT_SECRET } from 'src/utils/constants';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([TutorApplication, User]),
+    TypeOrmModule.forFeature([TutorApplication, PlatformSettings, User, Event]),
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -24,7 +29,13 @@ import { JWT_SECRET } from 'src/utils/constants';
       inject: [ConfigService],
     }),
   ],
-  controllers: [AdminAuthController, AdminTutorApplicationsController],
+  controllers: [
+    AdminAuthController,
+    AdminTutorApplicationsController,
+    AdminSettingsController,
+    AdminUsersController,
+    AdminEventsController,
+  ],
   providers: [AdminService, AdminJwtStrategy, AdminJwtGuard],
   exports: [AdminService],
 })

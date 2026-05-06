@@ -170,6 +170,10 @@ export class AuthService {
       throw new UnauthorizedException(`You don't have ${loginDto.role} role`);
     }
 
+    if (user.isBlocked) {
+      throw new UnauthorizedException('Аккаунт заблокирован');
+    }
+
     const isPasswordValid = await bcrypt.compare(loginDto.password, user.passwordHash);
 
     if (!isPasswordValid) {
