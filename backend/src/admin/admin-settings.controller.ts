@@ -18,6 +18,12 @@ class SetCommissionDto {
 export class AdminSettingsController {
   constructor(private readonly adminService: AdminService) {}
 
+  @Get()
+  @ApiOperation({ summary: 'Get all platform settings' })
+  getSettings() {
+    return this.adminService.getPlatformCommission();
+  }
+
   @Get('commission')
   @ApiOperation({ summary: 'Get platform commission rate (%)' })
   getPlatformCommission() {
