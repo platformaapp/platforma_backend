@@ -47,6 +47,8 @@ import { EventWithParticipantsDto, ParticipantDto } from './dto/event-with-parti
 import { CancelRegistrationResponseDto } from './dto/cancel-registration-response.dto';
 import { PaymentsService } from '../payments/payments.service';
 
+const JITSI_BASE_URL = 'https://meet.jit.si';
+
 @Injectable()
 export class EventsService {
   private readonly logger = new Logger(EventsService.name);
@@ -163,31 +165,18 @@ export class EventsService {
     setImmediate(() => {
       (async () => {
         try {
-          let webinarName = savedEvent.title;
-          if (session) {
-            const studentName = session.student.fullName || session.student.email.split('@')[0];
-            webinarName = `${savedEvent.title} - ${studentName}`;
-          }
-
-          const webinarResponse = await this.myOwnConferenceService.createWebinar({
-            name: webinarName,
-            start: this.myOwnConferenceService.formatDateForAPI(savedEvent.datetimeStart),
-            duration: savedEvent.durationMinutes,
-          });
-
+          const { url, roomName } = this.buildJitsiRoom(savedEventId);
           const videoRoom = this.videoRoomRepository.create({
             event: { id: savedEventId },
-            provider: VideoProvider.MY_OWN_CONFERENCE,
-            url: webinarResponse.webinarLink,
-            externalId: webinarResponse.alias,
-            moderatorUrl: webinarResponse.mainModeratorLink,
+            provider: VideoProvider.JITSI,
+            url,
+            externalId: roomName,
+            moderatorUrl: url,
           });
-
           await this.videoRoomRepository.save(videoRoom);
-          this.logger.log(`Video room created for event ${savedEventId}: ${videoRoom.id}`);
-
+          this.logger.log(`Jitsi room created for event ${savedEventId}: ${url}`);
         } catch (error) {
-          this.logger.error(`Failed to create webinar room for event ${savedEventId}`, error);
+          this.logger.error(`Failed to create Jitsi room for event ${savedEventId}`, error);
         }
 
         try {
@@ -427,7 +416,10 @@ export class EventsService {
     // Run external calls in background — do not block the response
     setImmediate(() => {
       (async () => {
-        if (event.videoRoom?.externalId) {
+        if (
+          event.videoRoom?.externalId &&
+          event.videoRoom.provider === VideoProvider.MY_OWN_CONFERENCE
+        ) {
           try {
             await this.myOwnConferenceService.addAttendeeToWebinar(
               event.videoRoom.externalId,
@@ -962,37 +954,36 @@ export class EventsService {
     }
 
     if (!event.videoRoom) {
-      this.logger.warn(`Video room missing for event ${eventId}, attempting on-demand creation`);
+      this.logger.warn(`Video room missing for event ${eventId}, creating Jitsi room on-demand`);
       try {
-        // If the event has already started, use now + 2 min so the API never
-        // sees a start time in the past (accounts for network latency + timezone math).
-        const webinarStart =
-          event.datetimeStart < now
-            ? new Date(now.getTime() + 2 * 60 * 1000)
-            : event.datetimeStart;
-        const webinarResponse = await this.myOwnConferenceService.createWebinar({
-          name: event.title,
-          start: this.myOwnConferenceService.formatDateForAPI(webinarStart),
-          duration: event.durationMinutes,
-        });
+        const { url, roomName } = this.buildJitsiRoom(eventId);
         const videoRoom = this.videoRoomRepository.create({
           event: { id: eventId } as Event,
-          provider: VideoProvider.MY_OWN_CONFERENCE,
-          url: webinarResponse.webinarLink,
-          externalId: webinarResponse.alias,
-          moderatorUrl: webinarResponse.mainModeratorLink,
+          provider: VideoProvider.JITSI,
+          url,
+          externalId: roomName,
+          moderatorUrl: url,
         });
         event.videoRoom = await this.videoRoomRepository.save(videoRoom);
+        this.logger.log(`Jitsi room created on-demand for event ${eventId}: ${url}`);
       } catch (createErr) {
-        this.logger.error(`On-demand video room creation failed for event ${eventId}`, createErr);
-        throw new NotFoundException(
-          'Видеокомната не найдена. Попробуйте позже или обратитесь к организатору.'
-        );
+        this.logger.error(`On-demand Jitsi room creation failed for event ${eventId}`, createErr);
+        throw new NotFoundException('Видеокомната не найдена. Попробуйте позже.');
       }
     }
 
+    // For Jitsi (and any provider where a single URL works for all roles)
+    // return the URL directly — no external API call needed.
+    if (event.videoRoom.provider !== VideoProvider.MY_OWN_CONFERENCE) {
+      const url = isMentor
+        ? (event.videoRoom.moderatorUrl || event.videoRoom.url)
+        : event.videoRoom.url;
+      return { join_url: url };
+    }
+
+    // MyOwnConference: generate a personal attendee link
     try {
-      if (isMentor && event.videoRoom?.moderatorUrl) {
+      if (isMentor && event.videoRoom.moderatorUrl) {
         return { join_url: event.videoRoom.moderatorUrl };
       }
 
@@ -1006,10 +997,8 @@ export class EventsService {
 
       return { join_url: attendeeLink || event.videoRoom.url };
     } catch (error) {
-      this.logger.error('Failed to get attendee link, using general URL', error);
-      return {
-        join_url: event.videoRoom.url,
-      };
+      this.logger.error('Failed to get MyOwnConference attendee link, using general URL', error);
+      return { join_url: event.videoRoom.url };
     }
   }
 
@@ -1066,8 +1055,11 @@ export class EventsService {
         case VideoProvider.TELEMOST:
           throw new BadRequestException('Интеграция с Telemost пока не реализована');
 
-        case VideoProvider.JITSI:
-          throw new BadRequestException('Интеграция с Jitsi пока не реализована');
+        case VideoProvider.JITSI: {
+          const { url, roomName } = this.buildJitsiRoom(event_id);
+          videoRoomData = { externalId: roomName, url, moderatorUrl: url };
+          break;
+        }
 
         default:
           throw new BadRequestException(`Провайдер ${provider} не поддерживается`);
@@ -1653,6 +1645,11 @@ export class EventsService {
       payment_status: userEvent.paymentStatus,
       registered_at: userEvent.createdAt.toISOString(),
     }));
+  }
+
+  private buildJitsiRoom(eventId: string): { url: string; roomName: string } {
+    const roomName = `platforma-${eventId.replace(/-/g, '')}`;
+    return { roomName, url: `${JITSI_BASE_URL}/${roomName}` };
   }
 
   private checkIfUserCanJoin(event: Event, userId?: string): boolean {
