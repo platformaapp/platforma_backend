@@ -9,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -16,15 +17,14 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PaymentMethodsService } from './payment-methods.service';
 import type { AuthenticatedRequest } from '../utils/types';
+import { Logger } from '@nestjs/common';
 
-/**
- * Alias controller so that /payments/method* mirrors /student/payment-methods*.
- * Keeps backward compatibility with frontend clients that use the shorter path.
- */
 @ApiTags('Payments Method (alias)')
 @UseGuards(JwtAuthGuard)
 @Controller('payments/method')
 export class PaymentsMethodAliasController {
+  private readonly logger = new Logger(PaymentsMethodAliasController.name);
+
   constructor(private readonly paymentMethodsService: PaymentMethodsService) {}
 
   @Get()
@@ -50,15 +50,18 @@ export class PaymentsMethodAliasController {
     };
   }
 
-  /** DELETE /payments/method  — ID передаётся в теле { id } или query ?id= */
+  /** DELETE /payments/method  — ID в теле { id }, query ?id= или query ?paymentMethodId= */
   @Delete()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Delete payment method by ID in body (alias)' })
+  @ApiOperation({ summary: 'Delete payment method by ID in body or query (alias)' })
   async deleteByBody(
     @Req() req: AuthenticatedRequest,
-    @Body() body: { id?: string }
+    @Body() body: { id?: string; paymentMethodId?: string },
+    @Query('id') queryId?: string,
+    @Query('paymentMethodId') queryPmId?: string
   ) {
-    const id = body?.id;
+    this.logger.log(`DELETE /payments/method — body=${JSON.stringify(body)} queryId=${queryId} queryPmId=${queryPmId}`);
+    const id = body?.id ?? body?.paymentMethodId ?? queryId ?? queryPmId;
     if (!id) {
       throw new BadRequestException('Payment method id is required');
     }
