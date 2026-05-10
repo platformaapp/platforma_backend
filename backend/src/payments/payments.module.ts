@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PaymentMethodsService } from './payment-methods.service';
 import { PaymentMethodsController } from './payment-methods.controller';
+import { PaymentsMethodAliasController } from './payments-method-alias.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Payment } from './entities/payment.entity';
 import { User } from '../users/user.entity';
@@ -25,7 +26,7 @@ import { Event } from 'src/events/entities/event.entity';
     JwtModule,
     ConfigModule,
   ],
-  controllers: [PaymentMethodsController, PaymentsController, WebhooksController],
+  controllers: [PaymentMethodsController, PaymentsMethodAliasController, PaymentsController, WebhooksController],
   providers: [PaymentMethodsService, PaymentsService, YookassaService, TransactionsService],
   exports: [PaymentMethodsService, PaymentsService, YookassaService, TransactionsService],
 })
