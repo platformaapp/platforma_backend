@@ -45,6 +45,20 @@ export class PaymentMethodsController {
     res.redirect(redirectUrl);
   }
 
+  /**
+   * Polling endpoint — frontend calls this after redirect with status=pending
+   * to know when the card is activated by the YooKassa webhook.
+   */
+  @Get('binding-status')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Poll card binding status by transaction ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Binding status returned' })
+  async getBindingStatus(@Query('tx') transactionId: string) {
+    const result = await this.paymentMethodsService.getBindingStatus(transactionId);
+    return { success: true, ...result };
+  }
+
   @Get()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)

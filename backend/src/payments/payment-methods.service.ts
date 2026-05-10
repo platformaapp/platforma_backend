@@ -358,13 +358,22 @@ export class PaymentMethodsService {
         return `${frontendUrl}/payment-methods?status=error`;
       }
 
-      const yookassaPayment = await this.yookassaService.getPayment(transaction.yookassaPaymentId);
+      let yookassaPayment = await this.yookassaService.getPayment(transaction.yookassaPaymentId);
       this.logger.log(
         `Card binding callback: tx=${transactionId}, yk_payment=${transaction.yookassaPaymentId}, status=${yookassaPayment.status}`
       );
 
+      // Payment still processing — don't destroy the card record, webhook will activate it later
+      if (yookassaPayment.status === 'pending') {
+        this.logger.log(`Payment ${transaction.yookassaPaymentId} still pending at callback time, waiting for webhook`);
+        return `${frontendUrl}/payment-methods?status=pending&tx=${transactionId}`;
+      }
+
       if (yookassaPayment.status === 'waiting_for_capture') {
         await this.yookassaService.capturePayment(transaction.yookassaPaymentId);
+        // Re-fetch to get payment_method.id populated after capture
+        yookassaPayment = await this.yookassaService.getPayment(transaction.yookassaPaymentId);
+        this.logger.log(`After capture: status=${yookassaPayment.status}, payment_method_id=${yookassaPayment.payment_method?.id}`);
       }
 
       if (
@@ -390,12 +399,15 @@ export class PaymentMethodsService {
                 }
               : undefined
           );
+        } else {
+          this.logger.warn(`payment_method.id missing after capture for tx=${transactionId}, will wait for webhook`);
         }
 
         return `${frontendUrl}/payment-methods?status=success`;
       }
 
-      // Payment was cancelled or failed
+      // Explicitly failed or canceled — safe to mark as deleted
+      this.logger.warn(`Card binding failed: tx=${transactionId}, status=${yookassaPayment.status}`);
       const paymentMethod = await this.paymentMethodRepository.findOne({
         where: { bindTransactionId: transaction.id },
       });
@@ -408,6 +420,61 @@ export class PaymentMethodsService {
       this.logger.error(`Card binding callback error for tx ${transactionId}: ${(error as Error).message}`);
       return `${frontendUrl}/payment-methods?status=error`;
     }
+  }
+
+  async getBindingStatus(transactionId: string): Promise<{
+    status: 'active' | 'pending' | 'failed' | 'not_found';
+    cardMasked?: string;
+    cardType?: string;
+  }> {
+    const transaction = await this.transactionsService.getTransactionById(transactionId);
+    if (!transaction) return { status: 'not_found' };
+
+    const paymentMethod = await this.paymentMethodRepository.findOne({
+      where: { bindTransactionId: transaction.id },
+    });
+    if (!paymentMethod) return { status: 'not_found' };
+
+    if (paymentMethod.status === PaymentMethodStatus.ACTIVE) {
+      return {
+        status: 'active',
+        cardMasked: paymentMethod.cardMasked,
+        cardType: paymentMethod.cardType,
+      };
+    }
+
+    if (paymentMethod.status === PaymentMethodStatus.DELETED) {
+      return { status: 'failed' };
+    }
+
+    // Still PENDING — check live status from YooKassa
+    if (transaction.yookassaPaymentId) {
+      try {
+        const ykPayment = await this.yookassaService.getPayment(transaction.yookassaPaymentId);
+        if (ykPayment.status === 'succeeded' || ykPayment.status === 'waiting_for_capture') {
+          // Try to activate now
+          if (ykPayment.status === 'waiting_for_capture') {
+            await this.yookassaService.capturePayment(transaction.yookassaPaymentId);
+          }
+          const refreshed = await this.yookassaService.getPayment(transaction.yookassaPaymentId);
+          if (refreshed.payment_method?.id) {
+            const card = refreshed.payment_method.card;
+            await this.updatePaymentMethodOnSuccess(paymentMethod, refreshed.payment_method.id,
+              card ? { first6: card.first6, last4: card.last4, cardType: card.card_type, expiryMonth: card.expiry_month, expiryYear: card.expiry_year } : undefined
+            );
+            return { status: 'active', cardMasked: paymentMethod.cardMasked, cardType: paymentMethod.cardType };
+          }
+        }
+        if (ykPayment.status === 'canceled' || ykPayment.status === 'failed') {
+          await this.updatePaymentMethodOnFailure(paymentMethod, ykPayment.status);
+          return { status: 'failed' };
+        }
+      } catch (e) {
+        this.logger.error(`getBindingStatus: failed to fetch YooKassa payment: ${(e as Error).message}`);
+      }
+    }
+
+    return { status: 'pending' };
   }
 
   async getDefaultPaymentMethod(userId: string): Promise<PaymentMethod | null> {
