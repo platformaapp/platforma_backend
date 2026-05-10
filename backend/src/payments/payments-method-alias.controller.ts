@@ -62,10 +62,17 @@ export class PaymentsMethodAliasController {
   ) {
     this.logger.log(`DELETE /payments/method — body=${JSON.stringify(body)} queryId=${queryId} queryPmId=${queryPmId}`);
     const id = body?.id ?? body?.paymentMethodId ?? queryId ?? queryPmId;
-    if (!id) {
-      throw new BadRequestException('Payment method id is required');
+
+    if (id) {
+      return this.paymentMethodsService.deletePaymentMethod(req.user.sub, id);
     }
-    return this.paymentMethodsService.deletePaymentMethod(req.user.sub, id);
+
+    // ID не передан — удаляем единственную активную карту пользователя
+    const methods = await this.paymentMethodsService.findByUserId(req.user.sub);
+    if (methods.length === 0) {
+      throw new BadRequestException('No active payment method found');
+    }
+    return this.paymentMethodsService.deletePaymentMethod(req.user.sub, methods[0].id);
   }
 
   /** DELETE /payments/method/:id — ID в URL */
