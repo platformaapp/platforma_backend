@@ -70,7 +70,7 @@ export class PaymentsMethodAliasController {
     // ID не передан — удаляем единственную активную карту пользователя
     const methods = await this.paymentMethodsService.findByUserId(req.user.sub);
     if (methods.length === 0) {
-      throw new BadRequestException('No active payment method found');
+      return { success: true, message: 'No active payment method found', defaultPaymentMethodUpdated: false };
     }
     return this.paymentMethodsService.deletePaymentMethod(req.user.sub, methods[0].id);
   }
