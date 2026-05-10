@@ -46,6 +46,12 @@ export class AdminUsersController {
     return this.adminService.getUsers(Number(page ?? 1), Number(perPage ?? 20), role, search);
   }
 
+  @Get(':id')
+  @ApiOperation({ summary: 'Get full user data by ID' })
+  getUser(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getUserById(id);
+  }
+
   @Post(':id/block')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Block a user' })

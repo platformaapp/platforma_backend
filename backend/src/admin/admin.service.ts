@@ -147,8 +147,7 @@ export class AdminService {
 
   // ── Block / unblock users ────────────────────────────────────────────────
 
-  async getUsers(page: number, perPage: number, role?: string, search?: string) {
-    const skip = (page - 1) * perPage;
+  async getUsers(page: number, perPage: number, role?: string, search?: string) {    const skip = (page - 1) * perPage;
     const qb = this.usersRepository.createQueryBuilder('user').orderBy('user.createdAt', 'DESC');
 
     if (role) {
@@ -171,6 +170,25 @@ export class AdminService {
         createdAt: u.createdAt,
       })),
       pagination: { total, page, per_page: perPage },
+    };
+  }
+
+  async getUserById(userId: string) {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Пользователь не найден');
+
+    const { passwordHash: _, ...rest } = user;
+    void _;
+
+    const application = await this.applicationsRepository.findOne({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
+
+    return {
+      ...rest,
+      applicationStatus: application?.status ?? null,
+      rejectionReason: application?.rejectionReason ?? null,
     };
   }
 
