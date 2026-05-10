@@ -26,13 +26,13 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 import { PaymentResponseDto } from './dto/payment-response.dto';
 import type { AuthenticatedRequest } from '../utils/types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { StudentGuard } from '../auth/guards/student.guard';
+
 import { PaymentStatus } from './entities/payment.entity';
 import { PaymentCallbackDto } from './dto/payment-callback.dto';
 
 @ApiTags('Student Payments')
 @ApiBearerAuth('JWT-auth')
-@UseGuards(JwtAuthGuard, StudentGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('student/payments')
 export class PaymentsController {
   private readonly logger = new Logger(PaymentsController.name);

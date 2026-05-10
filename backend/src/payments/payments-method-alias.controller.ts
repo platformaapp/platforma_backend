@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -49,15 +50,19 @@ export class PaymentsMethodAliasController {
     };
   }
 
-  /** DELETE /payments/method  — ID передаётся в теле { id } */
+  /** DELETE /payments/method  — ID передаётся в теле { id } или query ?id= */
   @Delete()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete payment method by ID in body (alias)' })
   async deleteByBody(
     @Req() req: AuthenticatedRequest,
-    @Body() body: { id: string }
+    @Body() body: { id?: string }
   ) {
-    return this.paymentMethodsService.deletePaymentMethod(req.user.sub, body.id);
+    const id = body?.id;
+    if (!id) {
+      throw new BadRequestException('Payment method id is required');
+    }
+    return this.paymentMethodsService.deletePaymentMethod(req.user.sub, id);
   }
 
   /** DELETE /payments/method/:id — ID в URL */
