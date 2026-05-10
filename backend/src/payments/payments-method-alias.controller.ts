@@ -13,7 +13,6 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { StudentGuard } from '../auth/guards/student.guard';
 import { PaymentMethodsService } from './payment-methods.service';
 import type { AuthenticatedRequest } from '../utils/types';
 
@@ -22,7 +21,7 @@ import type { AuthenticatedRequest } from '../utils/types';
  * Keeps backward compatibility with frontend clients that use the shorter path.
  */
 @ApiTags('Payments Method (alias)')
-@UseGuards(JwtAuthGuard, StudentGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('payments/method')
 export class PaymentsMethodAliasController {
   constructor(private readonly paymentMethodsService: PaymentMethodsService) {}

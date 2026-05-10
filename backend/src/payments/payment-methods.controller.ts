@@ -20,9 +20,9 @@ import { PaymentMethodsService } from './payment-methods.service';
 import { AttachPaymentMethodDto } from './dto/attach-payment-method.dto';
 import type { AuthenticatedRequest } from '../utils/types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { StudentGuard } from '../auth/guards/student.guard';
 import { DeletePaymentMethodResponseDto } from './dto/delete-payment-method.dto';
 import { SetDefaultPaymentMethodResponseDto } from './dto/set-default-payment-method.dto';
+
 
 @ApiTags('Student Payment Methods')
 @Controller('student/payment-methods')
@@ -47,7 +47,7 @@ export class PaymentMethodsController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard, StudentGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get all payment methods for user' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -80,7 +80,7 @@ export class PaymentMethodsController {
 
   @Post('bind')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard, StudentGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Link a bank card' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -109,7 +109,7 @@ export class PaymentMethodsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard, StudentGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Delete payment method' })
   @ApiParam({ name: 'id', description: 'Payment method ID' })
   @ApiResponse({
@@ -130,7 +130,7 @@ export class PaymentMethodsController {
 
   @Patch(':id/default')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard, StudentGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Set payment method as default' })
   @ApiParam({ name: 'id', description: 'Payment method ID' })
   @ApiResponse({
@@ -150,7 +150,7 @@ export class PaymentMethodsController {
 
   @Get('default')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard, StudentGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get default payment method' })
   @ApiResponse({
     status: HttpStatus.OK,
