@@ -33,6 +33,12 @@ export class AdminEventsController {
     return this.adminService.getEvents(Number(page ?? 1), Number(perPage ?? 20), search);
   }
 
+  @Get(':id')
+  @ApiOperation({ summary: 'Get full event data by ID' })
+  getEvent(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getEventById(id);
+  }
+
   @Post(':id/block')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Block an event (hides it from the feed and prevents registration)' })

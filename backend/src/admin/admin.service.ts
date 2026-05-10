@@ -239,8 +239,64 @@ export class AdminService {
     };
   }
 
-  async blockEvent(eventId: string): Promise<void> {
-    const event = await this.eventsRepository.findOne({ where: { id: eventId } });
+  async getEventById(eventId: string) {
+    const event = await this.eventsRepository.findOne({
+      where: { id: eventId },
+      relations: ['mentor', 'videoRoom', 'userEvents', 'session'],
+    });
+    if (!event) throw new NotFoundException('Событие не найдено');
+
+    const paidCount = event.userEvents?.filter((ue) => ue.paymentStatus === 'paid').length ?? 0;
+    const registeredCount = event.userEvents?.filter((ue) =>
+      ['registered', 'pending', 'attended'].includes(ue.status)
+    ).length ?? 0;
+
+    return {
+      id: event.id,
+      title: event.title,
+      description: event.description,
+      type: event.type,
+      status: event.status,
+      isBlocked: event.isBlocked,
+      price: Number(event.price),
+      platformFee: Number(event.platformFee),
+      mentorRevenue: Number(event.mentorRevenue),
+      maxParticipants: event.maxParticipants,
+      durationMinutes: event.durationMinutes,
+      datetimeStart: event.datetimeStart,
+      datetimeEnd: event.datetimeEnd,
+      coverUrl: event.coverUrl,
+      recordingUrl: event.recordingUrl,
+      sessionId: event.sessionId,
+      createdAt: event.createdAt,
+      updatedAt: event.updatedAt,
+      mentor: event.mentor
+        ? {
+            id: event.mentor.id,
+            fullName: event.mentor.fullName,
+            email: event.mentor.email,
+            avatarUrl: event.mentor.avatarUrl,
+          }
+        : null,
+      videoRoom: event.videoRoom
+        ? {
+            id: event.videoRoom.id,
+            provider: event.videoRoom.provider,
+            url: event.videoRoom.url,
+            moderatorUrl: event.videoRoom.moderatorUrl,
+            externalId: event.videoRoom.externalId,
+            isActive: event.videoRoom.isActive,
+            expiresAt: event.videoRoom.expiresAt,
+          }
+        : null,
+      participants: {
+        total: registeredCount,
+        paid: paidCount,
+      },
+    };
+  }
+
+  async blockEvent(eventId: string): Promise<void> {    const event = await this.eventsRepository.findOne({ where: { id: eventId } });
     if (!event) throw new NotFoundException('Событие не найдено');
     event.isBlocked = true;
     await this.eventsRepository.save(event);
