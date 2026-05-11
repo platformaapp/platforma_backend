@@ -25,6 +25,11 @@ export class RegisterDto {
   @IsString()
   phone?: string;
 
+  @ApiProperty({ required: false, description: 'Telegram username without @' })
+  @IsOptional()
+  @IsString()
+  telegram?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()

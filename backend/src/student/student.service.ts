@@ -235,6 +235,7 @@ export class StudentService {
       fullName: user.fullName,
       email: user.email,
       phone: user.phone,
+      telegram: user.telegram,
       avatarUrl: user.avatarUrl,
       bio: user.bio,
       roles: user.roles,
@@ -262,6 +263,7 @@ export class StudentService {
     if (dto.fullName !== undefined) user.fullName = dto.fullName;
     if (dto.email !== undefined) user.email = dto.email;
     if (dto.phone !== undefined) user.phone = dto.phone;
+    if (dto.telegram !== undefined) user.telegram = dto.telegram || null;
     if (dto.avatarUrl !== undefined) user.avatarUrl = dto.avatarUrl;
     if (dto.bio !== undefined) user.bio = dto.bio;
 
@@ -274,6 +276,7 @@ export class StudentService {
       fullName: saved.fullName,
       email: saved.email,
       phone: saved.phone,
+      telegram: saved.telegram,
       avatarUrl: saved.avatarUrl,
       bio: saved.bio,
       roles: saved.roles,

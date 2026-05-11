@@ -28,6 +28,9 @@ export class User {
   @Column({ type: 'varchar', length: 20, unique: true, nullable: true })
   phone: string | null;
 
+  @Column({ type: 'varchar', length: 100, name: 'telegram', nullable: true })
+  telegram: string | null;
+
   @Column({ type: 'text', name: 'password_hash' })
   passwordHash: string;
 

@@ -18,6 +18,7 @@ export class UsersService {
         'fullName',
         'roles',
         'phone',
+        'telegram',
         'avatarUrl',
         'bio',
         'shortBio',
@@ -30,7 +31,7 @@ export class UsersService {
 
   async findTutors(): Promise<Partial<User>[]> {
     const users = await this.usersRepository.find({
-      select: ['id', 'fullName', 'avatarUrl', 'bio', 'shortBio', 'roles'],
+      select: ['id', 'fullName', 'avatarUrl', 'bio', 'shortBio', 'telegram', 'roles'],
       order: { createdAt: 'DESC' },
     });
     return users.filter((u) => u.roles?.includes('tutor'));

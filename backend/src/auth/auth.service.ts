@@ -115,6 +115,7 @@ export class AuthService {
       fullName: registerDto.fullName,
       roles: [registerDto.role],
       phone: registerDto.phone || null,
+      telegram: registerDto.telegram || null,
       avatarUrl: registerDto.avatarUrl || null,
       bio: registerDto.bio || null,
     });

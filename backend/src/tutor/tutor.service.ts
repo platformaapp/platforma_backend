@@ -55,6 +55,7 @@ export class TutorService {
         'id',
         'email',
         'phone',
+        'telegram',
         'fullName',
         'roles',
         'avatarUrl',
@@ -101,6 +102,7 @@ export class TutorService {
     if (updateProfileDto.bio !== undefined) user.bio = updateProfileDto.bio;
     if (updateProfileDto.avatarUrl !== undefined) user.avatarUrl = updateProfileDto.avatarUrl;
     if (updateProfileDto.phone !== undefined) user.phone = updateProfileDto.phone;
+    if (updateProfileDto.telegram !== undefined) user.telegram = updateProfileDto.telegram || null;
 
     if (updateProfileDto.email && updateProfileDto.email !== user.email) {
       const existingUserWithEmail = await this.usersRepository.findOne({

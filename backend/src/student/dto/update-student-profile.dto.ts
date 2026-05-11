@@ -19,6 +19,12 @@ export class UpdateStudentProfileDto {
   @Length(1, 20)
   phone?: string;
 
+  @ApiPropertyOptional({ description: 'Telegram username without @' })
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  telegram?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsUrl({ require_tld: false, require_protocol: false })

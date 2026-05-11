@@ -36,6 +36,12 @@ export class UpdateProfileDto {
   @Length(1, 20)
   phone?: string;
 
+  @ApiProperty({ required: false, description: 'Telegram username without @' })
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  telegram?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsNumber()
