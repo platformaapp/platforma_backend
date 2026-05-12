@@ -1267,6 +1267,23 @@ export class EventsService {
 
     const [events, total] = await queryBuilder.skip(skip).take(per_page).getManyAndCount();
 
+    // For tutor role: load participant counts in one query
+    let participantCountMap: Map<string, number> = new Map();
+    if (role === 'tutor' && events.length > 0) {
+      const eventIds = events.map((e) => e.id);
+      const counts = await this.userEventRepository
+        .createQueryBuilder('ue')
+        .select('ue.eventId', 'eventId')
+        .addSelect('COUNT(ue.id)', 'count')
+        .where('ue.eventId IN (:...eventIds)', { eventIds })
+        .andWhere('ue.status IN (:...statuses)', {
+          statuses: [ParticipationStatus.REGISTERED, ParticipationStatus.ATTENDED],
+        })
+        .groupBy('ue.eventId')
+        .getRawMany<{ eventId: string; count: string }>();
+      participantCountMap = new Map(counts.map((r) => [r.eventId, Number(r.count)]));
+    }
+
     const data: MyEventItemDto[] = events
       .filter((event): event is Event & { datetimeStart: Date } => !!event.datetimeStart && !!event.mentor)
       .map((event) => {
@@ -1297,6 +1314,10 @@ export class EventsService {
           price: Number(event.price),
           time_left,
           status: event.status,
+          ...(role === 'tutor' && {
+            participants_count: participantCountMap.get(event.id) ?? 0,
+            max_participants: event.maxParticipants ?? null,
+          }),
         };
       });
 

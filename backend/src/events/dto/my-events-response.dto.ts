@@ -21,6 +21,8 @@ export class MyEventItemDto {
   price: number;
   time_left: TimeLeftDto | null;
   status: string;
+  participants_count?: number;
+  max_participants?: number;
 }
 
 export class MyEventsPaginationDto {
