@@ -137,7 +137,8 @@ export class StudentService {
           paidAt: new Date(),
         });
         await manager.save(freePayment);
-        this.logger.log(`Free payment record created for session ${savedSession.id}`);
+        await manager.update(Session, savedSession.id, { status: SessionStatus.CONFIRMED });
+        this.logger.log(`Free session ${savedSession.id} confirmed automatically`);
       }
 
       this.logger.log(
