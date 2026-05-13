@@ -54,9 +54,17 @@ export class StudentController {
   }
 
   @Get('tutors/:tutorId/slots')
-  @ApiOperation({ summary: 'Get available slots for a tutor' })
+  @ApiOperation({ summary: 'Get slots for a tutor (all future slots)' })
   @ApiParam({ name: 'tutorId', description: 'Tutor user ID' })
-  @ApiResponse({ status: 200, description: 'Available slots retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Slots retrieved successfully',
+    schema: {
+      example: [
+        { id: 'uuid', date: '2025-05-20', time: '14:00', status: 'free', price: 1500 },
+      ],
+    },
+  })
   @ApiResponse({ status: 404, description: 'Tutor not found' })
   async getTutorSlots(@Param('tutorId') tutorId: string) {
     return this.studentService.getTutorAvailableSlots(tutorId);

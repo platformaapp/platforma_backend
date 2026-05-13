@@ -284,19 +284,28 @@ export class StudentService {
     };
   }
 
-  async getTutorAvailableSlots(tutorId: string): Promise<Slot[]> {
+  async getTutorAvailableSlots(
+    tutorId: string
+  ): Promise<{ id: string; date: string; time: string; status: SlotStatus; price: number }[]> {
     const tutor = await this.userRepository.findOne({ where: { id: tutorId } });
     if (!tutor) throw new NotFoundException('Тьютор не найден');
 
     const today = new Date().toISOString().split('T')[0];
 
-    return this.dataSource.getRepository(Slot).find({
+    const slots = await this.dataSource.getRepository(Slot).find({
       where: {
         tutor: { id: tutorId },
-        status: SlotStatus.FREE,
         date: MoreThanOrEqual(today),
       },
       order: { date: 'ASC', time: 'ASC' },
     });
+
+    return slots.map((slot) => ({
+      id: slot.id,
+      date: slot.date,
+      time: slot.time.substring(0, 5),
+      status: slot.status,
+      price: Number(slot.price),
+    }));
   }
 }
