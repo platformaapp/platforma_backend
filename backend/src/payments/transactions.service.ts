@@ -41,7 +41,7 @@ export class TransactionsService {
       });
       await this.transactionRepository.save(transaction);
 
-      const callbackUrl = `${frontendUrl}/api/student/payment-methods/binding-callback?tx=${transaction.id}`;
+      const callbackUrl = `${frontendUrl}/payment-methods/callback`;
       const { confirmationUrl, paymentId } =
         await this.yookassaService.createPaymentMethodAttachment(callbackUrl);
 
