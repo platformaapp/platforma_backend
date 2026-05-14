@@ -64,6 +64,7 @@ export class PaymentsService {
     paymentMethodId?: string
   ): Promise<{
     paymentId: string;
+    yookassaPaymentId?: string;
     status: PaymentStatus;
     redirectUrl?: string;
     amount: number;
@@ -178,6 +179,7 @@ export class PaymentsService {
 
       return {
         paymentId: savedPayment.id,
+        yookassaPaymentId: yookassaPayment.id,
         status: savedPayment.status,
         redirectUrl: yookassaPayment.confirmation_url,
         amount: session.price,

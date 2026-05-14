@@ -17,6 +17,7 @@ import { Session, SessionStatus } from '../session/entities/session.entity';
 import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { TutorApplication } from '../admin/entities/tutor-application.entity';
+import { PaymentsService } from '../payments/payments.service';
 
 @Injectable()
 export class StudentService {
@@ -36,123 +37,131 @@ export class StudentService {
     private readonly tutorApplicationRepository: Repository<TutorApplication>,
 
     private readonly dataSource: DataSource,
-    private readonly bookingMapper: BookingMapper
+    private readonly bookingMapper: BookingMapper,
+    private readonly paymentsService: PaymentsService
   ) {}
 
-  async createBooking(studentId: string, slotId: string): Promise<BookingDetails> {
+  async createBooking(
+    studentId: string,
+    slotId: string,
+    paymentMethodId?: string
+  ): Promise<BookingDetails> {
     this.logger.log(`Creating a booking: studentId=${studentId}, slotId=${slotId}`);
 
-    return await this.dataSource.transaction(async (manager): Promise<BookingDetails> => {
-      const slot = await manager.findOne(Slot, {
-        where: { id: slotId },
-        relations: ['tutor'],
-      });
-
-      if (!slot) {
-        this.logger.warn(`Slot not found: ${slotId}`);
-        throw new NotFoundException('Slot not found');
-      }
-
-      this.logger.log(`Slot found: ${slot.id}, status: ${slot.status}, tutor: ${slot.tutor.id}`);
-
-      if (slot.status !== SlotStatus.FREE) {
-        this.logger.warn(`The slot is already taken: ${slotId}, status: ${slot.status}`);
-        throw new ConflictException('The slot is already taken');
-      }
-
-      if (slot.tutor.id === studentId) {
-        this.logger.warn(`A student is trying to book his slot: ${studentId}`);
-        throw new BadRequestException('You cannot book your own slot');
-      }
-
-      const tutorApplication = await this.tutorApplicationRepository.findOne({
-        where: { userId: slot.tutor.id },
-        order: { createdAt: 'DESC' },
-      });
-
-      if (!tutorApplication || tutorApplication.status !== 'approved') {
-        this.logger.warn(`Tutor ${slot.tutor.id} is not verified, booking blocked`);
-        throw new ForbiddenException('Этот наставник ещё не прошёл верификацию');
-      }
-
-      const slotDateTime = new Date(`${slot.date}T${slot.time}`);
-      if (slotDateTime < new Date()) {
-        this.logger.warn(`Attempt to book a past slot: ${slot.date} ${slot.time}`);
-        throw new BadRequestException('You cannot reserve a past slot.');
-      }
-
-      const student = await manager.findOne(User, {
-        where: { id: studentId },
-      });
-
-      if (!student || !student.roles.includes('student')) {
-        this.logger.warn(`Student not found or invalid role: ${studentId}`);
-        throw new NotFoundException('Student not found or user has invalid role');
-      }
-
-      const existingBooking = await manager.findOne(Booking, {
-        where: { slotId },
-      });
-
-      if (existingBooking) {
-        this.logger.warn(`The slot is already booked: ${slotId}`);
-        throw new ConflictException('This slot is already booked');
-      }
-
-      const booking = manager.create(Booking, {
-        slotId: slot.id,
-        tutorId: slot.tutor.id,
-        studentId: student.id,
-        status: BookingStatus.PENDING,
-      });
-
-      this.logger.log(`Booking created: ${JSON.stringify(booking)}`);
-
-      slot.status = SlotStatus.BOOKED;
-      await manager.save(slot);
-      const savedBooking = await manager.save(booking);
-
-      const sessionDuration = 60;
-      const sessionEndTime = new Date(slotDateTime.getTime() + sessionDuration * 60000);
-
-      const session = manager.create(Session, {
-        tutorId: slot.tutor.id,
-        studentId: studentId,
-        startTime: slotDateTime,
-        endTime: sessionEndTime,
-        price: slot.price,
-        status: SessionStatus.PLANNED,
-      });
-
-      const savedSession = await manager.save(session);
-
-      if (Number(slot.price) <= 0) {
-        const freePayment = manager.create(Payment, {
-          userId: studentId,
-          tutorId: slot.tutor.id,
-          sessionId: savedSession.id,
-          amount: 0,
-          currency: 'RUB',
-          status: PaymentStatus.SUCCESS,
-          paidAt: new Date(),
+    // --- DB transaction: booking + session only, no external calls ---
+    const { savedBooking, slot, student, savedSession, isFree } =
+      await this.dataSource.transaction(async (manager) => {
+        const slot = await manager.findOne(Slot, {
+          where: { id: slotId },
+          relations: ['tutor'],
         });
-        await manager.save(freePayment);
-        await manager.update(Session, savedSession.id, { status: SessionStatus.CONFIRMED });
-        this.logger.log(`Free session ${savedSession.id} confirmed automatically`);
+
+        if (!slot) throw new NotFoundException('Slot not found');
+
+        if (slot.status !== SlotStatus.FREE)
+          throw new ConflictException('The slot is already taken');
+
+        if (slot.tutor.id === studentId)
+          throw new BadRequestException('You cannot book your own slot');
+
+        const tutorApplication = await this.tutorApplicationRepository.findOne({
+          where: { userId: slot.tutor.id },
+          order: { createdAt: 'DESC' },
+        });
+
+        if (!tutorApplication || tutorApplication.status !== 'approved')
+          throw new ForbiddenException('Этот наставник ещё не прошёл верификацию');
+
+        const slotDateTime = new Date(`${slot.date}T${slot.time}`);
+        if (slotDateTime < new Date())
+          throw new BadRequestException('You cannot reserve a past slot.');
+
+        const student = await manager.findOne(User, { where: { id: studentId } });
+        if (!student || !student.roles.includes('student'))
+          throw new NotFoundException('Student not found or user has invalid role');
+
+        const existingBooking = await manager.findOne(Booking, { where: { slotId } });
+        if (existingBooking) throw new ConflictException('This slot is already booked');
+
+        slot.status = SlotStatus.BOOKED;
+        await manager.save(slot);
+
+        const savedBooking = await manager.save(
+          manager.create(Booking, {
+            slotId: slot.id,
+            tutorId: slot.tutor.id,
+            studentId: student.id,
+            status: BookingStatus.PENDING,
+          })
+        );
+
+        const slotDt = new Date(`${slot.date}T${slot.time}`);
+        const savedSession = await manager.save(
+          manager.create(Session, {
+            tutorId: slot.tutor.id,
+            studentId,
+            startTime: slotDt,
+            endTime: new Date(slotDt.getTime() + 60 * 60000),
+            price: slot.price,
+            status: SessionStatus.PLANNED,
+          })
+        );
+
+        const isFree = Number(slot.price) <= 0;
+        if (isFree) {
+          await manager.save(
+            manager.create(Payment, {
+              userId: studentId,
+              tutorId: slot.tutor.id,
+              sessionId: savedSession.id,
+              amount: 0,
+              currency: 'RUB',
+              status: PaymentStatus.SUCCESS,
+              paidAt: new Date(),
+            })
+          );
+          await manager.update(Session, savedSession.id, { status: SessionStatus.CONFIRMED });
+          this.logger.log(`Free session ${savedSession.id} confirmed automatically`);
+        }
+
+        this.logger.log(`Booking ${savedBooking.id} and session ${savedSession.id} created`);
+        return { savedBooking, slot, student, savedSession, isFree };
+      });
+
+    // --- Payment initiation (outside transaction to avoid holding DB connection) ---
+    let paymentInfo: BookingDetails['paymentInfo'];
+
+    if (isFree) {
+      paymentInfo = { payment_status: 'not_required' };
+    } else {
+      try {
+        const paymentResult = await this.paymentsService.createSessionPayment(
+          studentId,
+          savedSession.id,
+          paymentMethodId
+        );
+        paymentInfo = {
+          payment_status: paymentResult.status,
+          confirmation_url: paymentResult.redirectUrl,
+          yookassa_payment_id: paymentResult.yookassaPaymentId,
+        };
+        this.logger.log(`Payment initiated for session ${savedSession.id}: ${paymentResult.status}`);
+      } catch (err) {
+        this.logger.error(`Payment initiation failed for session ${savedSession.id}: ${(err as Error).message}`);
+        paymentInfo = { payment_status: 'failed' };
       }
+    }
 
-      this.logger.log(
-        `Booking ${savedBooking.id} and session ${savedSession.id} created, waiting for payment`
-      );
-
-      return this.bookingMapper.mapToBookingWithSession(
+    return {
+      ...this.bookingMapper.mapToBookingWithSession(
         savedBooking,
         slot,
         student,
         slot.tutor,
         savedSession
-      );
-    });
+      ),
+      paymentInfo,
+    };
   }
 
   async getStudentBookings(studentId: string): Promise<BookingDetails[]> {

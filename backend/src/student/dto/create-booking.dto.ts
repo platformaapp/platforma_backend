@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsUUID, IsNotEmpty } from 'class-validator';
+import { IsUUID, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class CreateBookingDto {
   @ApiProperty({
@@ -9,4 +9,13 @@ export class CreateBookingDto {
   @IsUUID()
   @IsNotEmpty()
   slotId: string;
+
+  @ApiProperty({
+    description: 'Payment method ID (saved card). If omitted, YooKassa redirect form is used.',
+    example: 'ca47492c-76d9-4e0a-a08f-f918a803a0fb',
+    required: false,
+  })
+  @IsUUID()
+  @IsOptional()
+  payment_method_id?: string;
 }

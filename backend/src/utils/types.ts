@@ -71,7 +71,11 @@ export interface BookingDetails {
     sessionId: string;
     price: number;
     requiresPayment: boolean;
-    confirmationUrl?: string;
+  };
+  paymentInfo?: {
+    payment_status: string;
+    confirmation_url?: string;
+    yookassa_payment_id?: string;
   };
 }
 

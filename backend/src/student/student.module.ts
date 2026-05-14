@@ -13,6 +13,7 @@ import { SessionModule } from '../session/session.module';
 import { Session } from '../session/entities/session.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { TutorApplication } from 'src/admin/entities/tutor-application.entity';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { TutorApplication } from 'src/admin/entities/tutor-application.entity';
     SlotsModule,
     UsersModule,
     AuthModule,
+    PaymentsModule,
   ],
   controllers: [StudentController],
   providers: [StudentService, BookingMapper],

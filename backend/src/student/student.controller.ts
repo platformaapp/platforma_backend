@@ -83,7 +83,11 @@ export class StudentController {
     @Body() createBookingDto: CreateBookingDto
   ): Promise<BookingDetails> {
     const studentId = req.user.sub;
-    return this.studentService.createBooking(studentId, createBookingDto.slotId);
+    return this.studentService.createBooking(
+      studentId,
+      createBookingDto.slotId,
+      createBookingDto.payment_method_id
+    );
   }
 
   @Get('bookings')
