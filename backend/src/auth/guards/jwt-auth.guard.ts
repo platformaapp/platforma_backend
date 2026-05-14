@@ -38,7 +38,12 @@ export class JwtAuthGuard implements CanActivate {
 
   private async handleExpiredToken(request: Request, response: Response): Promise<boolean> {
     try {
-      const refreshToken = (request.cookies as Record<string, string | undefined>)?.refreshToken;
+      const cookies = (request.cookies ?? {}) as Record<string, string | undefined>;
+      const body = (request.body ?? {}) as Record<string, string | undefined>;
+      const refreshToken =
+        cookies.refreshToken ??
+        body.refresh_token ??
+        (request.headers['x-refresh-token'] as string | undefined);
 
       if (!refreshToken) {
         throw new UnauthorizedException('Refresh token not found');
