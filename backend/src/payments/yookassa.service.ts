@@ -215,10 +215,6 @@ export class YookassaService {
       },
       capture: true,
       description: params.description,
-      confirmation: {
-        type: 'redirect',
-        return_url: params.returnUrl,
-      },
       metadata: {
         payment_id: params.paymentId,
         type: params.metadataType ?? 'session_payment',
@@ -226,7 +222,14 @@ export class YookassaService {
     };
 
     if (params.paymentMethodToken) {
+      // Saved card auto-charge: confirmation must be omitted per YooKassa API rules
       payload.payment_method_id = params.paymentMethodToken;
+    } else {
+      // New payment: redirect user to YooKassa form
+      payload.confirmation = {
+        type: 'redirect',
+        return_url: params.returnUrl,
+      };
     }
 
     this.logger.log(`Creating session payment: amount=${amount}, payment_method_id_prefix=${String(params.paymentMethodToken).substring(0, 8)}..., paymentId=${params.paymentId}`);
