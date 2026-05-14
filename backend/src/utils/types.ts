@@ -55,17 +55,20 @@ export interface BookingDetails {
       id: string;
       fullName: string;
       email: string;
+      avatarUrl?: string | null;
     };
   };
   student?: {
     id: string;
     fullName: string;
     email: string;
+    avatarUrl?: string | null;
   };
   tutor?: {
     id: string;
     fullName: string;
     email: string;
+    avatarUrl?: string | null;
   };
   sessionInfo?: {
     sessionId: string;

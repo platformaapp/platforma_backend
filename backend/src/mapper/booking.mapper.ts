@@ -20,7 +20,7 @@ export class BookingMapper {
         ? {
             id: booking.slot.id,
             date: booking.slot.date,
-            time: booking.slot.time,
+            time: booking.slot.time?.substring(0, 5) ?? booking.slot.time,
           }
         : undefined,
       student: booking.student
@@ -28,6 +28,7 @@ export class BookingMapper {
             id: booking.student.id,
             fullName: booking.student.fullName,
             email: booking.student.email,
+            avatarUrl: booking.student.avatarUrl ?? null,
           }
         : undefined,
       tutor: booking.tutor
@@ -35,6 +36,7 @@ export class BookingMapper {
             id: booking.tutor.id,
             fullName: booking.tutor.fullName,
             email: booking.tutor.email,
+            avatarUrl: booking.tutor.avatarUrl ?? null,
           }
         : undefined,
     };
@@ -60,7 +62,7 @@ export class BookingMapper {
       result.slot = {
         id: slotData.id,
         date: slotData.date,
-        time: slotData.time,
+        time: slotData.time?.substring(0, 5) ?? slotData.time,
       };
 
       const slotWithTutor = slotData as Slot & { tutor?: User };
@@ -70,6 +72,7 @@ export class BookingMapper {
           id: tutorData.id,
           fullName: tutorData.fullName,
           email: tutorData.email,
+          avatarUrl: tutorData.avatarUrl ?? null,
         };
         result.tutor = result.slot.tutor;
       }
@@ -81,6 +84,7 @@ export class BookingMapper {
         id: studentData.id,
         fullName: studentData.fullName,
         email: studentData.email,
+        avatarUrl: studentData.avatarUrl ?? null,
       };
     }
 
@@ -105,22 +109,25 @@ export class BookingMapper {
       slot: {
         id: slot.id,
         date: slot.date,
-        time: slot.time,
+        time: slot.time?.substring(0, 5) ?? slot.time,
         tutor: {
           id: tutor.id,
           fullName: tutor.fullName,
           email: tutor.email,
+          avatarUrl: tutor.avatarUrl ?? null,
         },
       },
       student: {
         id: student.id,
         fullName: student.fullName,
         email: student.email,
+        avatarUrl: student.avatarUrl ?? null,
       },
       tutor: {
         id: tutor.id,
         fullName: tutor.fullName,
         email: tutor.email,
+        avatarUrl: tutor.avatarUrl ?? null,
       },
       sessionInfo: {
         sessionId: session.id,
