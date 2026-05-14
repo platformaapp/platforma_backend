@@ -386,6 +386,11 @@ export class EventsService {
         existingRegistration.paymentStatus = PaymentStatus.PENDING;
         const saved = await this.userEventRepository.save(existingRegistration);
         return this.initiateEventPaymentIfNeeded(saved, event, studentId, paymentMethodId);
+      } else if (existingRegistration.paymentStatus === PaymentStatus.FAILED) {
+        // Previous payment failed — allow retry without re-creating the registration
+        existingRegistration.paymentStatus = PaymentStatus.PENDING;
+        const saved = await this.userEventRepository.save(existingRegistration);
+        return this.initiateEventPaymentIfNeeded(saved, event, studentId, paymentMethodId);
       } else {
         throw new ConflictException('Вы уже записаны на это событие');
       }
@@ -926,6 +931,9 @@ export class EventsService {
           throw new ForbiddenException('Вы не записаны на это событие');
         }
 
+        if (userRegistration.paymentStatus === PaymentStatus.FAILED) {
+          throw new ForbiddenException('Оплата не прошла. Повторите попытку оплаты через регистрацию на событие');
+        }
         if (userRegistration.paymentStatus !== PaymentStatus.PAID) {
           throw new ForbiddenException('Необходимо оплатить событие для доступа к видеочату');
         }
