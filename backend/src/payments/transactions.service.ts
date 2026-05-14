@@ -66,18 +66,17 @@ export class TransactionsService {
 
   async createSessionPaymentTransaction(
     userId: string,
-    paymentMethodId: string,
+    paymentMethodId: string | null,
     amount: number,
     description: string
   ): Promise<Transaction> {
     const transaction = this.transactionRepository.create({
       userId,
-      paymentMethodId,
+      ...(paymentMethodId ? { paymentMethodId } : {}),
       amount,
       description,
       type: TransactionType.SESSION_PAYMENT,
       status: TransactionStatus.PENDING,
-      // yookassaPaymentId будет заполнен позже при создании платежа в YooKassa
     });
 
     return await this.transactionRepository.save(transaction);

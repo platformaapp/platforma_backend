@@ -95,45 +95,30 @@ export class PaymentsService {
       throw new BadRequestException('Cannot pay for this session status');
     }
 
-    let paymentMethod: PaymentMethod;
+    // Resolve saved card — optional. If none, fall back to YooKassa redirect form.
+    let paymentMethod: PaymentMethod | null = null;
     if (paymentMethodId) {
       paymentMethod = await this.paymentMethodRepository.findOne({
-        where: {
-          id: paymentMethodId,
-          userId,
-          status: PaymentMethodStatus.ACTIVE,
-        },
+        where: { id: paymentMethodId, userId, status: PaymentMethodStatus.ACTIVE },
       });
-
-      if (!paymentMethod) {
-        throw new NotFoundException('Payment method not found or not active');
-      }
+      if (!paymentMethod) throw new NotFoundException('Payment method not found or not active');
     } else {
-      const user = await this.userRepository.findOne({
-        where: { id: userId },
-        relations: ['paymentMethods'],
-      });
-
-      if (!user?.defaultPaymentMethodId) {
-        throw new BadRequestException('No default payment method set');
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      if (user?.defaultPaymentMethodId) {
+        paymentMethod = await this.paymentMethodRepository.findOne({
+          where: { id: user.defaultPaymentMethodId, userId, status: PaymentMethodStatus.ACTIVE },
+        });
       }
+    }
 
-      paymentMethod = await this.paymentMethodRepository.findOne({
-        where: {
-          id: user.defaultPaymentMethodId,
-          userId,
-          status: PaymentMethodStatus.ACTIVE,
-        },
-      });
-
-      if (!paymentMethod) {
-        throw new NotFoundException('Default payment method not found');
-      }
+    // Auto-heal: PENDING card might not have received the webhook yet
+    if (paymentMethod?.status === PaymentMethodStatus.PENDING) {
+      paymentMethod = await this.tryHealPaymentMethod(paymentMethod);
     }
 
     const transaction = await this.transactionsService.createSessionPaymentTransaction(
       userId,
-      paymentMethod.id,
+      paymentMethod?.id ?? null,
       session.price,
       `Оплата сессии с репетитором ${session.tutor.fullName}`
     );
@@ -158,7 +143,7 @@ export class PaymentsService {
     try {
       const yookassaPayment = await this.yookassaService.createSessionPayment({
         amount: session.price,
-        paymentMethodToken: paymentMethod.cardToken,
+        paymentMethodToken: paymentMethod?.cardToken,
         description: `Оплата сессии с репетитором ${session.tutor.fullName}`,
         paymentId: savedPayment.id,
         returnUrl: `${this.configService.get<string>('FRONTEND_URL')}/payments/callback`,
@@ -948,5 +933,18 @@ export class PaymentsService {
       );
       return false;
     }
+  }
+
+  /**
+   * Tries to activate a PENDING payment method via YooKassa (webhook may not have arrived).
+   * Returns the same object (now ACTIVE) on success, or null if recovery failed.
+   */
+  private async tryHealPaymentMethod(pm: PaymentMethod): Promise<PaymentMethod | null> {
+    const recovered = await this.tryRecoverCardToken(pm);
+    if (recovered && pm.status === PaymentMethodStatus.ACTIVE) {
+      return pm;
+    }
+    this.logger.warn(`Payment method ${pm.id} is PENDING and could not be healed — using redirect payment`);
+    return null;
   }
 }

@@ -71,6 +71,7 @@ export interface BookingDetails {
     sessionId: string;
     price: number;
     requiresPayment: boolean;
+    confirmationUrl?: string;
   };
 }
 
