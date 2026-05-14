@@ -10,7 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/users/user.entity';
 import { Event } from 'src/events/entities/event.entity';
 import { TutorApplication } from 'src/admin/entities/tutor-application.entity';
-import { FindManyOptions, In, Not, Repository } from 'typeorm';
+import { FindManyOptions, In, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { Slot, SlotStatus } from 'src/slots/entities/slot.entity';
 import { GetSlotsFilterDto } from './dto/get-slots-filter.dto';
@@ -126,8 +126,10 @@ export class TutorService {
   }
 
   async getTutorSlots(userId: string, filter: GetSlotsFilterDto): Promise<Slot[]> {
+    const today = new Date().toISOString().split('T')[0];
+
     const query: FindManyOptions<Slot> = {
-      where: { tutor: { id: userId } },
+      where: { tutor: { id: userId }, date: MoreThanOrEqual(today) },
       relations: ['tutor'],
       order: { date: 'ASC', time: 'ASC' },
     };
