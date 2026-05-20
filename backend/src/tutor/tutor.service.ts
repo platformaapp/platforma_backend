@@ -21,6 +21,7 @@ import { Payment, PaymentStatus } from 'src/payments/entities/payment.entity';
 import { BookingDetails, PaymentsSummary } from 'src/utils/types';
 import { Booking, BookingStatus } from 'src/student/entities/booking.entity';
 import { BookingMapper } from 'src/mapper/booking.mapper';
+import { PaymentStatus as UserEventPaymentStatus, UserEvent } from 'src/events/entities/user-event.entity';
 
 @Injectable()
 export class TutorService {
@@ -44,6 +45,9 @@ export class TutorService {
 
     @InjectRepository(TutorApplication)
     private readonly tutorApplicationRepository: Repository<TutorApplication>,
+
+    @InjectRepository(UserEvent)
+    private readonly userEventRepository: Repository<UserEvent>,
 
     private readonly bookingMapper: BookingMapper
   ) {}
@@ -397,15 +401,64 @@ export class TutorService {
   //   });
   // }
 
-  async getTutorPayments(userId: string): Promise<Payment[]> {
-    return this.paymentsRepository.find({
-      where: {
-        tutor: { id: userId },
-      },
-      order: { createdAt: 'DESC' },
-      select: ['id', 'amount', 'currency', 'status', 'createdAt'],
-      relations: ['tutor'],
-    });
+  async getTutorPayments(userId: string): Promise<{
+    id: string;
+    type: 'session' | 'event';
+    title: string;
+    amount: number;
+    currency: string;
+    status: string;
+    studentName: string | null;
+    studentAvatarUrl: string | null;
+    date: string;
+    sessionId?: string;
+    eventId?: string;
+  }[]> {
+    const [sessionPayments, eventRegistrations] = await Promise.all([
+      this.paymentsRepository.find({
+        where: { tutorId: userId, status: PaymentStatus.SUCCESS },
+        relations: ['user', 'session'],
+        order: { createdAt: 'DESC' },
+      }),
+      this.userEventRepository.find({
+        where: {
+          paymentStatus: UserEventPaymentStatus.PAID,
+          event: { mentorId: userId },
+        },
+        relations: ['event', 'user'],
+        order: { updatedAt: 'DESC' },
+      }),
+    ]);
+
+    const sessionItems = sessionPayments.map((p) => ({
+      id: p.id,
+      type: 'session' as const,
+      title: 'Личная встреча',
+      amount: Number(p.amount),
+      currency: p.currency ?? 'RUB',
+      status: p.status,
+      studentName: p.user?.fullName ?? null,
+      studentAvatarUrl: p.user?.avatarUrl ?? null,
+      date: p.createdAt.toISOString(),
+      sessionId: p.sessionId ?? undefined,
+    }));
+
+    const eventItems = eventRegistrations.map((ue) => ({
+      id: ue.id,
+      type: 'event' as const,
+      title: ue.event?.title ?? 'Событие',
+      amount: Number(ue.event?.price ?? 0),
+      currency: 'RUB',
+      status: 'paid',
+      studentName: ue.user?.fullName ?? null,
+      studentAvatarUrl: ue.user?.avatarUrl ?? null,
+      date: ue.updatedAt.toISOString(),
+      eventId: ue.eventId,
+    }));
+
+    return [...sessionItems, ...eventItems].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
   }
 
   async getPaymentsSummary(userId: string) {

@@ -213,7 +213,8 @@ export class TutorController {
   })
   async getPayments(@Req() req: AuthenticatedRequest) {
     const userId = req.user.sub;
-    return this.tutorService.getTutorPayments(userId);
+    const data = await this.tutorService.getTutorPayments(userId);
+    return { success: true, data };
   }
 
   @Get('payments/summary')
