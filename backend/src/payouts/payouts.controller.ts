@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { PayoutsService } from './payouts.service';
 import { TutorGuard } from 'src/auth/guards/tutor.guard';
-import { AuthenticatedRequest } from 'src/utils/types';
+import type { AuthenticatedRequest } from 'src/utils/types';
 import { PayoutMethod } from './entities/tutor-payout.entity';
 import { IsEnum, IsNotEmpty, IsNumber, IsPositive, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
