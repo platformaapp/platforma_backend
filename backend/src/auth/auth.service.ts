@@ -63,6 +63,12 @@ export class AuthService {
           await this.tutorApplicationRepository.save(
             this.tutorApplicationRepository.create({ userId: existingUser.id, status: 'pending' })
           );
+          void this.emailService.sendTutorApplicationNotification({
+            fullName: existingUser.fullName,
+            email: existingUser.email,
+            phone: existingUser.phone,
+            telegram: existingUser.telegram,
+          });
         }
       }
 
@@ -126,6 +132,12 @@ export class AuthService {
       await this.tutorApplicationRepository.save(
         this.tutorApplicationRepository.create({ userId: savedUser.id, status: 'pending' })
       );
+      void this.emailService.sendTutorApplicationNotification({
+        fullName: savedUser.fullName,
+        email: savedUser.email,
+        phone: savedUser.phone,
+        telegram: savedUser.telegram,
+      });
     }
 
     const payload = {

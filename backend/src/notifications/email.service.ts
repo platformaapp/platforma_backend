@@ -790,4 +790,77 @@ export class EmailService {
     const info = await this.transporter.sendMail(mailOptions);
     console.log(`Password reset email sent to ${email}, messageId: ${info.messageId}, response: ${info.response}`);
   }
+
+  async sendTutorApplicationNotification(applicant: {
+    fullName: string;
+    email: string;
+    phone?: string | null;
+    telegram?: string | null;
+  }): Promise<void> {
+    const adminEmail = this.configService.get<string>('ADMIN_NOTIFICATION_EMAIL');
+    if (!adminEmail) {
+      console.warn('[EmailService] ADMIN_NOTIFICATION_EMAIL not set, skipping tutor application notification');
+      return;
+    }
+
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://platformaapp.ru');
+    const adminUrl = `${frontendUrl}/admin/tutor-applications`;
+
+    const mailOptions = {
+      from: 'Platforma <platformaapp@platformaapp.ru>',
+      to: adminEmail,
+      subject: '📋 Новая заявка на роль наставника',
+      html: `
+        <div style="max-width:600px;margin:0 auto;font-family:sans-serif;background:#fff;">
+          <div style="background:#1a1a1a;padding:24px;text-align:center;">
+            <h1 style="color:#fff;margin:0;font-size:20px;">Новая заявка на наставника</h1>
+          </div>
+          <div style="padding:32px;">
+            <p style="color:#333;font-size:16px;margin-top:0;">
+              Поступила новая заявка на регистрацию наставником:
+            </p>
+            <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+              <tr>
+                <td style="padding:10px 0;color:#666;width:140px;">Имя</td>
+                <td style="padding:10px 0;color:#111;font-weight:600;">${applicant.fullName || '—'}</td>
+              </tr>
+              <tr style="border-top:1px solid #f0f0f0;">
+                <td style="padding:10px 0;color:#666;">Email</td>
+                <td style="padding:10px 0;color:#111;">${applicant.email}</td>
+              </tr>
+              ${applicant.phone ? `
+              <tr style="border-top:1px solid #f0f0f0;">
+                <td style="padding:10px 0;color:#666;">Телефон</td>
+                <td style="padding:10px 0;color:#111;">${applicant.phone}</td>
+              </tr>` : ''}
+              ${applicant.telegram ? `
+              <tr style="border-top:1px solid #f0f0f0;">
+                <td style="padding:10px 0;color:#666;">Telegram</td>
+                <td style="padding:10px 0;color:#111;">${applicant.telegram}</td>
+              </tr>` : ''}
+            </table>
+            <div style="text-align:center;margin-top:32px;">
+              <a href="${adminUrl}"
+                 style="background:#1a1a1a;color:#fff;padding:14px 28px;text-decoration:none;
+                        border-radius:6px;font-size:15px;display:inline-block;">
+                Рассмотреть заявку
+              </a>
+            </div>
+          </div>
+          <div style="background:#f8f8f8;padding:16px;text-align:center;">
+            <p style="color:#999;font-size:12px;margin:0;">
+              © ${new Date().getFullYear()} Platforma — автоматическое уведомление
+            </p>
+          </div>
+        </div>
+      `,
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(`Tutor application notification sent to ${adminEmail}`);
+    } catch (err) {
+      console.error('Error sending tutor application notification:', err instanceof Error ? err.message : err);
+    }
+  }
 }
