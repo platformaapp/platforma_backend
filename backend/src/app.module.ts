@@ -14,6 +14,7 @@ import { StudentModule } from './student/student.module';
 import { SessionModule } from './session/session.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { AdminModule } from './admin/admin.module';
+import { PayoutsModule } from './payouts/payouts.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { AdminModule } from './admin/admin.module';
     SessionModule,
     UploadsModule,
     AdminModule,
+    PayoutsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -256,6 +256,59 @@ export class YookassaService {
     }
   }
 
+  async createPayout(params: {
+    amount: number;
+    method: 'bank_card' | 'sbp';
+    destination: string;
+    description: string;
+    payoutId: string;
+  }): Promise<{ id: string; status: string }> {
+    const payoutBaseUrl = this.configService.get<string>(
+      'YOOKASSA_PAYOUT_URL',
+      'https://payouts.yookassa.ru/api/v1'
+    );
+    const url = `${payoutBaseUrl}/payouts`;
+
+    const payoutDestinationData =
+      params.method === 'bank_card'
+        ? { type: 'bank_card', card: { number: params.destination } }
+        : { type: 'sbp', phone: params.destination };
+
+    const payload = {
+      amount: { value: params.amount.toFixed(2), currency: 'RUB' },
+      payout_destination_data: payoutDestinationData,
+      description: params.description,
+      metadata: { payout_id: params.payoutId },
+    };
+
+    this.logger.log(`Creating YooKassa payout: amount=${params.amount}, method=${params.method}`);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotence-Key': params.payoutId,
+          Authorization: `Basic ${Buffer.from(`${this.config.shopId}:${this.config.secretKey}`).toString('base64')}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        this.logger.error(`YooKassa payout error: ${response.status} - ${errorText}`);
+        throw new Error(`YooKassa payout error: ${response.status} - ${errorText}`);
+      }
+
+      const data = (await response.json()) as { id: string; status: string };
+      this.logger.log(`YooKassa payout created: ${data.id}, status: ${data.status}`);
+      return data;
+    } catch (error) {
+      this.logger.error('Failed to create YooKassa payout', error);
+      throw error;
+    }
+  }
+
   async capturePayment(paymentId: string): Promise<void> {
     const idempotenceKey = uuidv4();
 

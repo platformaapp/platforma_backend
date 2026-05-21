@@ -100,6 +100,12 @@ export class User {
   @Column({ name: 'default_payment_method_id', nullable: true })
   defaultPaymentMethodId: string | null;
 
+  @Column({ name: 'payout_method', nullable: true, type: 'varchar', length: 20 })
+  payoutMethod: 'bank_card' | 'sbp' | null;
+
+  @Column({ name: 'payout_destination', nullable: true, type: 'varchar', length: 255 })
+  payoutDestination: string | null;
+
   @OneToMany(() => Session, (session) => session.tutor)
   tutorSessions: Session[];
 
