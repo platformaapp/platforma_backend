@@ -12,6 +12,7 @@ import { Event } from './entities/event.entity';
 import { EmailService } from '../notifications/email.service';
 import { MyOwnConferenceService } from './myownconference.service';
 import { EventsSchedulerService } from './events-scheduler.service';
+import { WebinarRuService } from './webinar-ru.service';
 import { Payment } from 'src/payments/entities/payment.entity';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { PaymentsModule } from '../payments/payments.module';
@@ -24,6 +25,6 @@ import { PaymentsModule } from '../payments/payments.module';
     PaymentsModule,
   ],
   controllers: [EventsController],
-  providers: [EventsService, EmailService, MyOwnConferenceService, EventsSchedulerService, OptionalJwtAuthGuard],
+  providers: [EventsService, EmailService, MyOwnConferenceService, WebinarRuService, EventsSchedulerService, OptionalJwtAuthGuard],
 })
 export class EventsModule {}

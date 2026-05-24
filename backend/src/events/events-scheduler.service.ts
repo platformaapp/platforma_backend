@@ -3,7 +3,9 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual, In } from 'typeorm';
 import { Event, EventStatus } from './entities/event.entity';
+import { VideoProvider } from './entities/video-room.entity';
 import { MyOwnConferenceService } from './myownconference.service';
+import { WebinarRuService } from './webinar-ru.service';
 
 @Injectable()
 export class EventsSchedulerService {
@@ -12,7 +14,8 @@ export class EventsSchedulerService {
   constructor(
     @InjectRepository(Event)
     private readonly eventsRepository: Repository<Event>,
-    private readonly myOwnConferenceService: MyOwnConferenceService
+    private readonly myOwnConferenceService: MyOwnConferenceService,
+    private readonly webinarRuService: WebinarRuService
   ) {}
 
   /**
@@ -88,9 +91,13 @@ export class EventsSchedulerService {
 
     for (const event of recentEnded) {
       try {
-        const recordingUrl = await this.myOwnConferenceService.getRecordingUrl(
-          event.videoRoom.externalId
-        );
+        let recordingUrl: string | null = null;
+
+        if (event.videoRoom.provider === VideoProvider.WEBINAR_RU) {
+          recordingUrl = await this.webinarRuService.getRecordingUrl(event.videoRoom.externalId);
+        } else {
+          recordingUrl = await this.myOwnConferenceService.getRecordingUrl(event.videoRoom.externalId);
+        }
 
         if (recordingUrl) {
           await this.eventsRepository.update(event.id, { recordingUrl });
