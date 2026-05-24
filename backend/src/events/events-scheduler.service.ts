@@ -5,7 +5,6 @@ import { Repository, LessThanOrEqual, In } from 'typeorm';
 import { Event, EventStatus } from './entities/event.entity';
 import { VideoProvider } from './entities/video-room.entity';
 import { MyOwnConferenceService } from './myownconference.service';
-import { WebinarRuService } from './webinar-ru.service';
 
 @Injectable()
 export class EventsSchedulerService {
@@ -14,8 +13,7 @@ export class EventsSchedulerService {
   constructor(
     @InjectRepository(Event)
     private readonly eventsRepository: Repository<Event>,
-    private readonly myOwnConferenceService: MyOwnConferenceService,
-    private readonly webinarRuService: WebinarRuService
+    private readonly myOwnConferenceService: MyOwnConferenceService
   ) {}
 
   /**
@@ -93,9 +91,7 @@ export class EventsSchedulerService {
       try {
         let recordingUrl: string | null = null;
 
-        if (event.videoRoom.provider === VideoProvider.WEBINAR_RU) {
-          recordingUrl = await this.webinarRuService.getRecordingUrl(event.videoRoom.externalId);
-        } else {
+        if (event.videoRoom.provider === VideoProvider.MY_OWN_CONFERENCE) {
           recordingUrl = await this.myOwnConferenceService.getRecordingUrl(event.videoRoom.externalId);
         }
 
