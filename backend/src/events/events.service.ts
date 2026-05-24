@@ -264,6 +264,11 @@ export class EventsService {
 
     if (updateEventDto.datetime_end !== undefined) {
       event.datetimeEnd = new Date(updateEventDto.datetime_end);
+
+      // If the event was already marked ENDED but the new end time is in the future, restore status
+      if (event.status === EventStatus.ENDED && event.datetimeEnd > now) {
+        event.status = event.datetimeStart <= now ? EventStatus.ACTIVE : EventStatus.SCHEDULED;
+      }
     }
 
     if (updateEventDto.datetime_start || updateEventDto.datetime_end) {

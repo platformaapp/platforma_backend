@@ -16,12 +16,12 @@ export class EventsSchedulerService {
   ) {}
 
   /**
-   * Every 2 minutes: mark events whose datetime_end has passed as ENDED.
-   * This is the primary mechanism since MyOwnConference has no webhooks.
+   * Every 5 minutes: mark events whose datetime_end has passed as ENDED.
+   * Uses a 2-minute grace buffer so events are not prematurely ended.
    */
   @Cron(CronExpression.EVERY_5_MINUTES)
   async markEndedEvents(): Promise<void> {
-    const now = new Date();
+    const cutoff = new Date(Date.now() - 2 * 60 * 1000); // 2-minute grace period
 
     const result = await this.eventsRepository
       .createQueryBuilder()
@@ -30,7 +30,7 @@ export class EventsSchedulerService {
       .where('status IN (:...statuses)', {
         statuses: [EventStatus.SCHEDULED, EventStatus.ACTIVE],
       })
-      .andWhere('datetime_end <= :now', { now })
+      .andWhere('datetime_end <= :cutoff', { cutoff })
       .execute();
 
     if (result.affected > 0) {
