@@ -171,7 +171,7 @@ export class PaymentsController {
     },
   })
   async handlePaymentCallback(@Query() callbackDto: PaymentCallbackDto): Promise<{
-    status: 'succeeded' | 'failed';
+    status: 'succeeded' | 'pending' | 'failed';
     message: string;
     paymentId?: string;
     redirectUrl?: string;
@@ -182,7 +182,7 @@ export class PaymentsController {
       const result = await this.paymentsService.handlePaymentCallback(callbackDto.payment_id);
 
       return {
-        status: 'succeeded',
+        status: result.status,
         message: result.message,
         paymentId: result.paymentId,
         redirectUrl: result.redirectUrl,

@@ -373,6 +373,7 @@ export class PaymentsService {
   }
 
   async handlePaymentCallback(paymentId: string): Promise<{
+    status: 'succeeded' | 'pending' | 'failed';
     message: string;
     paymentId: string;
     redirectUrl: string;
@@ -400,6 +401,7 @@ export class PaymentsService {
             });
             this.logger.log(`UserEvent ${userEvent.id} marked as PAID via callback`);
             return {
+              status: 'succeeded' as const,
               message: 'Оплата мероприятия прошла успешно',
               paymentId,
               redirectUrl: `${frontendUrl}/events/${userEvent.eventId}?payment=success`,
@@ -413,6 +415,7 @@ export class PaymentsService {
             );
           }
           return {
+            status: 'pending' as const,
             message: 'Платеж обрабатывается',
             paymentId,
             redirectUrl: `${frontendUrl}/events/${userEvent.eventId}?payment=callback`,
@@ -502,6 +505,7 @@ export class PaymentsService {
             redirectUrl = `${frontendUrl}/sessions/${sessionId}?payment=success`;
           }
           return {
+            status: 'succeeded' as const,
             message:
               transaction.type === TransactionType.CARD_BINDING
                 ? 'Карта успешно привязана'
@@ -586,6 +590,7 @@ export class PaymentsService {
           }
 
           return {
+            status: 'succeeded' as const,
             message:
               transaction.type === TransactionType.CARD_BINDING
                 ? 'Карта успешно привязана'
@@ -597,6 +602,7 @@ export class PaymentsService {
 
         case 'pending':
           return {
+            status: 'pending' as const,
             message: 'Платеж обрабатывается',
             paymentId: transaction.id,
             redirectUrl: `${this.configService.get<string>('FRONTEND_URL')}/payments/status?payment_id=${paymentId}`,
