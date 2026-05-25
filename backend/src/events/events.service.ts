@@ -991,8 +991,15 @@ export class EventsService {
       }
     }
 
-    // For Jitsi (and any provider where a single URL works for all roles)
-    // return the URL directly — no external API call needed.
+    // For Jitsi: rebuild URL from externalId + configured base so existing
+    // DB records with old meet.jit.si URLs automatically use the self-hosted server.
+    if (event.videoRoom.provider === VideoProvider.JITSI) {
+      const base = this.configService.get<string>('JITSI_BASE_URL', DEFAULT_JITSI_BASE_URL);
+      const url = `${base}/${event.videoRoom.externalId}`;
+      return { join_url: url };
+    }
+
+    // For any other non-MyOwnConference provider return stored URL directly.
     if (event.videoRoom.provider !== VideoProvider.MY_OWN_CONFERENCE) {
       const url = isMentor
         ? (event.videoRoom.moderatorUrl || event.videoRoom.url)
