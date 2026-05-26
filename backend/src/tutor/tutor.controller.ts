@@ -241,6 +241,22 @@ export class TutorController {
     return this.tutorService.getTutorBookings(tutorId);
   }
 
+  @Get('bookings/:id/join')
+  @UseGuards(TutorGuard)
+  @ApiOperation({ summary: 'Get Jitsi join URL for a personal meeting' })
+  @ApiParam({ name: 'id', description: 'Booking ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Join URL returned',
+    schema: { example: { join_url: 'https://jitsi.platformaapp.ru/platforma-abc123' } },
+  })
+  async getBookingJoinUrl(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') bookingId: string
+  ): Promise<{ join_url: string }> {
+    return this.tutorService.getBookingJoinUrl(req.user.sub, bookingId);
+  }
+
   @Put('bookings/:id/complete')
   @UseGuards(TutorGuard)
   @ApiOperation({ summary: 'End of session' })

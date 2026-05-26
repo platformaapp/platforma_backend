@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/users/user.entity';
 import { Event } from 'src/events/entities/event.entity';
@@ -49,7 +50,8 @@ export class TutorService {
     @InjectRepository(UserEvent)
     private readonly userEventRepository: Repository<UserEvent>,
 
-    private readonly bookingMapper: BookingMapper
+    private readonly bookingMapper: BookingMapper,
+    private readonly configService: ConfigService
   ) {}
 
   async getTutorProfile(userId: string): Promise<Partial<User> & { isVerified: boolean; applicationStatus: string | null }> {
@@ -548,5 +550,19 @@ export class TutorService {
     this.logger.log(`The session has ended.: ${bookingId}`);
 
     return this.bookingMapper.mapToBookingDetailsList([updatedBooking])[0];
+  }
+
+  async getBookingJoinUrl(tutorId: string, bookingId: string): Promise<{ join_url: string }> {
+    const booking = await this.bookingRepository.findOne({
+      where: { id: bookingId },
+    });
+
+    if (!booking) throw new NotFoundException('Бронирование не найдено');
+    if (booking.tutorId !== tutorId) throw new ForbiddenException('Нет доступа к этому бронированию');
+    if (booking.status === BookingStatus.CANCELLED) throw new BadRequestException('Бронирование отменено');
+
+    const base = this.configService.get<string>('JITSI_BASE_URL', 'https://meet.jit.si');
+    const roomName = `platforma-${bookingId.replace(/-/g, '')}`;
+    return { join_url: `${base}/${roomName}` };
   }
 }

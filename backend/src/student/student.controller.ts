@@ -101,6 +101,23 @@ export class StudentController {
     return this.studentService.getStudentBookings(studentId);
   }
 
+  @Get('bookings/:id/join')
+  @ApiOperation({ summary: 'Get Jitsi join URL for a personal meeting' })
+  @ApiParam({ name: 'id', description: 'Booking ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Join URL returned',
+    schema: { example: { join_url: 'https://jitsi.platformaapp.ru/platforma-abc123' } },
+  })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
+  async getBookingJoinUrl(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') bookingId: string
+  ): Promise<{ join_url: string }> {
+    return this.studentService.getBookingJoinUrl(req.user.sub, bookingId);
+  }
+
   @Delete('bookings/:id')
   @ApiOperation({ summary: 'Cancel booking' })
   @ApiParam({ name: 'id', description: 'Booking ID' })

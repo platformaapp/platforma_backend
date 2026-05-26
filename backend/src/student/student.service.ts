@@ -7,6 +7,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { Repository, DataSource, MoreThanOrEqual } from 'typeorm';
 import { Booking, BookingStatus } from './entities/booking.entity';
 import { Slot, SlotStatus } from '../slots/entities/slot.entity';
@@ -38,7 +39,8 @@ export class StudentService {
 
     private readonly dataSource: DataSource,
     private readonly bookingMapper: BookingMapper,
-    private readonly paymentsService: PaymentsService
+    private readonly paymentsService: PaymentsService,
+    private readonly configService: ConfigService
   ) {}
 
   async createBooking(
@@ -292,6 +294,21 @@ export class StudentService {
       roles: saved.roles,
       createdAt: saved.createdAt,
     };
+  }
+
+  async getBookingJoinUrl(studentId: string, bookingId: string): Promise<{ join_url: string }> {
+    const booking = await this.bookingRepository.findOne({
+      where: { id: bookingId },
+      relations: ['slot'],
+    });
+
+    if (!booking) throw new NotFoundException('Бронирование не найдено');
+    if (booking.studentId !== studentId) throw new ForbiddenException('Нет доступа к этому бронированию');
+    if (booking.status === BookingStatus.CANCELLED) throw new BadRequestException('Бронирование отменено');
+
+    const base = this.configService.get<string>('JITSI_BASE_URL', 'https://meet.jit.si');
+    const roomName = `platforma-${bookingId.replace(/-/g, '')}`;
+    return { join_url: `${base}/${roomName}` };
   }
 
   async getTutorAvailableSlots(
