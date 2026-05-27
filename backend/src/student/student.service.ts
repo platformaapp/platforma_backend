@@ -20,6 +20,8 @@ import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { TutorApplication } from '../admin/entities/tutor-application.entity';
 import { PaymentsService } from '../payments/payments.service';
 
+const REFUND_WINDOW_HOURS = 24;
+
 @Injectable()
 export class StudentService {
   private readonly logger = new Logger(StudentService.name);
@@ -179,63 +181,80 @@ export class StudentService {
   async cancelBooking(studentId: string, bookingId: string): Promise<BookingDetails> {
     this.logger.log(`Cancellation of booking: studentId=${studentId}, bookingId=${bookingId}`);
 
-    return await this.dataSource.transaction(async (manager) => {
-      const booking = await manager.findOne(Booking, {
-        where: { id: bookingId },
-        relations: ['slot'],
-      });
+    // Phase 1: validate and fetch all needed data outside the transaction
+    const booking = await this.dataSource.getRepository(Booking).findOne({
+      where: { id: bookingId },
+      relations: ['slot'],
+    });
 
-      if (!booking) {
-        this.logger.warn(`Booking not found: ${bookingId}`);
-        throw new NotFoundException('Booking not found');
+    if (!booking) throw new NotFoundException('Booking not found');
+    if (booking.studentId !== studentId) {
+      throw new ForbiddenException("You can not cancel someone else's booking");
+    }
+    if (booking.status === BookingStatus.CANCELLED) {
+      throw new BadRequestException('Booking has already been cancelled.');
+    }
+
+    const slot = await this.dataSource.getRepository(Slot).findOne({
+      where: { id: booking.slotId },
+    });
+
+    if (!slot) throw new NotFoundException('Slot not found');
+
+    const slotDateTime = new Date(`${slot.date}T${slot.time}`);
+    const now = new Date();
+
+    if (slotDateTime < now) {
+      throw new BadRequestException('It is not possible to cancel a past session');
+    }
+
+    // Find the associated session to determine refund eligibility
+    const session = await this.dataSource.getRepository(Session).findOne({
+      where: { tutorId: booking.tutorId, studentId, startTime: slotDateTime },
+    });
+
+    const hoursUntilSession = (slotDateTime.getTime() - now.getTime()) / 3_600_000;
+    const isRefundable = hoursUntilSession >= REFUND_WINDOW_HOURS;
+
+    // Phase 2: DB changes in a transaction
+    const updatedBooking = await this.dataSource.transaction(async (manager) => {
+      const b = await manager.findOne(Booking, { where: { id: bookingId } });
+      const s = await manager.findOne(Slot, { where: { id: booking.slotId } });
+
+      b.status = BookingStatus.CANCELLED;
+      s.status = SlotStatus.FREE;
+
+      await manager.save(b);
+      await manager.save(s);
+
+      if (session) {
+        await manager.update(Session, session.id, { status: SessionStatus.CANCELLED });
       }
 
-      if (booking.studentId !== studentId) {
-        this.logger.warn(
-          `Trying to cancel someone else's booking: studentId=${studentId}, booking.studentId=${booking.studentId}`
-        );
-        throw new ForbiddenException("You can not cancel someone else's booking");
-      }
+      this.logger.log(`Booking ${bookingId} and session ${session?.id ?? 'n/a'} cancelled`);
 
-      if (booking.status === BookingStatus.CANCELLED) {
-        this.logger.warn(`Booking has already been cancelled.: ${bookingId}`);
-        throw new BadRequestException('Booking has already been cancelled.');
-      }
-
-      const slot = await manager.findOne(Slot, {
-        where: { id: booking.slotId },
-      });
-
-      if (!slot) {
-        this.logger.warn(`Slot not found: ${booking.slotId}`);
-        throw new NotFoundException('Slot not found');
-      }
-
-      const slotDateTime = new Date(`${slot.date}T${slot.time}`);
-      const now = new Date();
-
-      if (slotDateTime < now) {
-        this.logger.warn(
-          `Attempt to cancel a past session: ${slotDateTime.toISOString()}, now: ${now.toISOString()}`
-        );
-        throw new BadRequestException('It is not possible to cancel a past session');
-      }
-
-      booking.status = BookingStatus.CANCELLED;
-      slot.status = SlotStatus.FREE;
-
-      await manager.save(booking);
-      await manager.save(slot);
-
-      this.logger.log(`Booking canceled: ${bookingId}`);
-
-      const updatedBooking = await manager.findOne(Booking, {
+      return manager.findOne(Booking, {
         where: { id: bookingId },
         relations: ['slot', 'slot.tutor', 'student'],
       });
-
-      return this.bookingMapper.mapToResponseDto(updatedBooking);
     });
+
+    // Phase 3: refund outside the transaction (no YooKassa HTTP call inside a DB tx)
+    if (session && isRefundable) {
+      try {
+        await this.paymentsService.refundSessionPayment(session.id);
+        this.logger.log(`Refund initiated for session ${session.id}`);
+      } catch (refundError) {
+        // Non-fatal: booking is already cancelled; log and move on
+        this.logger.error(`Refund failed for session ${session.id}`, refundError);
+      }
+    } else if (session && !isRefundable) {
+      this.logger.log(
+        `Session ${session.id} cancelled < ${REFUND_WINDOW_HOURS}h before start — no refund`
+      );
+    }
+
+    return this.bookingMapper.mapToResponseDto(updatedBooking);
   }
 
   async getStudentProfile(userId: string): Promise<Partial<User>> {
