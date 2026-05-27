@@ -945,27 +945,28 @@ export class EventsService {
         if (userRegistration.paymentStatus === PaymentStatus.FAILED) {
           throw new ForbiddenException('Оплата не прошла. Повторите попытку оплаты через регистрацию на событие');
         }
-        if (userRegistration.paymentStatus !== PaymentStatus.PAID) {
-          throw new ForbiddenException('Необходимо оплатить событие для доступа к видеочату');
+        if (userRegistration.paymentStatus === PaymentStatus.PENDING) {
+          // Sync with YooKassa in case the user paid but the callback was never called
+          if (userRegistration.yookassaPaymentId) {
+            try {
+              await this.paymentsService.handlePaymentCallback(userRegistration.yookassaPaymentId);
+              const refreshed = await this.userEventRepository.findOne({ where: { id: userRegistration.id } });
+              if (!refreshed || refreshed.paymentStatus !== PaymentStatus.PAID) {
+                throw new ForbiddenException('Оплата не подтверждена. Завершите оплату и повторите попытку');
+              }
+            } catch (err) {
+              if (err instanceof ForbiddenException) throw err;
+              throw new ForbiddenException('Оплата не подтверждена. Завершите оплату и повторите попытку');
+            }
+          } else {
+            throw new ForbiddenException('Необходимо оплатить событие для доступа к видеочату');
+          }
         }
       }
     }
 
     if (!userRegistration && !isMentor) {
       throw new ForbiddenException('Вы не записаны на это событие');
-    }
-
-    const now = new Date();
-    const timeUntilStart = event.datetimeStart.getTime() - now.getTime();
-    const fifteenMinutes = 15 * 60 * 1000;
-
-    const isEventActive = event.datetimeStart <= now && event.datetimeEnd > now;
-    const isWithinFifteenMinutes = timeUntilStart <= fifteenMinutes && timeUntilStart > 0;
-
-    if (!isEventActive && !isWithinFifteenMinutes) {
-      throw new ForbiddenException(
-        'Подключиться к событию можно за 15 минут до начала или во время его проведения'
-      );
     }
 
     if (event.status === EventStatus.CANCELLED) {
