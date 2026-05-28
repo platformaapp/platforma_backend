@@ -24,7 +24,7 @@ services:
       SMTP_SECURE: "true"
       SMTP_USER: platformaapp@platformaapp.ru
       SMTP_PASS: 8QLq8vVu4iVi7bn
-      ADMIN_NOTIFICATION_EMAIL: ${ADMIN_NOTIFICATION_EMAIL:-fryggr@gmail.com}
+      ADMIN_NOTIFICATION_EMAIL: ${ADMIN_NOTIFICATION_EMAIL:-platformaapp@yandex.ru}
       YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID}
       YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY}
       YOOKASSA_BASE_URL: ${YOOKASSA_BASE_URL:-https://api.yookassa.ru/v3}
