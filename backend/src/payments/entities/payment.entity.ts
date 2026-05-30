@@ -18,6 +18,7 @@ export enum PaymentStatus {
   FAILED = 'failed',
   CANCELED = 'canceled',
   PAID = 'paid',
+  REFUNDED = 'refunded',
 }
 
 @Entity('payments')
@@ -74,6 +75,12 @@ export class Payment {
 
   @Column({ name: 'paid_at', nullable: true })
   paidAt: Date;
+
+  @Column({ name: 'yookassa_refund_id', nullable: true, type: 'varchar' })
+  yookassaRefundId: string | null;
+
+  @Column({ name: 'refunded_at', nullable: true, type: 'timestamptz' })
+  refundedAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

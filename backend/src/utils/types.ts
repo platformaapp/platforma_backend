@@ -178,6 +178,30 @@ export interface YookassaPaymentResponse {
   };
 }
 
+export interface YookassaRefundResponse {
+  id: string;
+  status: 'succeeded' | 'pending' | 'canceled';
+  amount: { value: string; currency: string };
+  payment_id: string;
+  created_at: string;
+}
+
+export interface YookassaPayoutWebhookObject {
+  id: string;
+  status: string;
+  amount: { value: string; currency: string };
+  description?: string;
+  metadata?: Record<string, any>;
+  created_at: string;
+  error?: { code?: string; description?: string };
+}
+
+export interface YookassaPayoutWebhook {
+  type: 'notification';
+  event: 'payout.succeeded' | 'payout.canceled' | 'payout.failed';
+  object: YookassaPayoutWebhookObject;
+}
+
 export interface CreateWebinarParams {
   name: string;
   start: string;

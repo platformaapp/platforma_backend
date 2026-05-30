@@ -71,6 +71,12 @@ export class UserEvent {
   @Column({ name: 'yookassa_payment_id', nullable: true, type: 'varchar' })
   yookassaPaymentId: string | null;
 
+  @Column({ name: 'yookassa_refund_id', nullable: true, type: 'varchar' })
+  yookassaRefundId: string | null;
+
+  @Column({ name: 'refunded_at', nullable: true, type: 'timestamptz' })
+  refundedAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
