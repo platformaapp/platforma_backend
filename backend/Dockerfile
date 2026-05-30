@@ -1,9 +1,11 @@
+# syntax=docker/dockerfile:1
 # Multi-stage build for NestJS application
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 COPY . .
 RUN npm run build
 
@@ -16,7 +18,8 @@ RUN addgroup -g 1001 -S nodejs && \
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --only=production && npm cache clean --force
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
 COPY src/seeds/seed-admin.js ./src/seeds/seed-admin.js
