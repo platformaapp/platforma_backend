@@ -7,7 +7,7 @@ COPY package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
     npm ci
 COPY . .
-RUN npm run build
+RUN npm run build && npm prune --omit=dev --offline
 
 # Production stage — zero apk calls, uses only what node:20-alpine already has
 FROM node:20-alpine AS production
@@ -17,11 +17,10 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --omit=dev && npm cache clean --force
-
+# Reuse pruned node_modules from builder — no second npm install needed
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
+COPY package*.json ./
 COPY src/seeds/seed-admin.js ./src/seeds/seed-admin.js
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh && \
