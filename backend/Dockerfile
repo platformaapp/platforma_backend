@@ -1,13 +1,11 @@
-# syntax=docker/dockerfile:1
 # Multi-stage build for NestJS application
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 COPY package*.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
+RUN npm ci
 COPY . .
-RUN npm run build && npm prune --omit=dev --offline
+RUN npm run build && npm prune --omit=dev
 
 # Production stage — zero apk calls, uses only what node:20-alpine already has
 FROM node:20-alpine AS production
@@ -17,7 +15,6 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app
 
-# Reuse pruned node_modules from builder — no second npm install needed
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY package*.json ./
