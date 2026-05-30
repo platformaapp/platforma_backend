@@ -8,21 +8,24 @@ export class EmailService {
 
   constructor(private readonly configService: ConfigService) {
     const host = this.configService.get<string>('SMTP_HOST');
-    const port = this.configService.get<number>('SMTP_PORT') ?? 465;
+    const port = this.configService.get<number>('SMTP_PORT');
     const secure = this.configService.get<string>('SMTP_SECURE') === 'true';
     const user = this.configService.get<string>('SMTP_USER');
     const pass = this.configService.get<string>('SMTP_PASS');
 
-    console.log(`[EmailService] SMTP config: host=${host}, port=${port}, secure=${secure}, user=${user}`);
+    console.log(`[EmailService] SMTP config: host=${host}, port=587, ignoreTLS=true (plaintext test), user=${user}`);
 
     this.transporter = nodemailer.createTransport({
       host,
-      port,
-      secure,
+      port: 587,
+      secure: false,
+      ignoreTLS: true,
       auth: { user, pass },
       connectionTimeout: 30000,
       socketTimeout: 30000,
       greetingTimeout: 30000,
+      debug: true,
+      logger: true,
     });
   }
 

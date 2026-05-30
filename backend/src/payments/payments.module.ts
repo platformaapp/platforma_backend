@@ -18,11 +18,10 @@ import { TransactionsService } from './transactions.service';
 import { ConfigModule } from '@nestjs/config';
 import { UserEvent } from 'src/events/entities/user-event.entity';
 import { Event } from 'src/events/entities/event.entity';
-import { TutorPayout } from 'src/payouts/entities/tutor-payout.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Payment, PaymentMethod, Session, User, Transaction, UserEvent, Event, TutorPayout]),
+    TypeOrmModule.forFeature([Payment, PaymentMethod, Session, User, Transaction, UserEvent, Event]),
     AuthModule,
     JwtModule,
     ConfigModule,

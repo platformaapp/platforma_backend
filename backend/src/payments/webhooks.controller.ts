@@ -5,7 +5,6 @@ import { PaymentMethodsService } from './payment-methods.service';
 import { YookassaService } from './yookassa.service';
 import { YookassaWebhookDto } from './dto/yookassa-webhook.dto';
 import { PaymentsService } from './payments.service';
-import type { YookassaPayoutWebhook } from '../utils/types';
 
 @ApiTags('Webhooks')
 @ApiExcludeController()
@@ -24,24 +23,16 @@ export class WebhooksController {
   async handleYookassaWebhook(@Req() req: Request) {
     this.logger.log('=== YOOKASSA WEBHOOK RECEIVED ===');
 
-    // --- IP verification ---
-    const clientIp = this.extractClientIp(req);
-    if (!this.yookassaService.verifyWebhookIp(clientIp)) {
-      // Return 200 so YooKassa does not keep retrying, but do not process the body.
-      this.logger.error(`Webhook rejected: IP ${clientIp} is not in YooKassa allowlist`);
-      return { status: 'ignored' };
-    }
+    let webhookData: YookassaWebhookDto;
 
-    // --- Body parsing ---
-    let rawBody: unknown;
     try {
-      const bodyRaw = req.body as unknown;
-      if (typeof bodyRaw === 'string') {
-        rawBody = JSON.parse(bodyRaw);
-      } else if (Buffer.isBuffer(bodyRaw)) {
-        rawBody = JSON.parse(bodyRaw.toString('utf-8'));
-      } else if (bodyRaw && typeof bodyRaw === 'object') {
-        rawBody = bodyRaw;
+      const rawBody = req.body as unknown;
+      if (typeof rawBody === 'string') {
+        webhookData = JSON.parse(rawBody) as YookassaWebhookDto;
+      } else if (Buffer.isBuffer(rawBody)) {
+        webhookData = JSON.parse(rawBody.toString('utf-8')) as YookassaWebhookDto;
+      } else if (rawBody && typeof rawBody === 'object') {
+        webhookData = rawBody as YookassaWebhookDto;
       } else {
         this.logger.error('No parseable body available');
         return { status: 'error', message: 'No body' };
@@ -51,24 +42,16 @@ export class WebhooksController {
       return { status: 'error', message: 'Invalid JSON body' };
     }
 
-    const event = (rawBody as { event?: string })?.event ?? '';
-    this.logger.log(`Webhook event: ${event}`);
-
     try {
-      // Payout webhooks have a different object shape
-      if (event.startsWith('payout.')) {
-        await this.handlePayoutWebhook(rawBody as YookassaPayoutWebhook);
-      } else {
-        const webhookData = rawBody as YookassaWebhookDto;
-        this.logger.log(`Payment status: ${webhookData.object?.status}`);
+      this.logger.log(`Webhook event: ${webhookData.event}, Status: ${webhookData.object.status}`);
 
-        if (this.isPaymentMethodWebhook(webhookData)) {
-          await this.paymentMethodsService.handleWebhook(webhookData);
-        } else if (this.isSessionPaymentWebhook(webhookData)) {
-          await this.paymentsService.handlePaymentWebhook(webhookData);
-        } else {
-          this.logger.warn(`Unhandled webhook type: ${event}`);
-        }
+      // Обработка вебхука
+      if (this.isPaymentMethodWebhook(webhookData)) {
+        await this.paymentMethodsService.handleWebhook(webhookData);
+      } else if (this.isSessionPaymentWebhook(webhookData)) {
+        await this.paymentsService.handlePaymentWebhook(webhookData);
+      } else {
+        this.logger.warn(`Unhandled webhook type: ${webhookData.event}`);
       }
 
       this.logger.log('Webhook processed successfully');
@@ -79,44 +62,18 @@ export class WebhooksController {
     }
   }
 
-  private async handlePayoutWebhook(data: YookassaPayoutWebhook): Promise<void> {
-    const { object, event } = data;
-    this.logger.log(`Payout webhook: event=${event}, id=${object?.id}, status=${object?.status}`);
-
-    if (!object?.id) {
-      this.logger.warn('Payout webhook missing object.id');
-      return;
-    }
-
-    const errorDescription = object.error?.description;
-    await this.paymentsService.handlePayoutWebhook(object.id, object.status, errorDescription);
-  }
-
-  private extractClientIp(req: Request): string {
-    // Trust X-Forwarded-For set by a reverse proxy (take the first, leftmost IP)
-    const forwarded = req.headers['x-forwarded-for'];
-    if (forwarded) {
-      const first = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0];
-      return first.trim();
-    }
-    const realIp = req.headers['x-real-ip'];
-    if (realIp) {
-      return Array.isArray(realIp) ? realIp[0] : realIp;
-    }
-    return req.socket?.remoteAddress ?? req.ip ?? '';
-  }
-
   private isPaymentMethodWebhook(webhookData: YookassaWebhookDto): boolean {
-    const metaType = webhookData.object?.metadata?.type;
+    const metaType = webhookData.object.metadata?.type;
     return (
-      webhookData.object?.payment_method?.saved === true &&
+      webhookData.object.payment_method?.saved === true &&
       metaType !== 'session_payment' &&
       metaType !== 'event_payment'
     );
   }
 
   private isSessionPaymentWebhook(webhookData: YookassaWebhookDto): boolean {
-    const metaType = webhookData.object?.metadata?.type;
+    const metaType = webhookData.object.metadata?.type;
+    // Handles both session_payment (old name kept for backwards compat) and event_payment.
     return metaType === 'session_payment' || metaType === 'event_payment';
   }
 }

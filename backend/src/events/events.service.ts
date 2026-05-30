@@ -1520,30 +1520,6 @@ export class EventsService {
 
     await this.userEventRepository.save(userEvent);
 
-    // --- Refund logic ---
-    const REFUND_WINDOW_HOURS = 24;
-    const hoursUntilEvent = event.datetimeStart
-      ? (event.datetimeStart.getTime() - now.getTime()) / 3_600_000
-      : Infinity;
-
-    const wasAlreadyPaid = previousPaymentStatus === PaymentStatus.PAID;
-    const isRefundable = wasAlreadyPaid && hoursUntilEvent >= REFUND_WINDOW_HOURS;
-    const isWithin24h = wasAlreadyPaid && hoursUntilEvent < REFUND_WINDOW_HOURS;
-
-    let refunded = false;
-    let refundId: string | undefined;
-
-    if (isRefundable) {
-      try {
-        const result = await this.paymentsService.refundEventPayment(userEvent.id);
-        refunded = true;
-        refundId = result.refundId;
-      } catch (refundError) {
-        // Refund failure must not block the cancellation — log and continue
-        this.logger.error(`Refund failed for userEvent ${userEvent.id}`, refundError);
-      }
-    }
-
     // Run notifications in background — do not block the response
     const capturedPreviousStatus = previousStatus;
     const capturedPreviousPaymentStatus = previousPaymentStatus;
@@ -1555,8 +1531,7 @@ export class EventsService {
             event,
             capturedUserEventUser,
             capturedPreviousStatus,
-            capturedPreviousPaymentStatus,
-            refunded
+            capturedPreviousPaymentStatus
           );
         } catch (error) {
           this.logger.error('Failed to send cancellation notifications', error);
@@ -1574,15 +1549,8 @@ export class EventsService {
 
     return {
       success: true,
-      message: refunded
-        ? 'Запись отменена. Средства будут возвращены в течение 1–3 рабочих дней.'
-        : 'Запись на событие успешно отменена',
+      message: 'Запись на событие успешно отменена',
       cancelled_at: userEvent.updatedAt.toISOString(),
-      refunded,
-      ...(refundId && { refund_id: refundId }),
-      ...(isWithin24h && {
-        no_refund_reason: 'Отмена менее чем за 24 часа до события — возврат средств не производится.',
-      }),
     };
   }
 
@@ -1590,13 +1558,12 @@ export class EventsService {
     event: Event,
     student: User,
     previousStatus: ParticipationStatus,
-    previousPaymentStatus: PaymentStatus,
-    refunded = false
+    previousPaymentStatus: PaymentStatus
   ): Promise<void> {
     try {
       await this.sendCancellationNotificationToMentor(event, student, previousStatus);
 
-      await this.sendCancellationConfirmationToStudent(event, student, previousPaymentStatus, refunded);
+      await this.sendCancellationConfirmationToStudent(event, student, previousPaymentStatus);
 
       this.logger.log(`Cancellation notifications sent for event ${event.id}`);
     } catch (error) {
@@ -1651,8 +1618,7 @@ export class EventsService {
   private async sendCancellationConfirmationToStudent(
     event: Event,
     student: User,
-    previousPaymentStatus: PaymentStatus,
-    refunded = false
+    previousPaymentStatus: PaymentStatus
   ): Promise<void> {
     try {
       if (!student.email) {
@@ -1680,7 +1646,7 @@ export class EventsService {
         mentorName,
         formattedDate,
         event.price,
-        refunded
+        previousPaymentStatus === PaymentStatus.PAID
       );
 
       this.logger.log(`Cancellation confirmation sent to student ${student.email}`);

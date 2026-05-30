@@ -11,36 +11,9 @@ import {
   YookassaConfig,
   YookassaPayment,
   YookassaPaymentResponse,
-  YookassaRefundResponse,
   YookassaSessionPaymentResponse,
   YookassaWebhook,
 } from '../utils/types';
-
-// Published YooKassa notification IP ranges (https://yookassa.ru/developers/using-api/webhooks)
-const YOOKASSA_IP_RANGES = [
-  '185.71.76.0/27',
-  '185.71.77.0/27',
-  '77.75.153.0/25',
-  '77.75.156.11/32',
-  '77.75.156.35/32',
-  '77.75.154.128/25',
-];
-
-function ipToUint32(ip: string): number {
-  return ip.split('.').reduce((acc, octet) => ((acc << 8) | parseInt(octet, 10)) >>> 0, 0);
-}
-
-function isIpInCidr(ip: string, cidr: string): boolean {
-  if (!ip || !ip.match(/^\d+\.\d+\.\d+\.\d+$/)) return false;
-  const [range, bits = '32'] = cidr.split('/');
-  const maskBits = parseInt(bits, 10);
-  const mask = maskBits === 0 ? 0 : (~0 << (32 - maskBits)) >>> 0;
-  return (ipToUint32(ip) & mask) === (ipToUint32(range) & mask);
-}
-
-export function isYookassaIp(ip: string): boolean {
-  return YOOKASSA_IP_RANGES.some((cidr) => isIpInCidr(ip, cidr));
-}
 
 @Injectable()
 export class YookassaService {
@@ -155,27 +128,21 @@ export class YookassaService {
     }
   }
 
-  /**
-   * Verifies that the webhook request originated from YooKassa by checking the
-   * sender's IP against YooKassa's published notification IP ranges.
-   * In development/test mode the check is bypassed so local testing works.
-   */
-  verifyWebhookIp(clientIp: string): boolean {
-    const isDev =
-      process.env.NODE_ENV === 'development' ||
-      process.env.NODE_ENV === 'test' ||
-      this.config.secretKey?.startsWith('test_');
+  verifyWebhookSignature(body: string, signature: string): boolean {
+    // Минимальная проверка - есть ли вообще подпись
+    if (!signature) {
+      console.error('No signature provided');
+      return false;
+    }
 
-    if (isDev) {
-      this.logger.debug(`[dev] Webhook IP check skipped for ${clientIp}`);
+    // Для тестового режима пропускаем проверку
+    if (this.config.secretKey?.includes('test') || process.env.NODE_ENV === 'development') {
+      console.log('Development mode - signature verification skipped');
       return true;
     }
 
-    const allowed = isYookassaIp(clientIp);
-    if (!allowed) {
-      this.logger.warn(`Webhook from unexpected IP: ${clientIp}`);
-    }
-    return allowed;
+    console.log('Production mode - but signature verification not implemented yet');
+    return true; // TODO: Реализовать для продакшена
   }
 
   handlePaymentMethodWebhook(webhookData: YookassaWebhook): {
@@ -339,54 +306,6 @@ export class YookassaService {
     } catch (error) {
       this.logger.error('Failed to create YooKassa payout', error);
       throw error;
-    }
-  }
-
-  async createRefund(params: {
-    yookassaPaymentId: string;
-    amount: number;
-    description: string;
-  }): Promise<YookassaRefundResponse> {
-    const idempotenceKey = uuidv4();
-
-    const payload = {
-      payment_id: params.yookassaPaymentId,
-      amount: {
-        value: params.amount.toFixed(2),
-        currency: 'RUB',
-      },
-      description: params.description,
-    };
-
-    this.logger.log(
-      `Creating refund: paymentId=${params.yookassaPaymentId}, amount=${params.amount}`
-    );
-
-    try {
-      const response = await fetch(`${this.config.baseUrl}/refunds`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Idempotence-Key': idempotenceKey,
-          Authorization: `Basic ${Buffer.from(`${this.config.shopId}:${this.config.secretKey}`).toString('base64')}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        this.logger.error(`YooKassa refund error: ${response.status} - ${errorText}`);
-        throw new Error(`YooKassa refund error: ${response.status} - ${errorText}`);
-      }
-
-      const data = (await response.json()) as YookassaRefundResponse;
-      this.logger.log(`Refund created: ${data.id}, status: ${data.status}`);
-      return data;
-    } catch (error) {
-      this.logger.error('Failed to create YooKassa refund', error);
-      throw new InternalServerErrorException(
-        `Ошибка возврата платежа: ${(error as Error).message}`
-      );
     }
   }
 

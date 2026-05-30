@@ -19,7 +19,6 @@ import { TransactionsService } from './transactions.service';
 import { TransactionStatus, TransactionType } from './entities/transaction.entity';
 import { UserEvent, ParticipationStatus, PaymentStatus as UserEventPaymentStatus } from 'src/events/entities/user-event.entity';
 import { Event } from 'src/events/entities/event.entity';
-import { TutorPayout, PayoutStatus } from 'src/payouts/entities/tutor-payout.entity';
 
 /** Строка истории платежей в профиле (сессии + мероприятия). */
 export type StudentPaymentHistoryItem = {
@@ -56,9 +55,7 @@ export class PaymentsService {
     @InjectRepository(UserEvent)
     private userEventRepository: Repository<UserEvent>,
     @InjectRepository(Event)
-    private eventRepository: Repository<Event>,
-    @InjectRepository(TutorPayout)
-    private tutorPayoutRepository: Repository<TutorPayout>
+    private eventRepository: Repository<Event>
   ) {}
 
   async createSessionPayment(
@@ -957,108 +954,5 @@ export class PaymentsService {
     }
     this.logger.warn(`Payment method ${pm.id} is PENDING and could not be healed — using redirect payment`);
     return null;
-  }
-
-  /**
-   * Refunds a paid event registration via YooKassa.
-   * Called only when the cancellation is more than 24 hours before the event.
-   */
-  async refundEventPayment(userEventId: string): Promise<{ refundId: string }> {
-    const userEvent = await this.userEventRepository.findOne({
-      where: { id: userEventId },
-      relations: ['event'],
-    });
-
-    if (!userEvent) throw new NotFoundException('Регистрация не найдена');
-    if (userEvent.paymentStatus !== UserEventPaymentStatus.PAID) {
-      throw new BadRequestException('Платёж не был совершён, возврат невозможен');
-    }
-    if (!userEvent.yookassaPaymentId) {
-      throw new BadRequestException('Идентификатор платежа ЮКассы не найден');
-    }
-
-    const event = userEvent.event;
-    const amount = Number(event?.price ?? 0);
-
-    const refund = await this.yookassaService.createRefund({
-      yookassaPaymentId: userEvent.yookassaPaymentId,
-      amount,
-      description: `Возврат за мероприятие: ${event?.title ?? userEventId}`,
-    });
-
-    await this.userEventRepository.update(userEventId, {
-      paymentStatus: UserEventPaymentStatus.REFUNDED,
-      yookassaRefundId: refund.id,
-      refundedAt: new Date(),
-    });
-
-    this.logger.log(`Event refund ${refund.id} created for userEvent ${userEventId}`);
-    return { refundId: refund.id };
-  }
-
-  /**
-   * Refunds a paid session via YooKassa.
-   * Called only when the cancellation is more than 24 hours before the session.
-   */
-  async refundSessionPayment(sessionId: string): Promise<{ refundId: string } | null> {
-    const payment = await this.paymentRepository.findOne({
-      where: { sessionId, status: PaymentStatus.SUCCESS },
-      relations: ['session'],
-    });
-
-    if (!payment) {
-      this.logger.log(`No successful payment found for session ${sessionId} — no refund needed`);
-      return null;
-    }
-
-    if (!payment.providerPaymentId) {
-      this.logger.warn(`Payment ${payment.id} has no providerPaymentId — cannot refund`);
-      return null;
-    }
-
-    const refund = await this.yookassaService.createRefund({
-      yookassaPaymentId: payment.providerPaymentId,
-      amount: Number(payment.amount),
-      description: `Возврат за отменённую сессию ${sessionId}`,
-    });
-
-    await this.paymentRepository.update(payment.id, {
-      status: PaymentStatus.REFUNDED,
-      yookassaRefundId: refund.id,
-      refundedAt: new Date(),
-    });
-
-    this.logger.log(`Session refund ${refund.id} created for session ${sessionId}`);
-    return { refundId: refund.id };
-  }
-
-  /**
-   * Handles payout.succeeded / payout.canceled / payout.failed webhooks from YooKassa.
-   */
-  async handlePayoutWebhook(yookassaPayoutId: string, status: string, errorDescription?: string): Promise<void> {
-    const payout = await this.tutorPayoutRepository.findOne({
-      where: { yookassaPayoutId },
-    });
-
-    if (!payout) {
-      this.logger.warn(`Payout webhook received for unknown yookassaPayoutId: ${yookassaPayoutId}`);
-      return;
-    }
-
-    if (status === 'succeeded') {
-      await this.tutorPayoutRepository.update(payout.id, {
-        status: PayoutStatus.SUCCEEDED,
-        processedAt: new Date(),
-      });
-      this.logger.log(`Payout ${payout.id} marked as SUCCEEDED via webhook`);
-    } else if (status === 'canceled' || status === 'failed') {
-      await this.tutorPayoutRepository.update(payout.id, {
-        status: PayoutStatus.FAILED,
-        errorMessage: errorDescription ?? `Canceled by YooKassa (status: ${status})`,
-      });
-      this.logger.log(`Payout ${payout.id} marked as FAILED via webhook`);
-    } else {
-      this.logger.warn(`Unhandled payout webhook status: ${status} for payout ${payout.id}`);
-    }
   }
 }
