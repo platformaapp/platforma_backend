@@ -85,6 +85,16 @@ export class EventsController {
     return await this.eventsService.cancelRegistration(id, req.user.sub);
   }
 
+  @Delete(':id/registration')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async cancelRegistrationDelete(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest
+  ): Promise<CancelRegistrationResponseDto> {
+    return await this.eventsService.cancelRegistration(id, req.user.sub);
+  }
+
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
   async update(
