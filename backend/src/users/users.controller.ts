@@ -1,6 +1,7 @@
-import { Controller, Get, HttpStatus } from '@nestjs/common';
+import { Controller, Get, HttpStatus, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { AdminGuard } from '../auth/guards/admin.guard';
 
 @ApiTags('Users')
 @Controller('users')
@@ -8,7 +9,8 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get all users (public)' })
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Get all users (admin only)' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Successfully retrieved list of users' })
   findAll() {
     return this.usersService.findAll();
