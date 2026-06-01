@@ -47,8 +47,8 @@ export class UsersService {
         'user.telegram',
         'user.roles',
       ])
-      .where('user.is_blocked = false')
-      .orderBy('user.created_at', 'DESC')
+      .where('user.isBlocked = :isBlocked', { isBlocked: false })
+      .orderBy('user.createdAt', 'DESC')
       .getMany();
   }
 }
