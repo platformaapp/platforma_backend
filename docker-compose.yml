@@ -30,6 +30,7 @@ services:
       YOOKASSA_BASE_URL: ${YOOKASSA_BASE_URL:-https://api.yookassa.ru/v3}
       YOOKASSA_WEBHOOK_URL: ${YOOKASSA_WEBHOOK_URL}
       MY_OWN_CONF_API_KEY: ${MY_OWN_CONF_API_KEY}
+      JITSI_BASE_URL: ${JITSI_BASE_URL:-https://jitsi.platformaapp.ru}
     restart: unless-stopped
 
 # Uploads are stored on the host at /var/platforma/uploads (bind mount).

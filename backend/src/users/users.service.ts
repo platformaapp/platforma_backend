@@ -30,10 +30,25 @@ export class UsersService {
   }
 
   async findTutors(): Promise<Partial<User>[]> {
-    const users = await this.usersRepository.find({
-      select: ['id', 'fullName', 'avatarUrl', 'bio', 'shortBio', 'telegram', 'roles'],
-      order: { createdAt: 'DESC' },
-    });
-    return users.filter((u) => u.roles?.includes('tutor'));
+    return await this.usersRepository
+      .createQueryBuilder('user')
+      .innerJoin(
+        'tutor_applications',
+        'app',
+        'app.user_id = user.id AND app.status = :status',
+        { status: 'approved' },
+      )
+      .select([
+        'user.id',
+        'user.fullName',
+        'user.avatarUrl',
+        'user.bio',
+        'user.shortBio',
+        'user.telegram',
+        'user.roles',
+      ])
+      .where('user.is_blocked = false')
+      .orderBy('user.created_at', 'DESC')
+      .getMany();
   }
 }
