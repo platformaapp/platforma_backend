@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -98,5 +97,80 @@ export class PaymentsMethodAliasController {
   @ApiOperation({ summary: 'Bind card (alias)' })
   async bind(@Req() req: AuthenticatedRequest, @Body() body: { provider?: string }) {
     return this.paymentMethodsService.attachPaymentMethod(req.user.sub, body.provider as never);
+  }
+
+  @Get('binding-status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Poll card binding status (alias)' })
+  async getBindingStatus(@Query('tx') tx: string) {
+    const result = await this.paymentMethodsService.getBindingStatus(tx);
+    return { success: true, ...result };
+  }
+}
+
+@ApiTags('Payment Methods')
+@UseGuards(JwtAuthGuard)
+@Controller('payment-methods')
+export class PaymentMethodsAliasV2Controller {
+  constructor(private readonly paymentMethodsService: PaymentMethodsService) {}
+
+  @Post('bind')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Bind card' })
+  async bind(@Req() req: AuthenticatedRequest, @Body() body: { provider?: string }) {
+    const result = await this.paymentMethodsService.attachPaymentMethod(req.user.sub, body.provider as never);
+    return {
+      success: true,
+      data: {
+        confirmationUrl: result.confirmationUrl,
+        attachmentId: result.transactionId,
+        yookassaPaymentId: result.yookassaPaymentId,
+      },
+    };
+  }
+
+  @Get('binding-status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Poll card binding status' })
+  async getBindingStatus(@Query('tx') tx: string) {
+    const result = await this.paymentMethodsService.getBindingStatus(tx);
+    return { success: true, ...result };
+  }
+
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get all payment methods' })
+  async getPaymentMethods(@Req() req: AuthenticatedRequest) {
+    const methods = await this.paymentMethodsService.findByUserId(req.user.sub);
+    const def = await this.paymentMethodsService.getDefaultPaymentMethod(req.user.sub);
+    return {
+      success: true,
+      data: {
+        paymentMethods: methods.map((pm) => ({
+          id: pm.id,
+          cardMasked: pm.cardMasked,
+          cardType: pm.cardType,
+          expiryMonth: pm.expiryMonth,
+          expiryYear: pm.expiryYear,
+          isDefault: def?.id === pm.id,
+          createdAt: pm.createdAt,
+        })),
+        total: methods.length,
+      },
+    };
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete payment method' })
+  async deleteById(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.paymentMethodsService.deletePaymentMethod(req.user.sub, id);
+  }
+
+  @Patch(':id/default')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Set default payment method' })
+  async setDefault(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.paymentMethodsService.setDefaultPaymentMethod(req.user.sub, id);
   }
 }
