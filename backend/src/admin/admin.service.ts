@@ -16,6 +16,8 @@ import { PlatformSettings } from './entities/platform-settings.entity';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { GetApplicationsDto } from './dto/get-applications.dto';
 import { JWT_SECRET } from 'src/utils/constants';
+import { EmailService } from 'src/notifications/email.service';
+import { AdminModerateEventDto } from './dto/moderate-event.dto';
 
 const COMMISSION_KEY = 'commission_rate';
 
@@ -33,7 +35,8 @@ export class AdminService {
     @InjectRepository(PlatformSettings)
     private settingsRepository: Repository<PlatformSettings>,
     private jwtService: JwtService,
-    private configService: ConfigService
+    private configService: ConfigService,
+    private emailService: EmailService
   ) {}
 
   async login(dto: AdminLoginDto): Promise<{ token: string }> {
@@ -307,5 +310,38 @@ export class AdminService {
     if (!event) throw new NotFoundException('Событие не найдено');
     event.isBlocked = false;
     await this.eventsRepository.save(event);
+  }
+
+  async moderateEvent(eventId: string, dto: AdminModerateEventDto): Promise<Event> {
+    const event = await this.eventsRepository.findOne({
+      where: { id: eventId },
+      relations: ['mentor'],
+    });
+    if (!event) throw new NotFoundException('Событие не найдено');
+
+    const changes = {
+      coverChanged: dto.coverUrl !== undefined,
+      titleChanged: dto.title !== undefined,
+      descriptionChanged: dto.description !== undefined,
+    };
+
+    if (dto.coverUrl !== undefined) event.coverUrl = dto.coverUrl;
+    if (dto.title !== undefined) event.title = dto.title;
+    if (dto.description !== undefined) event.description = dto.description;
+
+    const saved = await this.eventsRepository.save(event);
+
+    if (event.mentor?.email && Object.values(changes).some(Boolean)) {
+      await this.emailService.sendEventModerationEmail({
+        email: event.mentor.email,
+        tutorName: event.mentor.fullName ?? '',
+        eventTitle: saved.title,
+        changes,
+        newCoverUrl: dto.coverUrl,
+        comment: dto.comment,
+      });
+    }
+
+    return saved;
   }
 }

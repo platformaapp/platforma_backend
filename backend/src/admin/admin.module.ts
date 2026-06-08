@@ -16,6 +16,7 @@ import { Event } from 'src/events/entities/event.entity';
 import { AdminJwtStrategy } from './strategies/admin-jwt.strategy';
 import { AdminJwtGuard } from './guards/admin-jwt.guard';
 import { JWT_SECRET } from 'src/utils/constants';
+import { EmailService } from 'src/notifications/email.service';
 
 @Module({
   imports: [
@@ -36,7 +37,7 @@ import { JWT_SECRET } from 'src/utils/constants';
     AdminUsersController,
     AdminEventsController,
   ],
-  providers: [AdminService, AdminJwtStrategy, AdminJwtGuard],
+  providers: [AdminService, AdminJwtStrategy, AdminJwtGuard, EmailService],
   exports: [AdminService],
 })
 export class AdminModule {}

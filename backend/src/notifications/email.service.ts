@@ -860,4 +860,80 @@ export class EmailService {
       console.error('Error sending tutor application notification:', err instanceof Error ? err.message : err);
     }
   }
+
+  async sendEventModerationEmail(params: {
+    email: string;
+    tutorName: string;
+    eventTitle: string;
+    changes: { coverChanged: boolean; titleChanged: boolean; descriptionChanged: boolean };
+    newCoverUrl?: string;
+    comment?: string;
+  }): Promise<void> {
+    const { email, tutorName, eventTitle, changes, newCoverUrl, comment } = params;
+
+    const changesList: string[] = [];
+    if (changes.coverChanged) changesList.push('обложка события');
+    if (changes.titleChanged) changesList.push('название события');
+    if (changes.descriptionChanged) changesList.push('описание события');
+    const changesText = changesList.join(', ');
+
+    const coverBlock = changes.coverChanged && newCoverUrl
+      ? `<div style="margin:20px 0;">
+           <p style="color:#555;margin-bottom:8px;">Рекомендуемая обложка взамен ранее прикреплённой:</p>
+           <img src="${newCoverUrl}" alt="Новая обложка" style="max-width:100%;border-radius:8px;border:1px solid #e0e0e0;" />
+         </div>`
+      : '';
+
+    const commentBlock = comment
+      ? `<div style="background:#f0f7ff;border-left:4px solid #007bff;padding:15px;margin:20px 0;border-radius:4px;">
+           <p style="color:#333;margin:0;"><strong>Комментарий от команды платформы:</strong></p>
+           <p style="color:#555;margin:8px 0 0;">${comment}</p>
+         </div>`
+      : '';
+
+    const mailOptions = {
+      from: '"Platforma" <platformaapp@platformaapp.ru>',
+      to: email,
+      subject: `Небольшие правки в вашем событии «${eventTitle}»`,
+      html: `
+        <div style="max-width:600px;margin:0 auto;font-family:Arial,sans-serif;background:#fff;">
+          <div style="background:#007bff;padding:24px;text-align:center;">
+            <h1 style="color:#fff;margin:0;font-size:22px;">Обновление вашего события</h1>
+          </div>
+          <div style="padding:30px;">
+            <h2 style="color:#333;margin-top:0;">Привет, ${tutorName || 'наставник'}!</h2>
+            <p style="color:#555;line-height:1.7;">
+              Мы немного подправили ваше событие <strong>«${eventTitle}»</strong> (${changesText}),
+              чтобы оно лучше соответствовало общей стилистике платформы и помогло вам привлечь больше участников.
+            </p>
+            ${coverBlock}
+            ${commentBlock}
+            <div style="background:#f8f9fa;border-radius:8px;padding:20px;margin:20px 0;">
+              <p style="color:#333;margin:0 0 10px;font-weight:bold;">Не согласны с нашими правками?</p>
+              <p style="color:#555;margin:0;line-height:1.7;">
+                Напишите нам в Telegram —
+                <a href="https://t.me/vladislav_yakunin" style="color:#007bff;text-decoration:none;font-weight:bold;">@vladislav_yakunin</a>.
+                Давайте вместе доработаем событие, чтобы и вам, и нам было хорошо и приятно. 🤝
+              </p>
+            </div>
+            <p style="color:#555;line-height:1.7;">
+              Вы в любой момент можете зайти в личный кабинет и изменить обложку или текст самостоятельно.
+            </p>
+          </div>
+          <div style="background:#f8f9fa;padding:15px;text-align:center;">
+            <p style="color:#999;font-size:12px;margin:0;">
+              © ${new Date().getFullYear()} Platforma. Все права защищены.
+            </p>
+          </div>
+        </div>
+      `,
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(`Event moderation email sent to ${email} for event "${eventTitle}"`);
+    } catch (err) {
+      console.error('Error sending event moderation email:', err instanceof Error ? err.message : err);
+    }
+  }
 }

@@ -1,10 +1,12 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -12,6 +14,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { AdminJwtGuard } from './guards/admin-jwt.guard';
+import { AdminModerateEventDto } from './dto/moderate-event.dto';
 
 @ApiTags('Admin Events')
 @ApiBearerAuth('JWT-auth')
@@ -53,5 +56,16 @@ export class AdminEventsController {
   async unblockEvent(@Param('id', ParseUUIDPipe) id: string) {
     await this.adminService.unblockEvent(id);
     return { message: 'Событие разблокировано' };
+  }
+
+  @Patch(':id/moderate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Edit event cover/title/description and notify tutor by email' })
+  async moderateEvent(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdminModerateEventDto
+  ) {
+    const event = await this.adminService.moderateEvent(id, dto);
+    return { success: true, message: 'Событие обновлено, наставник уведомлён', eventId: event.id };
   }
 }
