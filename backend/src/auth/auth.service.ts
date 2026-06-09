@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   UnauthorizedException,
@@ -41,6 +42,12 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponse> {
+    const emailDomain = registerDto.email.split('@')[1]?.toLowerCase();
+    const blockedDomains = ['gmail.com', 'googlemail.com'];
+    if (blockedDomains.includes(emailDomain)) {
+      throw new BadRequestException('Регистрация с почтой Gmail недоступна. Пожалуйста, используйте другой email.');
+    }
+
     const existingUser = await this.usersRepository.findOne({
       where: { email: registerDto.email },
     });
