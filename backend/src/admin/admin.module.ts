@@ -22,6 +22,7 @@ import { EmailService } from 'src/notifications/email.service';
   imports: [
     TypeOrmModule.forFeature([TutorApplication, PlatformSettings, User, Event]),
     PassportModule,
+    ConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -37,7 +38,7 @@ import { EmailService } from 'src/notifications/email.service';
     AdminUsersController,
     AdminEventsController,
   ],
-  providers: [AdminService, AdminJwtStrategy, AdminJwtGuard, EmailService],
+  providers: [AdminService, AdminJwtStrategy, AdminJwtGuard, EmailService, ConfigService],
   exports: [AdminService],
 })
 export class AdminModule {}

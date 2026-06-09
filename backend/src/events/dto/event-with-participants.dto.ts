@@ -43,6 +43,7 @@ export class EventWithParticipantsDto {
   status: string;
   cover_url: string | null;
   recording_url: string | null;
+  admin_moderation_comment: string | null;
   video_room?: {
     id: string;
     url: string;

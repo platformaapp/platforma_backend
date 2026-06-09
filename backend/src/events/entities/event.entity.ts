@@ -113,6 +113,9 @@ export class Event {
   @Column({ type: 'text', name: 'cover_url', nullable: true })
   coverUrl: string | null;
 
+  @Column({ type: 'text', name: 'admin_moderation_comment', nullable: true })
+  adminModerationComment: string | null;
+
   @Column({ type: 'boolean', name: 'is_blocked', default: false })
   isBlocked: boolean;
 

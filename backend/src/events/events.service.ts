@@ -1454,6 +1454,7 @@ export class EventsService {
       status: event.status,
       cover_url: event.coverUrl,
       recording_url: event.recordingUrl,
+      admin_moderation_comment: event.adminModerationComment ?? null,
       ...(event.videoRoom && {
         video_room: {
           id: event.videoRoom.id,
