@@ -903,8 +903,7 @@ export class EmailService {
           <div style="padding:30px;">
             <h2 style="color:#333;margin-top:0;">Привет, ${tutorName || 'наставник'}!</h2>
             <p style="color:#555;line-height:1.7;">
-              Мы немного подправили ваше событие <strong>«${eventTitle}»</strong> (${changesText}),
-              чтобы оно лучше соответствовало общей стилистике платформы и помогло вам привлечь больше участников.
+              В вашем событии <strong>«${eventTitle}»</strong> были внесены изменения (${changesText}).
             </p>
             ${coverBlock}
             ${commentBlock}

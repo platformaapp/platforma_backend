@@ -329,10 +329,7 @@ export class AdminService {
     if (dto.title !== undefined) event.title = dto.title;
     if (dto.description !== undefined) event.description = dto.description;
 
-    const disclaimer = 'Мы немного подправили ваше событие, чтобы оно лучше соответствовало общей стилистике платформы и помогло вам привлечь больше участников. Если вы не согласны с нашим предложением — свяжитесь с нами в Telegram: @vladislav_yakunin.';
-    event.adminModerationComment = dto.comment
-      ? `${disclaimer}\n\nКомментарий от команды: ${dto.comment}`
-      : disclaimer;
+    event.adminModerationComment = dto.comment ?? null;
 
     const saved = await this.eventsRepository.save(event);
 
