@@ -145,12 +145,14 @@ export class PaymentsService {
     this.logger.log(`Payment record created: ${savedPayment.id}, transaction: ${transaction.id}`);
 
     try {
+      const sessionPayer = await this.userRepository.findOne({ where: { id: userId } });
       const yookassaPayment = await this.yookassaService.createSessionPayment({
         amount: session.price,
         paymentMethodToken: paymentMethod?.cardToken,
         description: `Оплата сессии с репетитором ${session.tutor.fullName}`,
         paymentId: savedPayment.id,
         returnUrl: `${this.configService.get<string>('FRONTEND_URL')}/payments/callback`,
+        customerEmail: sessionPayer?.email,
       });
 
       await this.transactionsService.updateTransactionYookassaId(
@@ -778,6 +780,7 @@ export class PaymentsService {
       this.logger.log(
         `Creating YooKassa payment for event ${eventId}: savedCard=${savedCardToken ? `${savedCardToken.substring(0, 8)}...` : 'none (redirect)'}`
       );
+      const eventPayer = await this.userRepository.findOne({ where: { id: userId } });
       yookassaPayment = await this.yookassaService.createSessionPayment({
         amount: Number(event.price),
         paymentMethodToken: savedCardToken,
@@ -785,6 +788,7 @@ export class PaymentsService {
         paymentId: userEvent.id,
         returnUrl,
         metadataType: 'event_payment',
+        customerEmail: eventPayer?.email,
       });
       this.logger.log(
         `YooKassa payment created for event ${eventId}: id=${yookassaPayment.id}, status=${yookassaPayment.status}, has_confirmation_url=${!!yookassaPayment.confirmation_url}`
@@ -801,6 +805,7 @@ export class PaymentsService {
         const recovered = paymentMethod ? await this.tryRecoverCardToken(paymentMethod) : false;
         if (recovered) {
           try {
+            const eventPayerRetry = await this.userRepository.findOne({ where: { id: userId } });
             yookassaPayment = await this.yookassaService.createSessionPayment({
               amount: Number(event.price),
               paymentMethodToken: paymentMethod!.cardToken,
@@ -808,6 +813,7 @@ export class PaymentsService {
               paymentId: userEvent.id,
               returnUrl,
               metadataType: 'event_payment',
+              customerEmail: eventPayerRetry?.email,
             });
             this.logger.log(`YooKassa payment created after cardToken recovery: id=${yookassaPayment.id}, status=${yookassaPayment.status}`);
           } catch (retryError) {

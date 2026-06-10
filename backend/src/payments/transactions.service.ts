@@ -19,7 +19,8 @@ export class TransactionsService {
 
   async createBindTransaction(
     userId: string,
-    paymentMethodId: string
+    paymentMethodId: string,
+    customerEmail?: string
   ): Promise<{
     transaction: Transaction;
     redirectUrl: string;
@@ -43,7 +44,7 @@ export class TransactionsService {
 
       const callbackUrl = `${frontendUrl}/payment-methods/callback`;
       const { confirmationUrl, paymentId } =
-        await this.yookassaService.createPaymentMethodAttachment(callbackUrl);
+        await this.yookassaService.createPaymentMethodAttachment(callbackUrl, customerEmail);
 
       transaction.yookassaPaymentId = paymentId;
       await this.transactionRepository.save(transaction);

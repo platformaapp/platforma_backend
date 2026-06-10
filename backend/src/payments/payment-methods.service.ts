@@ -71,7 +71,7 @@ export class PaymentMethodsService {
     const savedPaymentMethod = await this.paymentMethodRepository.save(paymentMethod);
 
     const { transaction, redirectUrl, yookassaPaymentId } =
-      await this.transactionsService.createBindTransaction(userId, savedPaymentMethod.id);
+      await this.transactionsService.createBindTransaction(userId, savedPaymentMethod.id, user.email);
 
     savedPaymentMethod.cardToken = yookassaPaymentId;
     savedPaymentMethod.yookassaPaymentId = yookassaPaymentId;

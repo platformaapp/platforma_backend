@@ -112,11 +112,12 @@ export class YookassaService {
   }
 
   async createPaymentMethodAttachment(
-    returnUrl: string
+    returnUrl: string,
+    customerEmail?: string
   ): Promise<{ confirmationUrl: string; paymentId: string }> {
     const idempotenceKey = uuidv4();
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       amount: {
         value: '1.00',
         currency: 'RUB',
@@ -128,6 +129,19 @@ export class YookassaService {
       },
       description: 'Привязка банковской карты',
       save_payment_method: true,
+      ...(customerEmail && {
+        receipt: {
+          customer: { email: customerEmail },
+          items: [{
+            description: 'Привязка банковской карты',
+            quantity: '1.00',
+            amount: { value: '1.00', currency: 'RUB' },
+            vat_code: 1,
+            payment_subject: 'service',
+            payment_mode: 'full_payment',
+          }],
+        },
+      }),
     };
 
     this.logger.debug(
@@ -252,6 +266,19 @@ export class YookassaService {
         payment_id: params.paymentId,
         type: params.metadataType ?? 'session_payment',
       },
+      ...(params.customerEmail && {
+        receipt: {
+          customer: { email: params.customerEmail },
+          items: [{
+            description: params.description.substring(0, 128),
+            quantity: '1.00',
+            amount: { value: amount.toFixed(2), currency: 'RUB' },
+            vat_code: 1,
+            payment_subject: 'service',
+            payment_mode: 'full_payment',
+          }],
+        },
+      }),
     };
 
     if (params.paymentMethodToken) {
