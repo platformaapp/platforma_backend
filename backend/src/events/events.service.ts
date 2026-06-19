@@ -450,6 +450,12 @@ export class EventsService {
         } catch (error) {
           this.logger.error('Failed to notify mentor about registration', error);
         }
+
+        try {
+          await this.notifyStudentAboutRegistration(event, student, event.price <= 0);
+        } catch (error) {
+          this.logger.error('Failed to send registration confirmation to student', error);
+        }
       })();
     });
 
@@ -807,6 +813,26 @@ export class EventsService {
       console.log(`Time change notifications sent to ${userEvents.length} participants`);
     } catch (error) {
       console.error('Failed to send time change notifications:', error);
+    }
+  }
+
+  private async notifyStudentAboutRegistration(event: Event, student: User, isPaid: boolean): Promise<void> {
+    try {
+      const mentor = await this.usersRepository.findOne({ where: { id: event.mentorId } });
+      const mentorName = mentor?.fullName || mentor?.email?.split('@')[0] || 'Наставник';
+
+      await this.emailService.sendEventRegistrationConfirmationEmail({
+        email: student.email,
+        studentName: student.fullName || student.email.split('@')[0],
+        eventTitle: event.title,
+        mentorName,
+        eventDateTime: event.datetimeStart.toISOString(),
+        eventPrice: event.price,
+        eventId: event.id,
+        isPaid,
+      });
+    } catch (error) {
+      this.logger.error('Failed to send registration confirmation to student', error);
     }
   }
 

@@ -935,4 +935,104 @@ export class EmailService {
       console.error('Error sending event moderation email:', err instanceof Error ? err.message : err);
     }
   }
+
+  async sendEventRegistrationConfirmationEmail(params: {
+    email: string;
+    studentName: string;
+    eventTitle: string;
+    mentorName: string;
+    eventDateTime: string;
+    eventPrice: number;
+    eventId: string;
+    isPaid: boolean;
+  }): Promise<void> {
+    const { email, studentName, eventTitle, mentorName, eventDateTime, eventPrice, eventId, isPaid } = params;
+
+    const formattedDate = new Date(eventDateTime).toLocaleString('ru-RU', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Moscow',
+    });
+
+    const priceBlock = eventPrice > 0
+      ? `<div class="detail-item">
+           <span class="label">Стоимость:</span>
+           <span class="value">${eventPrice} ₽${isPaid ? ' (оплачено)' : ' (ожидает оплаты)'}</span>
+         </div>`
+      : `<div class="detail-item">
+           <span class="label">Стоимость:</span>
+           <span class="value">Бесплатно</span>
+         </div>`;
+
+    const mailOptions = {
+      from: '"Platforma" <platformaapp@platformaapp.ru>',
+      to: email,
+      subject: `Вы записаны на событие «${eventTitle}»`,
+      html: `
+        <!DOCTYPE html>
+        <html lang="ru">
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .event-card { background: white; padding: 25px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745; }
+            .detail-item { margin: 12px 0; }
+            .label { font-weight: bold; color: #555; }
+            .value { color: #333; }
+            .cta-button { display: inline-block; background: #28a745; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0; }
+            .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 13px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>Вы записаны!</h1>
+              <p>Регистрация на событие подтверждена</p>
+            </div>
+            <div class="content">
+              <p>Здравствуйте, <strong>${studentName}</strong>!</p>
+              <p>Вы успешно зарегистрировались на событие. Ждём вас!</p>
+
+              <div class="event-card">
+                <h2 style="margin-top:0;color:#28a745;">${eventTitle}</h2>
+                <div class="detail-item">
+                  <span class="label">Наставник:</span>
+                  <span class="value">${mentorName}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">Дата и время:</span>
+                  <span class="value">${formattedDate} (МСК)</span>
+                </div>
+                ${priceBlock}
+              </div>
+
+              <p style="text-align:center;">
+                <a href="https://platformaapp.ru/events/${eventId}" class="cta-button">Перейти к событию</a>
+              </p>
+
+              <p style="color:#555;">Ссылка для подключения появится на странице события незадолго до начала.</p>
+            </div>
+            <div class="footer">
+              <p>© ${new Date().getFullYear()} Platforma. Все права защищены.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(`Registration confirmation sent to student ${email} for event "${eventTitle}"`);
+    } catch (err) {
+      console.error('Error sending registration confirmation email:', err instanceof Error ? err.message : err);
+    }
+  }
 }
