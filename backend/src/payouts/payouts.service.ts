@@ -44,7 +44,7 @@ export class PayoutsService {
     const sessionResult = await this.paymentRepository
       .createQueryBuilder('p')
       .select('COALESCE(SUM(p.amount), 0)', 'total')
-      .where('p.tutor_id = :tutorId', { tutorId })
+      .where('p.tutorId = :tutorId', { tutorId })
       .andWhere('p.status = :status', { status: PaymentStatus.SUCCESS })
       .getRawOne<{ total: string }>();
 
@@ -56,15 +56,15 @@ export class PayoutsService {
         'COALESCE(SUM(CASE WHEN e.mentor_revenue > 0 THEN e.mentor_revenue ELSE e.price END), 0)',
         'total',
       )
-      .where('e.mentor_id = :tutorId', { tutorId })
-      .andWhere('ue.payment_status = :status', { status: UserEventPaymentStatus.PAID })
+      .where('e.mentorId = :tutorId', { tutorId })
+      .andWhere('ue.paymentStatus = :status', { status: UserEventPaymentStatus.PAID })
       .getRawOne<{ total: string }>();
 
     // Already paid out or in flight
     const payoutResult = await this.payoutRepository
       .createQueryBuilder('po')
       .select('COALESCE(SUM(po.amount), 0)', 'total')
-      .where('po.tutor_id = :tutorId', { tutorId })
+      .where('po.tutorId = :tutorId', { tutorId })
       .andWhere('po.status IN (:...statuses)', {
         statuses: [PayoutStatus.PENDING, PayoutStatus.SUCCEEDED],
       })
