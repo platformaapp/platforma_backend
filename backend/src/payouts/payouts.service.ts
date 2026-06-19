@@ -81,25 +81,17 @@ export class PayoutsService {
     tutorId: string,
     method: PayoutMethod,
     destination: string,
-    bankId?: string,
   ): Promise<void> {
-    if (method === PayoutMethod.BANK_CARD) {
-      if (!/^\d{16,19}$/.test(destination.replace(/\s/g, ''))) {
-        throw new BadRequestException('Некорректный номер карты');
-      }
-    } else {
-      if (!/^\+7\d{10}$/.test(destination.replace(/\s/g, ''))) {
-        throw new BadRequestException('Некорректный номер телефона. Формат: +7XXXXXXXXXX');
-      }
-      if (!bankId) {
-        throw new BadRequestException('Для СБП необходимо выбрать банк');
-      }
+    if (method !== PayoutMethod.BANK_CARD) {
+      throw new BadRequestException('В данный момент поддерживается только вывод на банковскую карту');
+    }
+    if (!/^\d{16,19}$/.test(destination.replace(/\s/g, ''))) {
+      throw new BadRequestException('Некорректный номер карты');
     }
 
     await this.userRepository.update(tutorId, {
       payoutMethod: method,
       payoutDestination: destination.replace(/\s/g, ''),
-      payoutBankId: method === PayoutMethod.SBP ? bankId : null,
     });
   }
 
@@ -129,15 +121,11 @@ export class PayoutsService {
 
     const user = await this.userRepository.findOne({
       where: { id: tutorId },
-      select: ['id', 'payoutMethod', 'payoutDestination', 'payoutBankId', 'fullName'],
+      select: ['id', 'payoutMethod', 'payoutDestination', 'fullName'],
     });
 
     if (!user?.payoutMethod || !user?.payoutDestination) {
       throw new BadRequestException('Добавьте реквизиты для вывода средств');
-    }
-
-    if (user.payoutMethod === PayoutMethod.SBP && !user.payoutBankId) {
-      throw new BadRequestException('Для СБП необходимо выбрать банк. Обновите реквизиты.');
     }
 
     const { available } = await this.getBalance(tutorId);
@@ -162,9 +150,8 @@ export class PayoutsService {
     try {
       const result = await this.yookassaService.createPayout({
         amount,
-        method: user.payoutMethod as 'bank_card' | 'sbp',
+        method: 'bank_card',
         destination: user.payoutDestination,
-        bankId: user.payoutBankId ?? undefined,
         description: `Выплата наставнику ${user.fullName ?? tutorId}`,
         payoutId: saved.id,
       });

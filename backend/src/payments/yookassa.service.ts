@@ -328,47 +328,16 @@ export class YookassaService {
     return this.configService.get<string>('YOOKASSA_PAYOUT_URL', 'https://payouts.yookassa.ru/api/v1');
   }
 
-  async getSbpBanks(): Promise<Array<{ id: string; name: string; bic?: string }>> {
-    const url = `${this.getPayoutBaseUrl()}/sbp/banks`;
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: this.getPayoutAuth(),
-        },
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`YooKassa SBP banks error: ${response.status} - ${errorText}`);
-      }
-      const data = (await response.json()) as { items: Array<{ id: string; name: string; bic?: string }> };
-      return data.items ?? [];
-    } catch (error) {
-      this.logger.error('Failed to fetch SBP banks', error);
-      throw error;
-    }
-  }
-
   async createPayout(params: {
     amount: number;
-    method: 'bank_card' | 'sbp';
+    method: 'bank_card';
     destination: string;
-    bankId?: string;
     description: string;
     payoutId: string;
   }): Promise<{ id: string; status: string }> {
     const url = `${this.getPayoutBaseUrl()}/payouts`;
 
-    let payoutDestinationData: Record<string, unknown>;
-    if (params.method === 'bank_card') {
-      payoutDestinationData = { type: 'bank_card', card: { number: params.destination } };
-    } else {
-      if (!params.bankId) {
-        throw new Error('bank_id is required for SBP payouts');
-      }
-      payoutDestinationData = { type: 'sbp', phone: params.destination, bank_id: params.bankId };
-    }
+    const payoutDestinationData = { type: 'bank_card', card: { number: params.destination } };
 
     const payload = {
       amount: { value: params.amount.toFixed(2), currency: 'RUB' },

@@ -10,11 +10,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { PayoutsService } from './payouts.service';
-import { YookassaService } from 'src/payments/yookassa.service';
 import { TutorGuard } from 'src/auth/guards/tutor.guard';
 import type { AuthenticatedRequest } from 'src/utils/types';
 import { PayoutMethod } from './entities/tutor-payout.entity';
-import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsPositive, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class SavePayoutDetailsDto {
@@ -24,10 +23,6 @@ class SavePayoutDetailsDto {
   @IsString()
   @IsNotEmpty()
   destination: string;
-
-  @IsOptional()
-  @IsString()
-  bankId?: string;
 }
 
 class RequestPayoutDto {
@@ -40,10 +35,7 @@ class RequestPayoutDto {
 @Controller('tutor/payouts')
 @UseGuards(TutorGuard)
 export class PayoutsController {
-  constructor(
-    private readonly payoutsService: PayoutsService,
-    private readonly yookassaService: YookassaService,
-  ) {}
+  constructor(private readonly payoutsService: PayoutsService) {}
 
   @Get('balance')
   @HttpCode(HttpStatus.OK)
@@ -59,20 +51,13 @@ export class PayoutsController {
     return { success: true, data };
   }
 
-  @Get('sbp-banks')
-  @HttpCode(HttpStatus.OK)
-  async getSbpBanks() {
-    const banks = await this.yookassaService.getSbpBanks();
-    return { success: true, data: banks };
-  }
-
   @Patch('details')
   @HttpCode(HttpStatus.OK)
   async savePayoutDetails(
     @Req() req: AuthenticatedRequest,
     @Body() dto: SavePayoutDetailsDto,
   ) {
-    await this.payoutsService.savePayoutDetails(req.user.sub, dto.method, dto.destination, dto.bankId);
+    await this.payoutsService.savePayoutDetails(req.user.sub, dto.method, dto.destination);
     return { success: true, message: 'Реквизиты сохранены' };
   }
 

@@ -106,9 +106,6 @@ export class User {
   @Column({ name: 'payout_destination', nullable: true, type: 'varchar', length: 255 })
   payoutDestination: string | null;
 
-  @Column({ name: 'payout_bank_id', nullable: true, type: 'varchar', length: 255 })
-  payoutBankId: string | null;
-
   @OneToMany(() => Session, (session) => session.tutor)
   tutorSessions: Session[];
 
