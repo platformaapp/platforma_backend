@@ -125,7 +125,6 @@ export class PaymentMethodsService {
         paymentMethod = await this.paymentMethodRepository.findOne({
           where: {
             bindTransactionId: updatedTransaction.id,
-            status: PaymentMethodStatus.PENDING,
           },
           relations: ['user'],
         });
