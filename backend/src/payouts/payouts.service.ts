@@ -70,8 +70,12 @@ export class PayoutsService {
       })
       .getRawOne<{ total: string }>();
 
-    const earned = Number(sessionResult.total) + Number(eventResult.total);
-    const pendingPayout = Number(payoutResult.total);
+    this.logger.log(
+      `getBalance tutorId=${tutorId}: sessions=${sessionResult?.total}, events=${eventResult?.total}, payouts=${payoutResult?.total}`
+    );
+
+    const earned = Number(sessionResult?.total ?? 0) + Number(eventResult?.total ?? 0);
+    const pendingPayout = Number(payoutResult?.total ?? 0);
     const available = Math.max(0, earned - pendingPayout);
 
     return { earned, pendingPayout, available, currency: 'RUB' };
