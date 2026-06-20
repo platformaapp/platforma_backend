@@ -42,7 +42,9 @@ export class TransactionsService {
       });
       await this.transactionRepository.save(transaction);
 
-      const callbackUrl = `${frontendUrl}/payment-methods/callback`;
+      // YooKassa redirects user's browser here → backend captures payment + activates card → redirects to frontend.
+      // Using the backend as return_url ensures the card is active before the user sees the result page.
+      const callbackUrl = `${frontendUrl}/api/student/payment-methods/binding-callback?tx=${transaction.id}`;
       const { confirmationUrl, paymentId } =
         await this.yookassaService.createPaymentMethodAttachment(callbackUrl, customerEmail);
 
