@@ -59,13 +59,17 @@ export class PaymentMethodsService {
       throw new ConflictException('Можно привязать только одну карту. Удалите текущую, чтобы привязать другую.');
     }
 
-    // Clean up any stale PENDING records from previous incomplete bind attempts
-    const stalePending = await this.paymentMethodRepository.find({
+    // Soft-delete any stale PENDING records from previous incomplete bind attempts.
+    // Hard delete is not possible because transactions table has a FK to payment_methods.
+    const stalePendingCount = await this.paymentMethodRepository.count({
       where: { userId, status: PaymentMethodStatus.PENDING },
     });
-    if (stalePending.length > 0) {
-      await this.paymentMethodRepository.remove(stalePending);
-      this.logger.log(`Removed ${stalePending.length} stale PENDING payment method(s) for user ${userId}`);
+    if (stalePendingCount > 0) {
+      await this.paymentMethodRepository.update(
+        { userId, status: PaymentMethodStatus.PENDING },
+        { status: PaymentMethodStatus.DELETED },
+      );
+      this.logger.log(`Soft-deleted ${stalePendingCount} stale PENDING payment method(s) for user ${userId}`);
     }
 
     const paymentMethod = this.paymentMethodRepository.create({
