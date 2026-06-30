@@ -374,8 +374,8 @@ export class EventsService {
       where: { id: studentId },
     });
 
-    if (!student || !student.roles.includes('student')) {
-      throw new ForbiddenException('Только студенты могут записываться на события');
+    if (!student) {
+      throw new NotFoundException('Пользователь не найден');
     }
 
     if (event.mentorId === studentId) {
@@ -1526,8 +1526,8 @@ export class EventsService {
       where: { id: userId },
     });
 
-    if (!user || !user.roles.includes('student')) {
-      throw new ForbiddenException('Только студенты могут отменять записи на события');
+    if (!user) {
+      throw new NotFoundException('Пользователь не найден');
     }
 
     const now = new Date();
