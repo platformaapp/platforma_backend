@@ -1413,6 +1413,7 @@ export class EventsService {
       is_paid: boolean;
       status: string;
       payment_status: string;
+      created_at: string;
     } | null = null;
 
     if (userId) {
@@ -1426,6 +1427,7 @@ export class EventsService {
           is_paid: userEvent.paymentStatus === PaymentStatus.PAID,
           status: userEvent.status,
           payment_status: userEvent.paymentStatus,
+          created_at: userEvent.createdAt.toISOString(),
         };
       }
     }
