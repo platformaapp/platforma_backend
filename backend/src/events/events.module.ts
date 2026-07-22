@@ -15,10 +15,11 @@ import { EventsSchedulerService } from './events-scheduler.service';
 import { Payment } from 'src/payments/entities/payment.entity';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { PaymentsModule } from '../payments/payments.module';
+import { TutorApplication } from '../admin/entities/tutor-application.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Session, User, UserEvent, VideoRoom, Event, Payment]),
+    TypeOrmModule.forFeature([Session, User, UserEvent, VideoRoom, Event, Payment, TutorApplication]),
     AuthModule,
     JwtModule,
     PaymentsModule,

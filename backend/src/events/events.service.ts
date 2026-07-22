@@ -47,6 +47,7 @@ import { MyEventsFilter, MyEventsQueryDto, MyEventsTimeFilter } from './dto/my-e
 import { EventWithParticipantsDto, ParticipantDto } from './dto/event-with-participants.dto';
 import { CancelRegistrationResponseDto } from './dto/cancel-registration-response.dto';
 import { PaymentsService } from '../payments/payments.service';
+import { TutorApplication } from '../admin/entities/tutor-application.entity';
 
 // Overridable via JITSI_BASE_URL env var for self-hosted instances
 const DEFAULT_JITSI_BASE_URL = 'https://meet.jit.si';
@@ -71,6 +72,8 @@ export class EventsService {
     private readonly paymentRepository: Repository<Payment>,
     @InjectRepository(Session)
     private readonly sessionRepository: Repository<Session>,
+    @InjectRepository(TutorApplication)
+    private readonly tutorApplicationRepository: Repository<TutorApplication>,
     private readonly paymentsService: PaymentsService
   ) {}
 
@@ -95,6 +98,14 @@ export class EventsService {
 
     if (!mentor || !mentor.roles.includes('tutor')) {
       throw new ForbiddenException('Только наставники могут создавать события');
+    }
+
+    const application = await this.tutorApplicationRepository.findOne({
+      where: { userId: mentorId },
+      order: { createdAt: 'DESC' },
+    });
+    if (!application || application.status !== 'approved') {
+      throw new ForbiddenException('Создавать события могут только наставники с подтверждённым статусом');
     }
 
     let session: Session | null = null;
@@ -1273,7 +1284,10 @@ export class EventsService {
       throw new NotFoundException('Пользователь не найден');
     }
 
-    if (!currentUser.roles.includes(role)) {
+    // For tutor mode, the user must have the tutor role.
+    // For student mode we allow any authenticated user — since registration is now
+    // open to all roles, any user may have participations to view.
+    if (role === 'tutor' && !currentUser.roles.includes('tutor')) {
       throw new BadRequestException('Указанная роль не соответствует ролям пользователя');
     }
 
