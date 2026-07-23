@@ -115,7 +115,8 @@ export class EventsSchedulerService {
    * Finds UserEvents where paymentStatus=PENDING and createdAt > 2 hours ago.
    * If a YooKassa payment ID exists, checks the real payment status:
    *   - succeeded → missed webhook; mark as PAID so the user is not wrongly cancelled
-   *   - anything else (pending/canceled/expired/failed) after 2 h → cancel
+   *   - pending  → payment still processing; skip (do not cancel)
+   *   - canceled / expired / failed → cancel
    * If no payment ID → cancel immediately (payment was never initiated).
    */
   @Cron(CronExpression.EVERY_HOUR)
@@ -155,9 +156,19 @@ export class EventsSchedulerService {
             recovered++;
             continue;
           }
+
+          if (ykPayment.status === 'pending') {
+            // Payment still in progress — do not cancel yet
+            this.logger.log(
+              `Skipping stale cancel for userEvent ${userEvent.id}: YooKassa status is still 'pending'`
+            );
+            continue;
+          }
+
+          // YooKassa confirmed: canceled / expired / failed → fall through to cancel
         }
 
-        // No payment ID or non-succeeded status → cancel
+        // No payment ID, or YooKassa confirmed cancellation → cancel
         await this.userEventRepository.update(userEvent.id, {
           status: ParticipationStatus.CANCELLED,
           paymentStatus: PaymentStatus.FAILED,
