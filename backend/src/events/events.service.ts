@@ -10,7 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { User } from '../users/user.entity';
 import { VideoProvider, VideoRoom } from './entities/video-room.entity';
-import { In, Repository } from 'typeorm';
+import { Brackets, In, Repository } from 'typeorm';
 import { Event, EventStatus, EventType } from './entities/event.entity';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
@@ -1301,7 +1301,25 @@ export class EventsService {
       .where('event.datetimeStart IS NOT NULL');
 
     if (role === 'tutor') {
-      queryBuilder = queryBuilder.andWhere('event.mentorId = :userId', { userId });
+      // Show events the user CREATED as mentor AND events they're REGISTERED for as participant.
+      // A tutor can attend other tutors' events too, and those should not disappear when
+      // viewing in tutor mode.
+      queryBuilder = queryBuilder
+        .leftJoin('event.userEvents', 'tutorReg', 'tutorReg.userId = :userId', { userId })
+        .andWhere(
+          new Brackets((qb) => {
+            qb.where('event.mentorId = :userId', { userId }).orWhere(
+              'tutorReg.status IN (:...tutorRegStatuses)',
+              {
+                tutorRegStatuses: [
+                  ParticipationStatus.REGISTERED,
+                  ParticipationStatus.ATTENDED,
+                  ParticipationStatus.PENDING,
+                ],
+              }
+            );
+          })
+        );
     } else if (role === 'student') {
       queryBuilder = queryBuilder
         .innerJoin('event.userEvents', 'myUserEvents')
