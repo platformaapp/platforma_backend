@@ -1307,39 +1307,47 @@ export class EventsService {
       .where('event.datetimeStart IS NOT NULL');
 
     if (role === 'tutor') {
-      // Collect event IDs via three independent access paths (run in parallel for speed)
-      const [mentorRows, regRows, sessRows] = await Promise.all([
-        // Path 1: events this user created as mentor
+      // Collect event IDs via three independent access paths
+      const [mentorEvents, regUserEvents, sessEvents] = await Promise.all([
+        // Path 1: events this user created as mentor (group AND personal meetings as host)
         this.eventsRepository
           .createQueryBuilder('e')
-          .select('e.id', 'id')
+          .select('e.id')
           .where('e.mentorId = :userId', { userId })
           .andWhere('e.datetimeStart IS NOT NULL')
-          .getRawMany<{ id: string }>(),
+          .getMany(),
 
         // Path 2: events this user is registered for as a participant
         this.userEventRepository
           .createQueryBuilder('ue')
-          .select('ue.eventId', 'id')
+          .select('ue.eventId')
           .where('ue.userId = :userId', { userId })
           .andWhere('ue.status IN (:...statuses)', {
             statuses: [ParticipationStatus.REGISTERED, ParticipationStatus.ATTENDED, ParticipationStatus.PENDING],
           })
-          .getRawMany<{ id: string }>(),
+          .getMany(),
 
         // Path 3: SESSION_BASED events where this user is the session's student
         this.eventsRepository
           .createQueryBuilder('e')
           .innerJoin('e.session', 's')
-          .select('e.id', 'id')
+          .select('e.id')
           .where('s.studentId = :userId', { userId })
           .andWhere('e.datetimeStart IS NOT NULL')
-          .getRawMany<{ id: string }>(),
+          .getMany(),
       ]);
 
       const allEventIds = [
-        ...new Set([...mentorRows, ...regRows, ...sessRows].map((r) => r.id).filter(Boolean)),
+        ...new Set([
+          ...mentorEvents.map((e) => e.id),
+          ...regUserEvents.map((ue) => ue.eventId).filter(Boolean),
+          ...sessEvents.map((e) => e.id),
+        ]),
       ];
+
+      this.logger.log(
+        `getMyEvents tutor ${userId}: mentor=${mentorEvents.length} reg=${regUserEvents.length} sess=${sessEvents.length} total=${allEventIds.length}`
+      );
 
       if (allEventIds.length === 0) {
         return { data: [], pagination: { page, per_page, total: 0 } };
