@@ -10,7 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { User } from '../users/user.entity';
 import { VideoProvider, VideoRoom } from './entities/video-room.entity';
-import { Brackets, In, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Event, EventStatus, EventType } from './entities/event.entity';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
@@ -1307,42 +1307,45 @@ export class EventsService {
       .where('event.datetimeStart IS NOT NULL');
 
     if (role === 'tutor') {
-      // 1) Events where the user has a UserEvent registration (group events attended as participant)
-      const regRows = await this.userEventRepository
-        .createQueryBuilder('ue')
-        .select('ue.event_id', 'eventId')
-        .where('ue.user_id = :userId', { userId })
-        .andWhere('ue.status IN (:...s)', {
-          s: [ParticipationStatus.REGISTERED, ParticipationStatus.ATTENDED, ParticipationStatus.PENDING],
-        })
-        .getRawMany<{ eventId: string }>();
-      const registeredEventIds = regRows.map((r) => r.eventId).filter(Boolean);
+      // Collect event IDs via three independent access paths (run in parallel for speed)
+      const [mentorRows, regRows, sessRows] = await Promise.all([
+        // Path 1: events this user created as mentor
+        this.eventsRepository
+          .createQueryBuilder('e')
+          .select('e.id', 'id')
+          .where('e.mentorId = :userId', { userId })
+          .andWhere('e.datetimeStart IS NOT NULL')
+          .getRawMany<{ id: string }>(),
 
-      // 2) Session IDs where the user is the student → covers personal meetings (SESSION_BASED)
-      //    even when the UserEvent record may be missing
-      const sessRows = await this.sessionRepository
-        .createQueryBuilder('s')
-        .select('s.id', 'sessionId')
-        .where('s.student_id = :userId', { userId })
-        .getRawMany<{ sessionId: string }>();
-      const studentSessionIds = sessRows.map((r) => r.sessionId).filter(Boolean);
+        // Path 2: events this user is registered for as a participant
+        this.userEventRepository
+          .createQueryBuilder('ue')
+          .select('ue.eventId', 'id')
+          .where('ue.userId = :userId', { userId })
+          .andWhere('ue.status IN (:...statuses)', {
+            statuses: [ParticipationStatus.REGISTERED, ParticipationStatus.ATTENDED, ParticipationStatus.PENDING],
+          })
+          .getRawMany<{ id: string }>(),
 
-      queryBuilder = queryBuilder.andWhere(
-        new Brackets((qb) => {
-          // Created as mentor
-          qb.where('event.mentorId = :userId', { userId });
+        // Path 3: SESSION_BASED events where this user is the session's student
+        this.eventsRepository
+          .createQueryBuilder('e')
+          .innerJoin('e.session', 's')
+          .select('e.id', 'id')
+          .where('s.studentId = :userId', { userId })
+          .andWhere('e.datetimeStart IS NOT NULL')
+          .getRawMany<{ id: string }>(),
+      ]);
 
-          // Registered as participant
-          if (registeredEventIds.length > 0) {
-            qb.orWhere('event.id IN (:...registeredEventIds)', { registeredEventIds });
-          }
+      const allEventIds = [
+        ...new Set([...mentorRows, ...regRows, ...sessRows].map((r) => r.id).filter(Boolean)),
+      ];
 
-          // Student in a session linked to this event
-          if (studentSessionIds.length > 0) {
-            qb.orWhere('event.sessionId IN (:...studentSessionIds)', { studentSessionIds });
-          }
-        })
-      );
+      if (allEventIds.length === 0) {
+        return { data: [], pagination: { page, per_page, total: 0 } };
+      }
+
+      queryBuilder = queryBuilder.andWhere('event.id IN (:...allEventIds)', { allEventIds });
     } else if (role === 'student') {
       queryBuilder = queryBuilder
         .innerJoin('event.userEvents', 'myUserEvents')
