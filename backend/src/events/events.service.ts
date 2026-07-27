@@ -100,12 +100,18 @@ export class EventsService {
       throw new ForbiddenException('Только наставники могут создавать события');
     }
 
-    const application = await this.tutorApplicationRepository.findOne({
-      where: { userId: mentorId },
-      order: { createdAt: 'DESC' },
-    });
-    if (!application || application.status !== 'approved') {
-      throw new ForbiddenException('Создавать события могут только наставники с подтверждённым статусом');
+    // SESSION_BASED events are tied to a confirmed, paid session — allow any tutor
+    // (even pending approval) to create them so sessions can actually take place.
+    // STANDALONE (group) events require an approved application.
+    const isSessionEvent = !!createEventDto.sessionId;
+    if (!isSessionEvent) {
+      const application = await this.tutorApplicationRepository.findOne({
+        where: { userId: mentorId },
+        order: { createdAt: 'DESC' },
+      });
+      if (!application || application.status !== 'approved') {
+        throw new ForbiddenException('Создавать события могут только наставники с подтверждённым статусом');
+      }
     }
 
     let session: Session | null = null;
@@ -1308,16 +1314,17 @@ export class EventsService {
         .leftJoin('event.userEvents', 'tutorReg', 'tutorReg.userId = :userId', { userId })
         .andWhere(
           new Brackets((qb) => {
-            qb.where('event.mentorId = :userId', { userId }).orWhere(
-              'tutorReg.status IN (:...tutorRegStatuses)',
-              {
+            qb.where('event.mentorId = :userId', { userId })
+              .orWhere('tutorReg.status IN (:...tutorRegStatuses)', {
                 tutorRegStatuses: [
                   ParticipationStatus.REGISTERED,
                   ParticipationStatus.ATTENDED,
                   ParticipationStatus.PENDING,
                 ],
-              }
-            );
+              })
+              // SESSION_BASED events where the user is the session's student
+              // (auto-registered via session relation, not always via UserEvent)
+              .orWhere('session.studentId = :userId', { userId });
           })
         );
     } else if (role === 'student') {
