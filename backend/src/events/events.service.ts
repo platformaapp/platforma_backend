@@ -1307,26 +1307,42 @@ export class EventsService {
       .where('event.datetimeStart IS NOT NULL');
 
     if (role === 'tutor') {
-      // Show events the user CREATED as mentor AND events they're REGISTERED for as participant.
-      // A tutor can attend other tutors' events too, and those should not disappear when
-      // viewing in tutor mode.
-      queryBuilder = queryBuilder
-        .leftJoin('event.userEvents', 'tutorReg', 'tutorReg.userId = :userId', { userId })
-        .andWhere(
-          new Brackets((qb) => {
-            qb.where('event.mentorId = :userId', { userId })
-              .orWhere('tutorReg.status IN (:...tutorRegStatuses)', {
-                tutorRegStatuses: [
-                  ParticipationStatus.REGISTERED,
-                  ParticipationStatus.ATTENDED,
-                  ParticipationStatus.PENDING,
-                ],
-              })
-              // SESSION_BASED events where the user is the session's student
-              // (auto-registered via session relation, not always via UserEvent)
-              .orWhere('session.studentId = :userId', { userId });
-          })
-        );
+      // 1) Events where the user has a UserEvent registration (group events attended as participant)
+      const regRows = await this.userEventRepository
+        .createQueryBuilder('ue')
+        .select('ue.event_id', 'eventId')
+        .where('ue.user_id = :userId', { userId })
+        .andWhere('ue.status IN (:...s)', {
+          s: [ParticipationStatus.REGISTERED, ParticipationStatus.ATTENDED, ParticipationStatus.PENDING],
+        })
+        .getRawMany<{ eventId: string }>();
+      const registeredEventIds = regRows.map((r) => r.eventId).filter(Boolean);
+
+      // 2) Session IDs where the user is the student → covers personal meetings (SESSION_BASED)
+      //    even when the UserEvent record may be missing
+      const sessRows = await this.sessionRepository
+        .createQueryBuilder('s')
+        .select('s.id', 'sessionId')
+        .where('s.student_id = :userId', { userId })
+        .getRawMany<{ sessionId: string }>();
+      const studentSessionIds = sessRows.map((r) => r.sessionId).filter(Boolean);
+
+      queryBuilder = queryBuilder.andWhere(
+        new Brackets((qb) => {
+          // Created as mentor
+          qb.where('event.mentorId = :userId', { userId });
+
+          // Registered as participant
+          if (registeredEventIds.length > 0) {
+            qb.orWhere('event.id IN (:...registeredEventIds)', { registeredEventIds });
+          }
+
+          // Student in a session linked to this event
+          if (studentSessionIds.length > 0) {
+            qb.orWhere('event.sessionId IN (:...studentSessionIds)', { studentSessionIds });
+          }
+        })
+      );
     } else if (role === 'student') {
       queryBuilder = queryBuilder
         .innerJoin('event.userEvents', 'myUserEvents')
