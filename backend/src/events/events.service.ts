@@ -1306,47 +1306,42 @@ export class EventsService {
       .leftJoinAndSelect('session.student', 'student')
       .where('event.datetimeStart IS NOT NULL');
 
+    this.logger.log(
+      `getMyEvents userId=${userId} role=${role} filter=${filter} time=${time} page=${page} per_page=${per_page}`
+    );
+
     if (role === 'tutor') {
-      // Collect event IDs via three independent access paths
-      const [mentorEvents, regUserEvents, sessEvents] = await Promise.all([
-        // Path 1: events this user created as mentor (group AND personal meetings as host)
-        this.eventsRepository
-          .createQueryBuilder('e')
-          .select('e.id')
-          .where('e.mentorId = :userId', { userId })
-          .andWhere('e.datetimeStart IS NOT NULL')
-          .getMany(),
+      // Use raw SQL to avoid TypeORM partial-select hydration quirks
+      const [mentorRaw, regRaw, sessRaw] = await Promise.all([
+        // Path 1: events this user created as mentor
+        this.eventsRepository.query(
+          `SELECT id FROM events WHERE mentor_id = $1 AND datetime_start IS NOT NULL`,
+          [userId]
+        ) as Promise<{ id: string }[]>,
 
         // Path 2: events this user is registered for as a participant
-        this.userEventRepository
-          .createQueryBuilder('ue')
-          .select('ue.eventId')
-          .where('ue.userId = :userId', { userId })
-          .andWhere('ue.status IN (:...statuses)', {
-            statuses: [ParticipationStatus.REGISTERED, ParticipationStatus.ATTENDED, ParticipationStatus.PENDING],
-          })
-          .getMany(),
+        this.userEventRepository.query(
+          `SELECT event_id FROM user_events WHERE user_id = $1 AND status IN ('registered', 'attended', 'pending')`,
+          [userId]
+        ) as Promise<{ event_id: string }[]>,
 
         // Path 3: SESSION_BASED events where this user is the session's student
-        this.eventsRepository
-          .createQueryBuilder('e')
-          .innerJoin('e.session', 's')
-          .select('e.id')
-          .where('s.studentId = :userId', { userId })
-          .andWhere('e.datetimeStart IS NOT NULL')
-          .getMany(),
+        this.eventsRepository.query(
+          `SELECT e.id FROM events e INNER JOIN sessions s ON s.id = e.session_id WHERE s.student_id = $1 AND e.datetime_start IS NOT NULL`,
+          [userId]
+        ) as Promise<{ id: string }[]>,
       ]);
 
       const allEventIds = [
         ...new Set([
-          ...mentorEvents.map((e) => e.id),
-          ...regUserEvents.map((ue) => ue.eventId).filter(Boolean),
-          ...sessEvents.map((e) => e.id),
+          ...mentorRaw.map((r) => r.id),
+          ...regRaw.map((r) => r.event_id),
+          ...sessRaw.map((r) => r.id),
         ]),
       ];
 
       this.logger.log(
-        `getMyEvents tutor ${userId}: mentor=${mentorEvents.length} reg=${regUserEvents.length} sess=${sessEvents.length} total=${allEventIds.length}`
+        `getMyEvents tutor ${userId}: mentor=${mentorRaw.length} reg=${regRaw.length} sess=${sessRaw.length} total=${allEventIds.length}`
       );
 
       if (allEventIds.length === 0) {
@@ -1386,6 +1381,12 @@ export class EventsService {
 
     const [events, total] = await queryBuilder.skip(skip).take(per_page).getManyAndCount();
 
+    this.logger.log(
+      `getMyEvents ${role} ${userId}: main query returned ${events.length} events (total=${total}), ` +
+      `with_mentor=${events.filter((e) => !!e.mentor).length}, without_mentor=${events.filter((e) => !e.mentor).length}, ` +
+      `types=${JSON.stringify(events.map((e) => e.type))}`
+    );
+
     // For tutor role: load participant counts in one query
     let participantCountMap: Map<string, number> = new Map();
     if (role === 'tutor' && events.length > 0) {
@@ -1404,13 +1405,22 @@ export class EventsService {
     }
 
     const data: MyEventItemDto[] = events
-      .filter((event): event is Event & { datetimeStart: Date } => !!event.datetimeStart && !!event.mentor)
+      .filter((event): event is Event & { datetimeStart: Date } => !!event.datetimeStart)
       .map((event) => {
-        const teacher: UserInfoDto = {
-          id: event.mentor.id,
-          name: event.mentor.fullName || event.mentor.email.split('@')[0],
-          avatar: event.mentor.avatarUrl,
-        };
+        if (!event.mentor) {
+          this.logger.warn(`getMyEvents: event ${event.id} has no mentor loaded (mentorId=${event.mentorId})`);
+        }
+        const teacher: UserInfoDto = event.mentor
+          ? {
+              id: event.mentor.id,
+              name: event.mentor.fullName || event.mentor.email.split('@')[0],
+              avatar: event.mentor.avatarUrl,
+            }
+          : {
+              id: event.mentorId,
+              name: 'Наставник',
+              avatar: null,
+            };
 
         let student: UserInfoDto | undefined;
         if (event.type === EventType.SESSION_BASED && event.session?.student) {
