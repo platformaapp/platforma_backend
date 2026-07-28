@@ -501,12 +501,15 @@ export class TutorService {
 
   async getTutorBookings(tutorId: string): Promise<BookingDetails[]> {
     const bookings = await this.bookingRepository.find({
-      where: { tutorId },
-      relations: ['slot', 'student'],
+      where: [{ tutorId }, { studentId: tutorId }],
+      relations: ['slot', 'slot.tutor', 'student', 'tutor'],
       order: { createdAt: 'DESC' },
     });
 
-    return this.bookingMapper.mapToBookingDetailsList(bookings);
+    return bookings.map((booking) => ({
+      ...this.bookingMapper.mapToBookingDetails(booking),
+      my_role: booking.tutorId === tutorId ? 'tutor' : 'student',
+    }));
   }
 
   async completeBooking(tutorId: string, bookingId: string): Promise<BookingDetails> {

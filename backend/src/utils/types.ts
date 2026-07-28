@@ -47,6 +47,7 @@ export interface BookingDetails {
   status: BookingStatus;
   createdAt: Date;
   updatedAt: Date;
+  my_role?: 'tutor' | 'student';
   slot?: {
     id: string;
     date: string;
