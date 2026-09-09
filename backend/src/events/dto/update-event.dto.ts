@@ -7,8 +7,10 @@ import {
   IsUrl,
   Min,
   Max,
+  IsEnum,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { EventCategory } from '../entities/event.entity';
 
 export class UpdateEventDto {
   @IsString()
@@ -43,4 +45,8 @@ export class UpdateEventDto {
   @IsOptional()
   @IsUrl()
   coverUrl?: string;
+
+  @IsOptional()
+  @IsEnum(EventCategory)
+  category?: EventCategory;
 }

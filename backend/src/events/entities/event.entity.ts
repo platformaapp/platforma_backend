@@ -28,6 +28,15 @@ export enum EventType {
   SESSION_BASED = 'session_based',
 }
 
+export enum EventCategory {
+  BROADCAST = 'broadcast',
+  LECTURE = 'lecture',
+  MEDIATION = 'mediation',
+  PRACTICES = 'practices',
+  MEETING = 'meeting',
+  DISCUSSION = 'discussion',
+}
+
 @Entity('events')
 export class Event {
   @PrimaryGeneratedColumn('uuid')
@@ -112,6 +121,14 @@ export class Event {
 
   @Column({ type: 'text', name: 'cover_url', nullable: true })
   coverUrl: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: EventCategory,
+    name: 'category',
+    nullable: true,
+  })
+  category: EventCategory | null;
 
   @Column({ type: 'text', name: 'admin_moderation_comment', nullable: true })
   adminModerationComment: string | null;

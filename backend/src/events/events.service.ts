@@ -176,6 +176,7 @@ export class EventsService {
       sessionId: session?.id,
       type: session ? EventType.SESSION_BASED : EventType.STANDALONE,
       coverUrl: createEventDto.coverUrl || null,
+      category: createEventDto.category ?? null,
     });
 
     const savedEvent = await this.eventsRepository.save(event);
@@ -329,6 +330,10 @@ export class EventsService {
 
     if (updateEventDto.coverUrl !== undefined) {
       event.coverUrl = updateEventDto.coverUrl;
+    }
+
+    if (updateEventDto.category !== undefined) {
+      event.category = updateEventDto.category;
     }
 
     event.updatedAt = new Date();
@@ -1239,6 +1244,7 @@ export class EventsService {
         timeToEvent,
         durationMinutes: event.durationMinutes,
         coverUrl: event.coverUrl,
+        category: event.category,
         price: Number(event.price),
         mentor,
         status: event.status,
@@ -1437,6 +1443,7 @@ export class EventsService {
           id: event.id,
           title: event.title,
           type: event.type,
+          category: event.category,
           teacher,
           ...(student && { student }),
           start_at: event.datetimeStart.toISOString(),

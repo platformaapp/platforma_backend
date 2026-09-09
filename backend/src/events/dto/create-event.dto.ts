@@ -12,7 +12,7 @@ import {
   IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { EventType } from '../entities/event.entity';
+import { EventCategory, EventType } from '../entities/event.entity';
 
 export class CreateEventDto {
   @IsString()
@@ -52,4 +52,8 @@ export class CreateEventDto {
   @IsOptional()
   @IsUrl()
   coverUrl?: string;
+
+  @IsOptional()
+  @IsEnum(EventCategory)
+  category?: EventCategory;
 }
