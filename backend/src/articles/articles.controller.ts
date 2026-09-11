@@ -18,7 +18,7 @@ import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import { ArticleResponseDto, ArticlesListResponseDto } from './dto/article-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AuthenticatedRequest } from '../utils/types';
+import type { AuthenticatedRequest } from '../utils/types';
 
 @Controller('articles')
 export class ArticlesController {
