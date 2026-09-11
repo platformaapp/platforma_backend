@@ -138,7 +138,7 @@ export class EventsService {
       if (!endDate) {
         endDate = session.endTime;
       }
-      if (!createEventDto.price) {
+      if (createEventDto.price === undefined || createEventDto.price === null) {
         createEventDto.price = Number(session.price);
       }
     }

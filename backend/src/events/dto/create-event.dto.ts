@@ -2,7 +2,6 @@ import {
   IsString,
   IsNotEmpty,
   IsNumber,
-  IsPositive,
   IsDateString,
   IsOptional,
   IsUrl,
@@ -30,7 +29,7 @@ export class CreateEventDto {
   datetime_end: string;
 
   @IsNumber()
-  @IsPositive()
+  @Min(0)
   @Type(() => Number)
   price: number;
 
