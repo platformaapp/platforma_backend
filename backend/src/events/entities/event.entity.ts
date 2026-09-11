@@ -15,6 +15,17 @@ import { UserEvent } from './user-event.entity';
 import { Slot } from '../../slots/entities/slot.entity';
 import { Session } from 'src/session/entities/session.entity';
 
+/**
+ * Postgres/TypeORM возвращает колонки типа `decimal` строкой (например "500.00"),
+ * а не числом — иначе можно потерять точность у больших значений. Явно
+ * приводим к number на чтении, чтобы код (и сравнения вроде `price !== x`)
+ * работал с реальными числами, как и заявлено в типах TS ниже.
+ */
+const decimalTransformer = {
+  to: (value?: number | null) => value,
+  from: (value?: string | null) => (value === null || value === undefined ? value : parseFloat(value)),
+};
+
 export enum EventStatus {
   DRAFT = 'draft',
   SCHEDULED = 'scheduled',
@@ -71,13 +82,13 @@ export class Event {
   @Column({ type: 'int', name: 'duration_minutes' })
   durationMinutes: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0, transformer: decimalTransformer })
   price: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, name: 'platform_fee', default: 0 })
+  @Column({ type: 'decimal', precision: 10, scale: 2, name: 'platform_fee', default: 0, transformer: decimalTransformer })
   platformFee: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, name: 'mentor_revenue', default: 0 })
+  @Column({ type: 'decimal', precision: 10, scale: 2, name: 'mentor_revenue', default: 0, transformer: decimalTransformer })
   mentorRevenue: number;
 
   @Column({ type: 'int', name: 'max_participants', default: 30 })
