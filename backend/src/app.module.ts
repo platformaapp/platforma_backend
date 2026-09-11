@@ -16,6 +16,7 @@ import { UploadsModule } from './uploads/uploads.module';
 import { AdminModule } from './admin/admin.module';
 import { PayoutsModule } from './payouts/payouts.module';
 import { ArticlesModule } from './articles/articles.module';
+import { MessagesModule } from './messages/messages.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { ArticlesModule } from './articles/articles.module';
     AdminModule,
     PayoutsModule,
     ArticlesModule,
+    MessagesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
