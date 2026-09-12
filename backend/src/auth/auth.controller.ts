@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Delete,
   Body,
   HttpCode,
   HttpStatus,
@@ -17,6 +18,9 @@ import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { RequestAccountDeletionDto } from './dto/request-account-deletion.dto';
+import { ConfirmAccountDeletionDto } from './dto/confirm-account-deletion.dto';
+import { DeleteAccountDto } from './dto/delete-account.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -196,12 +200,54 @@ export class AuthController {
   @ApiBody({ type: ChangePasswordDto })
   @ApiResponse({ status: HttpStatus.OK, description: 'Password changed successfully' })
   @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Current password is incorrect' })
-  async changePassword(
-    @Body() dto: ChangePasswordDto,
-    @Req() req: AuthenticatedRequest
-  ) {
+  async changePassword(@Body() dto: ChangePasswordDto, @Req() req: AuthenticatedRequest) {
     await this.authService.changePassword(req.user.sub, dto.currentPassword, dto.newPassword);
     return { message: 'Пароль успешно изменён' };
+  }
+
+  @Post('account-deletion/request')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request account deletion without the app installed (public web page)' })
+  @ApiBody({ type: RequestAccountDeletionDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Deletion confirmation link sent',
+    schema: { example: { message: 'If the email exists, a confirmation link has been sent' } },
+  })
+  async requestAccountDeletion(@Body() body: RequestAccountDeletionDto) {
+    try {
+      await this.authService.requestAccountDeletion({ email: body.email });
+    } catch (error) {
+      console.error('Error requesting account deletion:', (error as Error).message);
+    }
+    return { message: 'If the email exists, a confirmation link has been sent' };
+  }
+
+  @Post('account-deletion/confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirm account deletion via emailed link (public web page)' })
+  @ApiBody({ type: ConfirmAccountDeletionDto })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Account deleted successfully' })
+  async confirmAccountDeletion(@Body() body: ConfirmAccountDeletionDto) {
+    await this.authService.confirmAccountDeletion(body.token);
+    return { message: 'Аккаунт удалён' };
+  }
+
+  @Delete('account')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Delete own account from within the app (requires password)' })
+  @ApiBody({ type: DeleteAccountDto })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Account deleted successfully' })
+  async deleteAccount(
+    @Body() body: DeleteAccountDto,
+    @Req() req: AuthenticatedRequest,
+    @Res({ passthrough: true }) res: express.Response
+  ) {
+    await this.authService.deleteOwnAccount(req.user.sub, body.password);
+    this.clearRefreshTokenCookie(res);
+    return { message: 'Аккаунт удалён' };
   }
 
   @Post('switch-role')

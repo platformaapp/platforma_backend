@@ -14,6 +14,10 @@ export interface PasswordResetPayload extends JwtPayload {
   type: 'password_reset';
 }
 
+export interface AccountDeletionPayload extends JwtPayload {
+  type: 'account_deletion';
+}
+
 export interface JwtError extends Error {
   name: 'TokenExpiredError' | 'JsonWebTokenError' | 'NotBeforeError';
 }

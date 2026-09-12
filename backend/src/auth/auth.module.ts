@@ -13,10 +13,11 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JWT_SECRET } from 'src/utils/constants';
 import { EmailService } from '../notifications/email.service';
 import { TutorApplication } from 'src/admin/entities/tutor-application.entity';
+import { PaymentMethod } from 'src/payments/entities/payment-method.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, AuthSession, TutorApplication]),
+    TypeOrmModule.forFeature([User, AuthSession, TutorApplication, PaymentMethod]),
     forwardRef(() => UsersModule),
     PassportModule,
     JwtModule.registerAsync({

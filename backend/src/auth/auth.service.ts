@@ -12,13 +12,19 @@ import { User, UserRole } from 'src/users/user.entity';
 import { AuthSession } from './auth.entity';
 import { RegisterDto } from './dto/registration.dto';
 import { LoginDto } from './dto/login.dto';
-import { AuthResponse, JwtError, PasswordResetPayload } from 'src/utils/types';
+import {
+  AccountDeletionPayload,
+  AuthResponse,
+  JwtError,
+  PasswordResetPayload,
+} from 'src/utils/types';
 import { randomBytes } from 'crypto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { JWT_SECRET } from 'src/utils/constants';
 import { EmailService } from '../notifications/email.service';
 import { TutorApplication } from 'src/admin/entities/tutor-application.entity';
+import { PaymentMethod } from 'src/payments/entities/payment-method.entity';
 
 function isJwtError(error: unknown): error is JwtError {
   return (
@@ -36,6 +42,8 @@ export class AuthService {
     private authSessionRepository: Repository<AuthSession>,
     @InjectRepository(TutorApplication)
     private tutorApplicationRepository: Repository<TutorApplication>,
+    @InjectRepository(PaymentMethod)
+    private paymentMethodRepository: Repository<PaymentMethod>,
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService
@@ -45,7 +53,9 @@ export class AuthService {
     const emailDomain = registerDto.email.split('@')[1]?.toLowerCase();
     const blockedDomains = ['gmail.com', 'googlemail.com'];
     if (blockedDomains.includes(emailDomain)) {
-      throw new BadRequestException('Регистрация с почтой Gmail недоступна. Пожалуйста, используйте другой email.');
+      throw new BadRequestException(
+        'Регистрация с почтой Gmail недоступна. Пожалуйста, используйте другой email.'
+      );
     }
 
     const existingUser = await this.usersRepository.findOne({
@@ -301,7 +311,7 @@ export class AuthService {
         .catch((error: unknown) =>
           console.error(
             'Failed to send password reset email:',
-            error instanceof Error ? error.message : String(error)
+            error instanceof Error ? error.message : 'Unknown error'
           )
         );
     });
@@ -365,6 +375,110 @@ export class AuthService {
     await this.usersRepository.save(user);
   }
 
+  /** Запрос на удаление аккаунта без входа в приложение (публичная веб-страница) — присылает ссылку-подтверждение на почту. */
+  async requestAccountDeletion({ email }: { email: string }): Promise<void> {
+    const user = await this.usersRepository.findOne({ where: { email } });
+
+    if (!user || user.deletedAt) {
+      console.log(`Account deletion requested for non-existent or already-deleted email: ${email}`);
+      return;
+    }
+
+    const deletionToken = this.generateAccountDeletionToken(user.id, user.email);
+
+    setImmediate(() => {
+      this.emailService
+        .sendAccountDeletionEmail(user.email, deletionToken, user.fullName)
+        .then(() => console.log(`Account deletion email sent successfully to ${email}`))
+        .catch((error: unknown) =>
+          console.error(
+            'Failed to send account deletion email:',
+            error instanceof Error ? error.message : 'Unknown error'
+          )
+        );
+    });
+  }
+
+  /** Подтверждение удаления по ссылке из письма — используется публичной веб-страницей без авторизации. */
+  async confirmAccountDeletion(token: string): Promise<void> {
+    if (!token || typeof token !== 'string' || token.split('.').length !== 3) {
+      throw new UnauthorizedException('Invalid deletion token format');
+    }
+
+    const jwtSecret = this.configService.get<string>('JWT_SECRET') || JWT_SECRET;
+
+    let payload: AccountDeletionPayload;
+    try {
+      payload = this.jwtService.verify<AccountDeletionPayload>(token, { secret: jwtSecret });
+    } catch (jwtError: unknown) {
+      if (isJwtError(jwtError) && jwtError.name === 'TokenExpiredError') {
+        throw new UnauthorizedException('Deletion link has expired');
+      }
+      throw new UnauthorizedException('Invalid deletion link');
+    }
+
+    if (payload.type !== 'account_deletion') {
+      throw new UnauthorizedException('Invalid deletion token type');
+    }
+
+    const user = await this.usersRepository.findOne({ where: { id: payload.sub } });
+    if (!user) throw new UnauthorizedException('User not found');
+
+    if (user.deletedAt) return; // already deleted — idempotent
+
+    await this.performAccountDeletion(user);
+  }
+
+  /** Удаление своего аккаунта из приложения — требует подтверждения паролем. */
+  async deleteOwnAccount(userId: string, password: string): Promise<void> {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('User not found');
+
+    if (user.deletedAt) return; // already deleted — idempotent
+
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Неверный пароль');
+    }
+
+    await this.performAccountDeletion(user);
+  }
+
+  /**
+   * Обезличивает персональные данные пользователя вместо жёсткого удаления строки:
+   * записи о событиях/бронированиях/платежах ссылаются на users.id и должны остаться
+   * для истории и бухгалтерии, поэтому удаляем только PII и то, что не несёт
+   * финансовой/юридической ценности (способы оплаты, активные сессии).
+   */
+  private async performAccountDeletion(user: User): Promise<void> {
+    user.email = `deleted-${user.id}@deleted.platformaapp.ru`;
+    user.phone = null;
+    user.telegram = null;
+    user.fullName = 'Удалённый пользователь';
+    user.avatarUrl = null;
+    user.bio = null;
+    user.shortBio = null;
+    user.hourlyRate = null;
+    user.specialization = null;
+    user.groupMeetings = null;
+    user.payoutMethod = null;
+    user.payoutDestination = null;
+    user.defaultPaymentMethodId = null;
+    user.passwordHash = await bcrypt.hash(randomBytes(32).toString('hex'), 12);
+    user.isBlocked = true;
+    user.deletedAt = new Date();
+    await this.usersRepository.save(user);
+
+    await this.paymentMethodRepository.delete({ user: { id: user.id } });
+
+    await this.authSessionRepository.update(
+      { user: { id: user.id }, isValid: true },
+      { isValid: false }
+    );
+
+    console.log(`[performAccountDeletion] Account ${user.id} anonymized and deactivated`);
+  }
+
   async switchRole(userId: string, refreshToken: string, newRole: UserRole) {
     const session = await this.authSessionRepository.findOne({
       where: {
@@ -416,6 +530,21 @@ export class AuthService {
       sub: userId,
       email: email,
       type: 'password_reset',
+    };
+
+    const jwtSecret = this.configService.get<string>('JWT_SECRET') || JWT_SECRET;
+
+    return this.jwtService.sign(payload, {
+      expiresIn: '1h',
+      secret: jwtSecret,
+    });
+  }
+
+  private generateAccountDeletionToken(userId: string, email: string): string {
+    const payload = {
+      sub: userId,
+      email: email,
+      type: 'account_deletion',
     };
 
     const jwtSecret = this.configService.get<string>('JWT_SECRET') || JWT_SECRET;

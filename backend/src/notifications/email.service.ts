@@ -13,7 +13,9 @@ export class EmailService {
     const user = this.configService.get<string>('SMTP_USER');
     const pass = this.configService.get<string>('SMTP_PASS');
 
-    console.log(`[EmailService] SMTP config: host=${host}, port=${port}, secure=${secure}, user=${user}`);
+    console.log(
+      `[EmailService] SMTP config: host=${host}, port=${port}, secure=${secure}, user=${user}`
+    );
 
     this.transporter = nodemailer.createTransport({
       host,
@@ -784,8 +786,71 @@ export class EmailService {
       `,
     };
 
-    const info = await this.transporter.sendMail(mailOptions);
-    console.log(`Password reset email sent to ${email}, messageId: ${info.messageId}, response: ${info.response}`);
+    const info = (await this.transporter.sendMail(mailOptions)) as {
+      messageId?: string;
+      response?: string;
+    };
+    console.log(
+      `Password reset email sent to ${email}, messageId: ${info.messageId}, response: ${info.response}`
+    );
+  }
+
+  async sendAccountDeletionEmail(
+    email: string,
+    deletionToken: string,
+    fullName: string
+  ): Promise<void> {
+    const deleteUrl = `https://platformaapp.ru/delete-account?token=${deletionToken}`;
+
+    const mailOptions = {
+      from: '"Platforma" <platformaapp@platformaapp.ru>',
+      to: email,
+      subject: 'Подтверждение удаления аккаунта',
+      html: `
+        <div style="max-width:600px;margin:0 auto;background:#fff;">
+          <div style="background:#181818;padding:20px;text-align:center;">
+            <h1 style="color:#fff;margin:0;">🗑 Удаление аккаунта</h1>
+          </div>
+          <div style="padding:30px;">
+            <h2 style="color:#333;margin-top:0;">Здравствуйте, ${fullName || 'пользователь'}!</h2>
+            <p style="color:#666;line-height:1.6;">
+              Вы запросили удаление аккаунта Platforma. Нажмите кнопку ниже, чтобы подтвердить удаление:
+            </p>
+            <div style="text-align:center;margin:30px 0;">
+              <a href="${deleteUrl}" style="background:#E02D2D;color:#fff;padding:15px 30px;
+                 text-decoration:none;border-radius:5px;font-size:16px;display:inline-block;">
+                Удалить аккаунт
+              </a>
+            </div>
+            <p style="color:#666;font-size:14px;">
+              Или скопируйте ссылку:<br>
+              <a href="${deleteUrl}" style="color:#007bff;word-break:break-all;">${deleteUrl}</a>
+            </p>
+            <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:15px;margin:20px 0;">
+              <p style="color:#856404;margin:0;">
+                ⚠️ <strong>Это действие необратимо.</strong> Личные данные (имя, email, телефон, telegram, фото, способы оплаты) будут удалены. Ссылка действительна 1 час.
+              </p>
+            </div>
+            <p style="color:#999;font-size:12px;border-top:1px solid #eee;padding-top:20px;">
+              Если вы не запрашивали удаление аккаунта — проигнорируйте это письмо.
+            </p>
+          </div>
+          <div style="background:#f8f9fa;padding:20px;text-align:center;">
+            <p style="color:#6c757d;font-size:12px;margin:0;">
+              © ${new Date().getFullYear()} Platforma. Все права защищены.
+            </p>
+          </div>
+        </div>
+      `,
+    };
+
+    const info = (await this.transporter.sendMail(mailOptions)) as {
+      messageId?: string;
+      response?: string;
+    };
+    console.log(
+      `Account deletion email sent to ${email}, messageId: ${info.messageId}, response: ${info.response}`
+    );
   }
 
   async sendTutorApplicationNotification(applicant: {
@@ -796,7 +861,9 @@ export class EmailService {
   }): Promise<void> {
     const adminEmail = this.configService.get<string>('ADMIN_NOTIFICATION_EMAIL');
     if (!adminEmail) {
-      console.warn('[EmailService] ADMIN_NOTIFICATION_EMAIL not set, skipping tutor application notification');
+      console.warn(
+        '[EmailService] ADMIN_NOTIFICATION_EMAIL not set, skipping tutor application notification'
+      );
       return;
     }
 
@@ -825,16 +892,24 @@ export class EmailService {
                 <td style="padding:10px 0;color:#666;">Email</td>
                 <td style="padding:10px 0;color:#111;">${applicant.email}</td>
               </tr>
-              ${applicant.phone ? `
+              ${
+                applicant.phone
+                  ? `
               <tr style="border-top:1px solid #f0f0f0;">
                 <td style="padding:10px 0;color:#666;">Телефон</td>
                 <td style="padding:10px 0;color:#111;">${applicant.phone}</td>
-              </tr>` : ''}
-              ${applicant.telegram ? `
+              </tr>`
+                  : ''
+              }
+              ${
+                applicant.telegram
+                  ? `
               <tr style="border-top:1px solid #f0f0f0;">
                 <td style="padding:10px 0;color:#666;">Telegram</td>
                 <td style="padding:10px 0;color:#111;">${applicant.telegram}</td>
-              </tr>` : ''}
+              </tr>`
+                  : ''
+              }
             </table>
             <div style="text-align:center;margin-top:32px;">
               <a href="${adminUrl}"
@@ -857,7 +932,10 @@ export class EmailService {
       await this.transporter.sendMail(mailOptions);
       console.log(`Tutor application notification sent to ${adminEmail}`);
     } catch (err) {
-      console.error('Error sending tutor application notification:', err instanceof Error ? err.message : err);
+      console.error(
+        'Error sending tutor application notification:',
+        err instanceof Error ? err.message : err
+      );
     }
   }
 
@@ -877,12 +955,13 @@ export class EmailService {
     if (changes.descriptionChanged) changesList.push('описание события');
     const changesText = changesList.join(', ');
 
-    const coverBlock = changes.coverChanged && newCoverUrl
-      ? `<div style="margin:20px 0;">
+    const coverBlock =
+      changes.coverChanged && newCoverUrl
+        ? `<div style="margin:20px 0;">
            <p style="color:#555;margin-bottom:8px;">Рекомендуемая обложка взамен ранее прикреплённой:</p>
            <img src="${newCoverUrl}" alt="Новая обложка" style="max-width:100%;border-radius:8px;border:1px solid #e0e0e0;" />
          </div>`
-      : '';
+        : '';
 
     const commentBlock = comment
       ? `<div style="background:#f0f7ff;border-left:4px solid #007bff;padding:15px;margin:20px 0;border-radius:4px;">
@@ -932,7 +1011,10 @@ export class EmailService {
       await this.transporter.sendMail(mailOptions);
       console.log(`Event moderation email sent to ${email} for event "${eventTitle}"`);
     } catch (err) {
-      console.error('Error sending event moderation email:', err instanceof Error ? err.message : err);
+      console.error(
+        'Error sending event moderation email:',
+        err instanceof Error ? err.message : err
+      );
     }
   }
 
@@ -946,7 +1028,16 @@ export class EmailService {
     eventId: string;
     isPaid: boolean;
   }): Promise<void> {
-    const { email, studentName, eventTitle, mentorName, eventDateTime, eventPrice, eventId, isPaid } = params;
+    const {
+      email,
+      studentName,
+      eventTitle,
+      mentorName,
+      eventDateTime,
+      eventPrice,
+      eventId,
+      isPaid,
+    } = params;
 
     const formattedDate = new Date(eventDateTime).toLocaleString('ru-RU', {
       weekday: 'long',
@@ -958,12 +1049,13 @@ export class EmailService {
       timeZone: 'Europe/Moscow',
     });
 
-    const priceBlock = eventPrice > 0
-      ? `<div class="detail-item">
+    const priceBlock =
+      eventPrice > 0
+        ? `<div class="detail-item">
            <span class="label">Стоимость:</span>
            <span class="value">${eventPrice} ₽${isPaid ? ' (оплачено)' : ' (ожидает оплаты)'}</span>
          </div>`
-      : `<div class="detail-item">
+        : `<div class="detail-item">
            <span class="label">Стоимость:</span>
            <span class="value">Бесплатно</span>
          </div>`;
@@ -1032,7 +1124,10 @@ export class EmailService {
       await this.transporter.sendMail(mailOptions);
       console.log(`Registration confirmation sent to student ${email} for event "${eventTitle}"`);
     } catch (err) {
-      console.error('Error sending registration confirmation email:', err instanceof Error ? err.message : err);
+      console.error(
+        'Error sending registration confirmation email:',
+        err instanceof Error ? err.message : err
+      );
     }
   }
 }

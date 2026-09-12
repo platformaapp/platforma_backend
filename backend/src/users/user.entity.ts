@@ -61,6 +61,9 @@ export class User {
   @Column({ type: 'boolean', name: 'is_blocked', default: false })
   isBlocked: boolean;
 
+  @Column({ type: 'timestamptz', name: 'deleted_at', nullable: true })
+  deletedAt: Date | null;
+
   @Column({ type: 'decimal', name: 'commission_rate', nullable: true, precision: 5, scale: 2 })
   commissionRate: number | null;
 

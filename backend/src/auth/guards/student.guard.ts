@@ -13,6 +13,9 @@ export class StudentGuard extends JwtAuthGuard {
     const user: JwtPayload = request.user;
 
     // Accept if active role is student OR if user has student in their roles array
-    return !!user && (user.role === 'student' || (Array.isArray(user.roles) && user.roles.includes('student')));
+    return (
+      !!user &&
+      (user.role === 'student' || (Array.isArray(user.roles) && user.roles.includes('student')))
+    );
   }
 }
