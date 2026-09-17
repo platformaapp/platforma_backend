@@ -14,10 +14,15 @@ import {
 export class ArticlesService {
   constructor(
     @InjectRepository(Article)
-    private readonly articlesRepository: Repository<Article>,
+    private readonly articlesRepository: Repository<Article>
   ) {}
 
-  async findAll(page = 1, per_page = 20, category?: string): Promise<ArticlesListResponseDto> {
+  async findAll(
+    page = 1,
+    per_page = 20,
+    category?: string,
+    search?: string
+  ): Promise<ArticlesListResponseDto> {
     const qb = this.articlesRepository
       .createQueryBuilder('article')
       .leftJoinAndSelect('article.author', 'author')
@@ -25,6 +30,9 @@ export class ArticlesService {
 
     if (category) {
       qb.andWhere('article.category = :category', { category });
+    }
+    if (search) {
+      qb.andWhere('article.title ILIKE :search', { search: `%${search}%` });
     }
 
     const total = await qb.getCount();
@@ -64,10 +72,10 @@ export class ArticlesService {
       where: { id: saved.id },
       relations: ['author'],
     });
-    return toArticleResponseDto(full!);
+    return toArticleResponseDto(full);
   }
 
-  async update(id: string, dto: UpdateArticleDto): Promise<ArticleResponseDto> {
+  async update(id: string, dto: UpdateArticleDto, authorId?: string): Promise<ArticleResponseDto> {
     const article = await this.articlesRepository.findOne({
       where: { id },
       relations: ['author'],
@@ -81,13 +89,14 @@ export class ArticlesService {
     if (dto.category !== undefined) article.category = dto.category;
     if (dto.cover_url !== undefined) article.coverUrl = dto.cover_url;
     if (dto.gallery !== undefined) article.gallery = dto.gallery;
+    if (authorId !== undefined) article.authorId = authorId;
 
     const saved = await this.articlesRepository.save(article);
     const full = await this.articlesRepository.findOne({
       where: { id: saved.id },
       relations: ['author'],
     });
-    return toArticleResponseDto(full!);
+    return toArticleResponseDto(full);
   }
 
   async remove(id: string): Promise<void> {

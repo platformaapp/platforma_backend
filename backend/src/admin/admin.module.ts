@@ -9,6 +9,7 @@ import { AdminTutorApplicationsController } from './admin-tutor-applications.con
 import { AdminSettingsController } from './admin-settings.controller';
 import { AdminUsersController } from './admin-users.controller';
 import { AdminEventsController } from './admin-events.controller';
+import { AdminArticlesController } from './admin-articles.controller';
 import { TutorApplication } from './entities/tutor-application.entity';
 import { PlatformSettings } from './entities/platform-settings.entity';
 import { User } from 'src/users/user.entity';
@@ -17,6 +18,7 @@ import { AdminJwtStrategy } from './strategies/admin-jwt.strategy';
 import { AdminJwtGuard } from './guards/admin-jwt.guard';
 import { JWT_SECRET } from 'src/utils/constants';
 import { EmailService } from 'src/notifications/email.service';
+import { ArticlesModule } from 'src/articles/articles.module';
 
 @Module({
   imports: [
@@ -30,6 +32,7 @@ import { EmailService } from 'src/notifications/email.service';
       }),
       inject: [ConfigService],
     }),
+    ArticlesModule,
   ],
   controllers: [
     AdminAuthController,
@@ -37,6 +40,7 @@ import { EmailService } from 'src/notifications/email.service';
     AdminSettingsController,
     AdminUsersController,
     AdminEventsController,
+    AdminArticlesController,
   ],
   providers: [AdminService, AdminJwtStrategy, AdminJwtGuard, EmailService, ConfigService],
   exports: [AdminService],
