@@ -46,6 +46,7 @@ export class UsersService {
         'user.shortBio',
         'user.telegram',
         'user.roles',
+        'user.hourlyRate',
       ])
       .where('user.isBlocked = :isBlocked', { isBlocked: false })
       .orderBy('user.createdAt', 'DESC')
