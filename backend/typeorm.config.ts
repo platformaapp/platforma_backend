@@ -1,9 +1,12 @@
 import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
-import { NODE_ENV } from 'src/utils/constants';
 
 dotenv.config({ path: '.env' });
 
+// Не импортируем src/utils/constants — это bare-specifier импорт,
+// резолвящийся только через tsconfig baseUrl, а typeorm CLI грузит этот файл
+// своим загрузчиком, который baseUrl не понимает ("Cannot find package 'src'").
+// process.env.NODE_ENV читаем напрямую — там ровно тот же re-export.
 export const AppDataSource = new DataSource({
   type: 'postgres',
   host: process.env.DB_HOST,
@@ -13,6 +16,6 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_NAME,
   entities: ['dist/**/*.entity.js'],
   migrations: ['dist/src/migrations/*.js'],
-  synchronize: NODE_ENV === 'development',
+  synchronize: process.env.NODE_ENV === 'development',
   logging: false,
 });
