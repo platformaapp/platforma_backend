@@ -141,6 +141,11 @@ export class Event {
   })
   category: EventCategory | null;
 
+  // Тематический рубрикатор (Кино/Музыка/.../Здоровье/Новые увлечения) — не
+  // путать с category выше (это формат контента: Трансляция/Лекция/...).
+  @Column({ type: 'varchar', length: 255, name: 'topic', nullable: true })
+  topic: string | null;
+
   @Column({ type: 'text', name: 'admin_moderation_comment', nullable: true })
   adminModerationComment: string | null;
 

@@ -22,6 +22,7 @@ export class UsersService {
         'avatarUrl',
         'bio',
         'shortBio',
+        'specialization',
         'createdAt',
         'updatedAt',
       ],
@@ -47,6 +48,7 @@ export class UsersService {
         'user.telegram',
         'user.roles',
         'user.hourlyRate',
+        'user.specialization',
       ])
       .where('user.isBlocked = :isBlocked', { isBlocked: false })
       .orderBy('user.createdAt', 'DESC')

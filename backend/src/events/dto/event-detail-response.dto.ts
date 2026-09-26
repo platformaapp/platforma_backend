@@ -25,4 +25,5 @@ export class EventDetailResponseDto {
   mentor_revenue?: number;
   duration_minutes?: number;
   datetime_end?: string;
+  topic?: string | null;
 }

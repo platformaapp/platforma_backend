@@ -177,6 +177,7 @@ export class EventsService {
       type: session ? EventType.SESSION_BASED : EventType.STANDALONE,
       coverUrl: createEventDto.coverUrl || null,
       category: createEventDto.category ?? null,
+      topic: createEventDto.topic ?? null,
     });
 
     const savedEvent = await this.eventsRepository.save(event);
@@ -616,6 +617,7 @@ export class EventsService {
       duration_minutes: durationMinutes,
       datetime_start: event.datetimeStart?.toISOString() || null,
       datetime_end: event.datetimeEnd?.toISOString() || null,
+      topic: event.topic,
     };
   }
 
@@ -1245,6 +1247,7 @@ export class EventsService {
         durationMinutes: event.durationMinutes,
         coverUrl: event.coverUrl,
         category: event.category,
+        topic: event.topic,
         price: Number(event.price),
         mentor,
         status: event.status,

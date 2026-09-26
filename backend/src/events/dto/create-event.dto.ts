@@ -9,9 +9,11 @@ import {
   Max,
   IsEnum,
   IsUUID,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { EventCategory, EventType } from '../entities/event.entity';
+import { TOPICS } from '../../utils/topics';
 
 export class CreateEventDto {
   @IsString()
@@ -55,4 +57,8 @@ export class CreateEventDto {
   @IsOptional()
   @IsEnum(EventCategory)
   category?: EventCategory;
+
+  @IsOptional()
+  @IsIn(TOPICS)
+  topic?: string;
 }

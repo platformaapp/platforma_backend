@@ -1,5 +1,6 @@
-import { IsEmail, IsNumber, IsOptional, IsString, IsUrl, Length, Min } from 'class-validator';
+import { IsEmail, IsIn, IsNumber, IsOptional, IsString, IsUrl, Length, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { TOPICS } from '../../utils/topics';
 
 export class UpdateProfileDto {
   @ApiProperty({ required: false })
@@ -53,4 +54,9 @@ export class UpdateProfileDto {
   @IsString()
   @Length(0, 1000)
   groupMeetings?: string;
+
+  @ApiProperty({ required: false, enum: TOPICS, description: 'Рубрикатор — тема специализации наставника' })
+  @IsOptional()
+  @IsIn(TOPICS)
+  specialization?: string;
 }

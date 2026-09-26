@@ -19,6 +19,7 @@ export class EventFeedItemDto {
   durationMinutes: number;
   coverUrl: string | null;
   category: string | null;
+  topic: string | null;
   price: number;
   mentor: MentorDto;
   isRegistered?: boolean;

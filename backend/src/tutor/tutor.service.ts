@@ -122,6 +122,8 @@ export class TutorService {
     if (updateProfileDto.hourlyRate !== undefined) user.hourlyRate = updateProfileDto.hourlyRate;
     if (updateProfileDto.groupMeetings !== undefined)
       user.groupMeetings = updateProfileDto.groupMeetings;
+    if (updateProfileDto.specialization !== undefined)
+      user.specialization = updateProfileDto.specialization;
 
     user.updatedAt = new Date();
     const updatedUser = await this.usersRepository.save(user);
