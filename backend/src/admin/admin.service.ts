@@ -18,8 +18,10 @@ import { GetApplicationsDto } from './dto/get-applications.dto';
 import { JWT_SECRET } from 'src/utils/constants';
 import { EmailService } from 'src/notifications/email.service';
 import { AdminModerateEventDto } from './dto/moderate-event.dto';
+import { SiteSettingsDto } from './dto/site-settings.dto';
 
 const COMMISSION_KEY = 'commission_rate';
+const SITE_SETTINGS_KEY = 'site_settings';
 
 const ADMIN_TOKEN_TTL = '30d';
 
@@ -134,6 +136,42 @@ export class AdminService {
   async setPlatformCommission(rate: number): Promise<void> {
     if (rate < 0 || rate > 100) throw new BadRequestException('Комиссия должна быть от 0 до 100');
     await this.settingsRepository.upsert({ key: COMMISSION_KEY, value: String(rate) }, ['key']);
+  }
+
+  // ── Настройки сайта (навигация/баннер/партнёры/рубрикатор) ───────────────
+  // Один JSON-блоб в том же key/value platform_settings — своих таблиц под
+  // это не заводили. Пустые массивы/поля означают "админ ещё не менял" —
+  // фронтенд в этом случае показывает свои дефолты (см. constants/topics.ts
+  // и захардкоженные NAV_ITEMS/FRIENDS на фронте).
+  async getSiteSettings(): Promise<SiteSettingsDto> {
+    const row = await this.settingsRepository.findOne({ where: { key: SITE_SETTINGS_KEY } });
+    if (!row) return { navItems: [], banner: {}, partners: [], topics: [] };
+    try {
+      const parsed = JSON.parse(row.value) as SiteSettingsDto;
+      return {
+        navItems: parsed.navItems ?? [],
+        banner: parsed.banner ?? {},
+        partners: parsed.partners ?? [],
+        topics: parsed.topics ?? [],
+      };
+    } catch {
+      return { navItems: [], banner: {}, partners: [], topics: [] };
+    }
+  }
+
+  async setSiteSettings(dto: SiteSettingsDto): Promise<SiteSettingsDto> {
+    const current = await this.getSiteSettings();
+    const merged: SiteSettingsDto = {
+      navItems: dto.navItems ?? current.navItems,
+      banner: dto.banner ?? current.banner,
+      partners: dto.partners ?? current.partners,
+      topics: dto.topics ?? current.topics,
+    };
+    await this.settingsRepository.upsert(
+      { key: SITE_SETTINGS_KEY, value: JSON.stringify(merged) },
+      ['key']
+    );
+    return merged;
   }
 
   // ── Tutor-specific commission ────────────────────────────────────────────

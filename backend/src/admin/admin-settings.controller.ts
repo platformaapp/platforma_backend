@@ -1,8 +1,9 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Put, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { IsNumber, Max, Min } from 'class-validator';
 import { AdminService } from './admin.service';
 import { AdminJwtGuard } from './guards/admin-jwt.guard';
+import { SiteSettingsDto } from './dto/site-settings.dto';
 
 class SetCommissionDto {
   @IsNumber()
@@ -36,5 +37,17 @@ export class AdminSettingsController {
   async setPlatformCommission(@Body() dto: SetCommissionDto) {
     await this.adminService.setPlatformCommission(dto.commissionRate);
     return { message: 'Комиссия обновлена' };
+  }
+
+  @Get('site')
+  @ApiOperation({ summary: 'Get site settings (nav/banner/partners/topics)' })
+  getSiteSettings() {
+    return this.adminService.getSiteSettings();
+  }
+
+  @Put('site')
+  @ApiOperation({ summary: 'Update site settings (nav/banner/partners/topics)' })
+  setSiteSettings(@Body() dto: SiteSettingsDto) {
+    return this.adminService.setSiteSettings(dto);
   }
 }

@@ -1,6 +1,5 @@
-import { IsEmail, IsIn, IsNumber, IsOptional, IsString, IsUrl, Length, Min } from 'class-validator';
+import { IsEmail, IsNumber, IsOptional, IsString, IsUrl, Length, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { TOPICS } from '../../utils/topics';
 
 export class UpdateProfileDto {
   @ApiProperty({ required: false })
@@ -55,8 +54,11 @@ export class UpdateProfileDto {
   @Length(0, 1000)
   groupMeetings?: string;
 
-  @ApiProperty({ required: false, enum: TOPICS, description: 'Рубрикатор — тема специализации наставника' })
+  // Не IsIn(TOPICS) — список тем теперь редактируется из админки
+  // (platform_settings), это больше не статичный enum на билд-тайме.
+  @ApiProperty({ required: false, description: 'Рубрикатор — тема специализации наставника' })
   @IsOptional()
-  @IsIn(TOPICS)
+  @IsString()
+  @Length(1, 100)
   specialization?: string;
 }

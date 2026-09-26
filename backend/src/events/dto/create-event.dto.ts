@@ -9,11 +9,10 @@ import {
   Max,
   IsEnum,
   IsUUID,
-  IsIn,
+  Length,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { EventCategory, EventType } from '../entities/event.entity';
-import { TOPICS } from '../../utils/topics';
 
 export class CreateEventDto {
   @IsString()
@@ -58,7 +57,10 @@ export class CreateEventDto {
   @IsEnum(EventCategory)
   category?: EventCategory;
 
+  // Не IsIn(TOPICS) — список тем теперь редактируется из админки
+  // (platform_settings), это больше не статичный enum на билд-тайме.
   @IsOptional()
-  @IsIn(TOPICS)
+  @IsString()
+  @Length(1, 100)
   topic?: string;
 }

@@ -12,6 +12,7 @@ import { AdminEventsController } from './admin-events.controller';
 import { AdminArticlesController } from './admin-articles.controller';
 import { AdminPaymentsController } from './admin-payments.controller';
 import { AdminPaymentsService } from './admin-payments.service';
+import { PublicSettingsController } from './public-settings.controller';
 import { TutorApplication } from './entities/tutor-application.entity';
 import { PlatformSettings } from './entities/platform-settings.entity';
 import { User } from 'src/users/user.entity';
@@ -46,6 +47,7 @@ import { ArticlesModule } from 'src/articles/articles.module';
     AdminEventsController,
     AdminArticlesController,
     AdminPaymentsController,
+    PublicSettingsController,
   ],
   providers: [
     AdminService,
