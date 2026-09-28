@@ -36,10 +36,14 @@ export class UpdateProfileDto {
   @Length(1, 20)
   phone?: string;
 
+  // 0 (не 1) — фронтенд всегда шлёт это поле при любом сохранении профиля
+  // (даже если меняли только, скажем, стоимость часа), а не только когда
+  // сам телеграм редактируют; пустая строка здесь означает "не указан",
+  // а не невалидный ввод.
   @ApiProperty({ required: false, description: 'Telegram username without @' })
   @IsOptional()
   @IsString()
-  @Length(1, 100)
+  @Length(0, 100)
   telegram?: string;
 
   @ApiProperty({ required: false })

@@ -19,10 +19,12 @@ export class UpdateStudentProfileDto {
   @Length(1, 20)
   phone?: string;
 
+  // 0, не 1 — та же причина, что в tutor/dto/update-profile.dto.ts: фронтенд
+  // всегда шлёт telegram при сохранении профиля, пустая строка — "не указан".
   @ApiPropertyOptional({ description: 'Telegram username without @' })
   @IsOptional()
   @IsString()
-  @Length(1, 100)
+  @Length(0, 100)
   telegram?: string;
 
   @ApiPropertyOptional()
