@@ -229,6 +229,7 @@ export class AdminService {
     return {
       ...rest,
       applicationStatus: application?.status ?? null,
+      applicationId: application?.id ?? null,
       rejectionReason: application?.rejectionReason ?? null,
     };
   }
