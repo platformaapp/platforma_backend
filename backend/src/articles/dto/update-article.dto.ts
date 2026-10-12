@@ -37,4 +37,8 @@ export class UpdateArticleDto {
   @ArrayMaxSize(3)
   @IsUUID('4', { each: true })
   related_article_ids?: string[];
+
+  @IsOptional()
+  @IsUUID()
+  event_id?: string | null;
 }

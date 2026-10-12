@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Article } from './entities/article.entity';
+import { Event } from '../events/entities/event.entity';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import {
@@ -14,7 +15,9 @@ import {
 export class ArticlesService {
   constructor(
     @InjectRepository(Article)
-    private readonly articlesRepository: Repository<Article>
+    private readonly articlesRepository: Repository<Article>,
+    @InjectRepository(Event)
+    private readonly eventsRepository: Repository<Event>
   ) {}
 
   async findAll(
@@ -56,7 +59,8 @@ export class ArticlesService {
       throw new NotFoundException(`Article ${id} not found`);
     }
     const relatedArticles = await this.findRelatedArticles(article.relatedArticleIds);
-    return toArticleResponseDto(article, relatedArticles);
+    const event = await this.findEvent(article.eventId);
+    return toArticleResponseDto(article, relatedArticles, event);
   }
 
   /** Подтягивает связанные статьи по id, в исходном порядке (In() порядок
@@ -67,6 +71,13 @@ export class ArticlesService {
     return ids.map((id) => found.find((a) => a.id === id)).filter((a): a is Article => !!a);
   }
 
+  /** Тихо возвращает null, если событие уже удалено — та же логика, что и
+   *  для related-статей. */
+  private async findEvent(eventId: string | null): Promise<Event | null> {
+    if (!eventId) return null;
+    return this.eventsRepository.findOne({ where: { id: eventId } });
+  }
+
   async create(dto: CreateArticleDto, authorId: string): Promise<ArticleResponseDto> {
     const article = this.articlesRepository.create({
       title: dto.title,
@@ -75,6 +86,7 @@ export class ArticlesService {
       coverUrl: dto.cover_url ?? null,
       gallery: dto.gallery ?? [],
       relatedArticleIds: dto.related_article_ids ?? [],
+      eventId: dto.event_id ?? null,
       authorId,
     });
     const saved = await this.articlesRepository.save(article);
@@ -83,7 +95,8 @@ export class ArticlesService {
       relations: ['author'],
     });
     const relatedArticles = await this.findRelatedArticles(full.relatedArticleIds);
-    return toArticleResponseDto(full, relatedArticles);
+    const event = await this.findEvent(full.eventId);
+    return toArticleResponseDto(full, relatedArticles, event);
   }
 
   async update(id: string, dto: UpdateArticleDto, authorId?: string): Promise<ArticleResponseDto> {
@@ -101,6 +114,7 @@ export class ArticlesService {
     if (dto.cover_url !== undefined) article.coverUrl = dto.cover_url;
     if (dto.gallery !== undefined) article.gallery = dto.gallery;
     if (dto.related_article_ids !== undefined) article.relatedArticleIds = dto.related_article_ids;
+    if (dto.event_id !== undefined) article.eventId = dto.event_id;
     if (authorId !== undefined) article.authorId = authorId;
 
     const saved = await this.articlesRepository.save(article);
@@ -109,7 +123,8 @@ export class ArticlesService {
       relations: ['author'],
     });
     const relatedArticles = await this.findRelatedArticles(full.relatedArticleIds);
-    return toArticleResponseDto(full, relatedArticles);
+    const event = await this.findEvent(full.eventId);
+    return toArticleResponseDto(full, relatedArticles, event);
   }
 
   async remove(id: string): Promise<void> {

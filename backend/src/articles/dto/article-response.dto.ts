@@ -1,4 +1,5 @@
 import { Article } from '../entities/article.entity';
+import { Event } from '../../events/entities/event.entity';
 
 export class ArticleAuthorDto {
   id: string;
@@ -14,6 +15,14 @@ export class RelatedArticleSummaryDto {
   cover_url: string | null;
 }
 
+export class ArticleEventSummaryDto {
+  id: string;
+  title: string;
+  cover_url: string | null;
+  datetime_start: string | null;
+  price: number;
+}
+
 export class ArticleResponseDto {
   id: string;
   title: string;
@@ -26,6 +35,10 @@ export class ArticleResponseDto {
    *  подгружены сервисом (findOne), в списках (findAll) остаётся undefined,
    *  чтобы не плодить лишние запросы к БД. */
   related_articles?: RelatedArticleSummaryDto[];
+  event_id: string | null;
+  /** Развёрнутое событие (та же логика, что у related_articles) —
+   *  для CTA "Записаться на событие" на странице статьи. */
+  event?: ArticleEventSummaryDto | null;
   author: ArticleAuthorDto;
   created_at: string;
   updated_at: string;
@@ -42,7 +55,8 @@ export class ArticlesListResponseDto {
 
 export function toArticleResponseDto(
   article: Article,
-  relatedArticles?: Article[]
+  relatedArticles?: Article[],
+  event?: Event | null
 ): ArticleResponseDto {
   return {
     id: article.id,
@@ -58,6 +72,16 @@ export function toArticleResponseDto(
       category: a.category,
       cover_url: a.coverUrl,
     })),
+    event_id: article.eventId ?? null,
+    event: event
+      ? {
+          id: event.id,
+          title: event.title,
+          cover_url: event.coverUrl,
+          datetime_start: event.datetimeStart ? event.datetimeStart.toISOString() : null,
+          price: event.price,
+        }
+      : undefined,
     author: {
       id: article.author.id,
       name: article.author.fullName || article.author.email.split('@')[0],

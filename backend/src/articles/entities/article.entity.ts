@@ -32,6 +32,11 @@ export class Article {
   @Column({ type: 'uuid', array: true, name: 'related_article_ids', default: '{}' })
   relatedArticleIds: string[];
 
+  /** Событие, привязанное к статье (CTA "Записаться на событие") — выбирается
+   *  в админке, см. ArticlesService.findEventSummary. */
+  @Column({ type: 'uuid', name: 'event_id', nullable: true })
+  eventId: string | null;
+
   @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'author_id' })
   author: User;
