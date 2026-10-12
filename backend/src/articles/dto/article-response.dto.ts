@@ -7,6 +7,13 @@ export class ArticleAuthorDto {
   role_title: string | null;
 }
 
+export class RelatedArticleSummaryDto {
+  id: string;
+  title: string;
+  category: string | null;
+  cover_url: string | null;
+}
+
 export class ArticleResponseDto {
   id: string;
   title: string;
@@ -14,6 +21,11 @@ export class ArticleResponseDto {
   category: string | null;
   cover_url: string | null;
   gallery: string[];
+  related_article_ids: string[];
+  /** Развёрнутые связанные статьи (id/title/cover) — только там, где уже
+   *  подгружены сервисом (findOne), в списках (findAll) остаётся undefined,
+   *  чтобы не плодить лишние запросы к БД. */
+  related_articles?: RelatedArticleSummaryDto[];
   author: ArticleAuthorDto;
   created_at: string;
   updated_at: string;
@@ -28,7 +40,10 @@ export class ArticlesListResponseDto {
   };
 }
 
-export function toArticleResponseDto(article: Article): ArticleResponseDto {
+export function toArticleResponseDto(
+  article: Article,
+  relatedArticles?: Article[]
+): ArticleResponseDto {
   return {
     id: article.id,
     title: article.title,
@@ -36,6 +51,13 @@ export function toArticleResponseDto(article: Article): ArticleResponseDto {
     category: article.category,
     cover_url: article.coverUrl,
     gallery: article.gallery ?? [],
+    related_article_ids: article.relatedArticleIds ?? [],
+    related_articles: relatedArticles?.map((a) => ({
+      id: a.id,
+      title: a.title,
+      category: a.category,
+      cover_url: a.coverUrl,
+    })),
     author: {
       id: article.author.id,
       name: article.author.fullName || article.author.email.split('@')[0],

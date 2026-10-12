@@ -6,6 +6,7 @@ import {
   IsUrl,
   IsUUID,
   MaxLength,
+  ArrayMaxSize,
 } from 'class-validator';
 
 export class AdminCreateArticleDto {
@@ -32,6 +33,12 @@ export class AdminCreateArticleDto {
   @IsArray()
   @IsUrl({}, { each: true })
   gallery?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3)
+  @IsUUID('4', { each: true })
+  related_article_ids?: string[];
 
   @IsUUID()
   author_id: string;
@@ -60,6 +67,12 @@ export class AdminUpdateArticleDto {
   @IsArray()
   @IsUrl({}, { each: true })
   gallery?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3)
+  @IsUUID('4', { each: true })
+  related_article_ids?: string[];
 
   @IsOptional()
   @IsUUID()

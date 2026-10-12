@@ -1,4 +1,12 @@
-import { IsString, IsOptional, IsArray, IsUrl, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  IsUrl,
+  IsUUID,
+  MaxLength,
+  ArrayMaxSize,
+} from 'class-validator';
 
 export class UpdateArticleDto {
   @IsOptional()
@@ -23,4 +31,10 @@ export class UpdateArticleDto {
   @IsArray()
   @IsUrl({}, { each: true })
   gallery?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3)
+  @IsUUID('4', { each: true })
+  related_article_ids?: string[];
 }

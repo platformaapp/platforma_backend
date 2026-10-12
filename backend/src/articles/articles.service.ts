@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Article } from './entities/article.entity';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
@@ -42,7 +42,7 @@ export class ArticlesService {
       .getMany();
 
     return {
-      data: articles.map(toArticleResponseDto),
+      data: articles.map((article) => toArticleResponseDto(article)),
       pagination: { page, per_page, total },
     };
   }
@@ -55,7 +55,16 @@ export class ArticlesService {
     if (!article) {
       throw new NotFoundException(`Article ${id} not found`);
     }
-    return toArticleResponseDto(article);
+    const relatedArticles = await this.findRelatedArticles(article.relatedArticleIds);
+    return toArticleResponseDto(article, relatedArticles);
+  }
+
+  /** Подтягивает связанные статьи по id, в исходном порядке (In() порядок
+   *  не гарантирует) — и тихо отбрасывает уже удалённые. */
+  private async findRelatedArticles(ids: string[]): Promise<Article[]> {
+    if (!ids || ids.length === 0) return [];
+    const found = await this.articlesRepository.findBy({ id: In(ids) });
+    return ids.map((id) => found.find((a) => a.id === id)).filter((a): a is Article => !!a);
   }
 
   async create(dto: CreateArticleDto, authorId: string): Promise<ArticleResponseDto> {
@@ -65,6 +74,7 @@ export class ArticlesService {
       category: dto.category ?? null,
       coverUrl: dto.cover_url ?? null,
       gallery: dto.gallery ?? [],
+      relatedArticleIds: dto.related_article_ids ?? [],
       authorId,
     });
     const saved = await this.articlesRepository.save(article);
@@ -72,7 +82,8 @@ export class ArticlesService {
       where: { id: saved.id },
       relations: ['author'],
     });
-    return toArticleResponseDto(full);
+    const relatedArticles = await this.findRelatedArticles(full.relatedArticleIds);
+    return toArticleResponseDto(full, relatedArticles);
   }
 
   async update(id: string, dto: UpdateArticleDto, authorId?: string): Promise<ArticleResponseDto> {
@@ -89,6 +100,7 @@ export class ArticlesService {
     if (dto.category !== undefined) article.category = dto.category;
     if (dto.cover_url !== undefined) article.coverUrl = dto.cover_url;
     if (dto.gallery !== undefined) article.gallery = dto.gallery;
+    if (dto.related_article_ids !== undefined) article.relatedArticleIds = dto.related_article_ids;
     if (authorId !== undefined) article.authorId = authorId;
 
     const saved = await this.articlesRepository.save(article);
@@ -96,7 +108,8 @@ export class ArticlesService {
       where: { id: saved.id },
       relations: ['author'],
     });
-    return toArticleResponseDto(full);
+    const relatedArticles = await this.findRelatedArticles(full.relatedArticleIds);
+    return toArticleResponseDto(full, relatedArticles);
   }
 
   async remove(id: string): Promise<void> {

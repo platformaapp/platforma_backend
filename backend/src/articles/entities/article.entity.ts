@@ -29,6 +29,9 @@ export class Article {
   @Column({ type: 'text', array: true, name: 'gallery', default: '{}' })
   gallery: string[];
 
+  @Column({ type: 'uuid', array: true, name: 'related_article_ids', default: '{}' })
+  relatedArticleIds: string[];
+
   @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'author_id' })
   author: User;
