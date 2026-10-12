@@ -19,7 +19,7 @@ export class AdminCreateArticleDto {
   @IsString()
   content?: string;
 
-  /** Формат материала — на сегодня фронтенд ожидает 'Подкаст' | 'Текст' | 'Интервью' */
+  /** Формат материала — фронтенд ожидает 'Послушать' | 'Посмотреть' | 'Посетить' | 'Обсудить' */
   @IsOptional()
   @IsString()
   @MaxLength(100)
@@ -33,6 +33,11 @@ export class AdminCreateArticleDto {
   @IsArray()
   @IsUrl({}, { each: true })
   gallery?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  gallery_caption?: string;
 
   @IsOptional()
   @IsArray()
@@ -71,6 +76,11 @@ export class AdminUpdateArticleDto {
   @IsArray()
   @IsUrl({}, { each: true })
   gallery?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  gallery_caption?: string;
 
   @IsOptional()
   @IsArray()

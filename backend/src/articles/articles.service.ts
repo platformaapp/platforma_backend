@@ -85,6 +85,7 @@ export class ArticlesService {
       category: dto.category ?? null,
       coverUrl: dto.cover_url ?? null,
       gallery: dto.gallery ?? [],
+      galleryCaption: dto.gallery_caption ?? null,
       relatedArticleIds: dto.related_article_ids ?? [],
       eventId: dto.event_id ?? null,
       authorId,
@@ -113,6 +114,7 @@ export class ArticlesService {
     if (dto.category !== undefined) article.category = dto.category;
     if (dto.cover_url !== undefined) article.coverUrl = dto.cover_url;
     if (dto.gallery !== undefined) article.gallery = dto.gallery;
+    if (dto.gallery_caption !== undefined) article.galleryCaption = dto.gallery_caption;
     if (dto.related_article_ids !== undefined) article.relatedArticleIds = dto.related_article_ids;
     if (dto.event_id !== undefined) article.eventId = dto.event_id;
     if (authorId !== undefined) article.authorId = authorId;

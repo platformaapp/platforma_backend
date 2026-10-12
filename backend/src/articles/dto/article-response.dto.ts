@@ -30,6 +30,8 @@ export class ArticleResponseDto {
   category: string | null;
   cover_url: string | null;
   gallery: string[];
+  /** Подпись под второй (правой) фотографией галереи. */
+  gallery_caption: string | null;
   related_article_ids: string[];
   /** Развёрнутые связанные статьи (id/title/cover) — только там, где уже
    *  подгружены сервисом (findOne), в списках (findAll) остаётся undefined,
@@ -65,6 +67,7 @@ export function toArticleResponseDto(
     category: article.category,
     cover_url: article.coverUrl,
     gallery: article.gallery ?? [],
+    gallery_caption: article.galleryCaption ?? null,
     related_article_ids: article.relatedArticleIds ?? [],
     related_articles: relatedArticles?.map((a) => ({
       id: a.id,

@@ -33,6 +33,11 @@ export class UpdateArticleDto {
   gallery?: string[];
 
   @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  gallery_caption?: string;
+
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(3)
   @IsUUID('4', { each: true })

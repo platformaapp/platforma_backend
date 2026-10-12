@@ -29,6 +29,10 @@ export class Article {
   @Column({ type: 'text', array: true, name: 'gallery', default: '{}' })
   gallery: string[];
 
+  /** Подпись под второй (правой) фотографией галереи — gallery[1]. */
+  @Column({ type: 'text', name: 'gallery_caption', nullable: true })
+  galleryCaption: string | null;
+
   @Column({ type: 'uuid', array: true, name: 'related_article_ids', default: '{}' })
   relatedArticleIds: string[];
 
