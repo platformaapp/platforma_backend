@@ -41,6 +41,12 @@ export class Article {
   @Column({ type: 'uuid', name: 'event_id', nullable: true })
   eventId: string | null;
 
+  /** Показывать ли баннер рядом со вторым подзаголовком — опционально,
+   *  включается/выключается в админке. По умолчанию true (старое поведение
+   *  для уже существующих статей). */
+  @Column({ type: 'boolean', name: 'show_banner', default: true })
+  showBanner: boolean;
+
   @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'author_id' })
   author: User;

@@ -4,6 +4,7 @@ import {
   IsArray,
   IsUrl,
   IsUUID,
+  IsBoolean,
   MaxLength,
   ArrayMaxSize,
 } from 'class-validator';
@@ -46,4 +47,8 @@ export class UpdateArticleDto {
   @IsOptional()
   @IsUUID()
   event_id?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  show_banner?: boolean;
 }

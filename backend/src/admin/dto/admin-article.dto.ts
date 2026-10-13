@@ -5,6 +5,7 @@ import {
   IsArray,
   IsUrl,
   IsUUID,
+  IsBoolean,
   MaxLength,
   ArrayMaxSize,
 } from 'class-validator';
@@ -49,6 +50,10 @@ export class AdminCreateArticleDto {
   @IsUUID()
   event_id?: string | null;
 
+  @IsOptional()
+  @IsBoolean()
+  show_banner?: boolean;
+
   @IsUUID()
   author_id: string;
 }
@@ -91,6 +96,10 @@ export class AdminUpdateArticleDto {
   @IsOptional()
   @IsUUID()
   event_id?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  show_banner?: boolean;
 
   @IsOptional()
   @IsUUID()

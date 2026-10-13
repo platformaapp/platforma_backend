@@ -41,6 +41,9 @@ export class ArticleResponseDto {
   /** Развёрнутое событие (та же логика, что у related_articles) —
    *  для CTA "Записаться на событие" на странице статьи. */
   event?: ArticleEventSummaryDto | null;
+  /** Показывать ли баннер рядом со вторым подзаголовком — настраивается в
+   *  админке, по умолчанию true. */
+  show_banner: boolean;
   author: ArticleAuthorDto;
   created_at: string;
   updated_at: string;
@@ -85,6 +88,7 @@ export function toArticleResponseDto(
           price: event.price,
         }
       : undefined,
+    show_banner: article.showBanner,
     author: {
       id: article.author.id,
       name: article.author.fullName || article.author.email.split('@')[0],
