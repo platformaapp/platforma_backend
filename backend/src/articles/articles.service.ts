@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Article } from './entities/article.entity';
 import { Event } from '../events/entities/event.entity';
+import { User } from '../users/user.entity';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import {
@@ -117,7 +118,17 @@ export class ArticlesService {
     if (dto.gallery_caption !== undefined) article.galleryCaption = dto.gallery_caption;
     if (dto.related_article_ids !== undefined) article.relatedArticleIds = dto.related_article_ids;
     if (dto.event_id !== undefined) article.eventId = dto.event_id;
-    if (authorId !== undefined) article.authorId = authorId;
+    if (authorId !== undefined) {
+      // article был загружен с relations: ['author'] — на нём уже висит
+      // СТАРЫЙ author как объект. Если поменять только article.authorId
+      // (голую FK-колонку), TypeORM при save() всё равно пересчитывает
+      // author_id из загруженного article.author (который не трогали) и
+      // перезаписывает им наш новый authorId — смена автора молча не
+      // сохранялась. Обновляем оба согласованно: TypeORM поддерживает
+      // установку relation по одному id без подгрузки всей сущности.
+      article.authorId = authorId;
+      article.author = { id: authorId } as User;
+    }
 
     const saved = await this.articlesRepository.save(article);
     const full = await this.articlesRepository.findOne({
