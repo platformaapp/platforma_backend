@@ -1,31 +1,87 @@
 import { Injectable } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
 import { ConfigService } from '@nestjs/config';
+
+// Unisender Go — транзакционные письма по HTTPS API, не по SMTP. Раньше
+// здесь был nodemailer + сырой SMTP (SMTP_HOST/PORT/USER/PASS) — письма
+// переставали доходить вообще (не иногда — ни одно), что по всем признакам
+// было блокировкой исходящего SMTP-порта на уровне хостинга: сам Node-
+// процесс не серверлесс (обычный долгоживущий контейнер, см. Dockerfile),
+// так что дело было не в "fire-and-forget" (хотя ошибки там и правда тихо
+// тонут в console.error — это тоже мешало заметить проблему), а именно в
+// транспорте. HTTP поверх 443 такой блокировки не боится в принципе.
+const UNISENDER_API_URL = 'https://goapi.unisender.ru/ru/transactional/api/v1/email/send.json';
+// Единственный реальный отправитель во всех письмах — тот же адрес, что
+// был раньше в SMTP_USER/"from". from_name разный (см. fromName у каждого
+// письма ниже), from_email — всегда этот.
+const SENDER_EMAIL = 'platformaapp@platformaapp.ru';
+
+type UnisenderSendResult = { job_id?: string };
+type UnisenderApiResponse = {
+  status?: string;
+  job_id?: string;
+  message?: string;
+  code?: number;
+  failed_emails?: Record<string, unknown>;
+};
 
 @Injectable()
 export class EmailService {
-  private transporter: nodemailer.Transporter;
-
   constructor(private readonly configService: ConfigService) {
-    const host = this.configService.get<string>('SMTP_HOST');
-    const port = this.configService.get<number>('SMTP_PORT') ?? 465;
-    const secure = this.configService.get<string>('SMTP_SECURE') === 'true';
-    const user = this.configService.get<string>('SMTP_USER');
-    const pass = this.configService.get<string>('SMTP_PASS');
+    if (!this.configService.get<string>('UNISENDER_API_KEY')) {
+      console.warn(
+        '[EmailService] UNISENDER_API_KEY не задан — письма не будут отправляться (см. .env.example)'
+      );
+    }
+  }
 
-    console.log(
-      `[EmailService] SMTP config: host=${host}, port=${port}, secure=${secure}, user=${user}`
-    );
+  /**
+   * Единая точка отправки — все методы ниже просто собирают html и зовут
+   * её вместо прежнего this.transporter.sendMail(mailOptions). Бросает
+   * исключение при любом сбое (сетевом, HTTP-статусе, status!=="success"
+   * или отклонённом адресате) — так его увидит try/catch каждого метода,
+   * как и раньше с nodemailer.
+   */
+  private async sendViaUnisender(params: {
+    to: string;
+    subject: string;
+    html: string;
+    fromName: string;
+  }): Promise<UnisenderSendResult> {
+    const apiKey = this.configService.get<string>('UNISENDER_API_KEY');
+    if (!apiKey) {
+      throw new Error('UNISENDER_API_KEY не задан');
+    }
 
-    this.transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass },
-      connectionTimeout: 30000,
-      socketTimeout: 30000,
-      greetingTimeout: 30000,
+    const res = await fetch(UNISENDER_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'X-API-KEY': apiKey,
+      },
+      body: JSON.stringify({
+        message: {
+          recipients: [{ email: params.to }],
+          subject: params.subject,
+          from_email: SENDER_EMAIL,
+          from_name: params.fromName,
+          body: { html: params.html },
+        },
+      }),
     });
+
+    const data = (await res.json().catch(() => ({}))) as UnisenderApiResponse;
+
+    if (!res.ok || data.status !== 'success') {
+      throw new Error(
+        `Unisender Go: отправка не удалась (HTTP ${res.status}): ${JSON.stringify(data)}`
+      );
+    }
+    if (data.failed_emails && Object.keys(data.failed_emails).length > 0) {
+      throw new Error(`Unisender Go: адресат отклонён: ${JSON.stringify(data.failed_emails)}`);
+    }
+
+    return { job_id: data.job_id };
   }
 
   async sendEventCreatedEmail(
@@ -47,7 +103,7 @@ export class EmailService {
     });
 
     const mailOptions = {
-      from: '"Platforma Events" <platformaapp@platformaapp.ru>',
+      fromName: 'Platforma Events',
       to: email,
       subject: `Событие "${eventTitle}" создано успешно`,
       html: `
@@ -119,7 +175,7 @@ export class EmailService {
     };
 
     try {
-      await this.transporter.sendMail(mailOptions);
+      await this.sendViaUnisender(mailOptions);
       console.log(`Event created email sent to ${email}`);
     } catch (err) {
       console.error(
@@ -151,7 +207,7 @@ export class EmailService {
     };
 
     const mailOptions = {
-      from: '"Platforma Events" <platformaapp@platformaapp.ru>',
+      fromName: 'Platforma Events',
       to: email,
       subject: `🕐 Изменение времени события "${eventTitle}"`,
       html: `
@@ -229,7 +285,7 @@ export class EmailService {
     };
 
     try {
-      await this.transporter.sendMail(mailOptions);
+      await this.sendViaUnisender(mailOptions);
       console.log(`Event time changed email sent to ${email}`);
     } catch (err) {
       console.error(
@@ -265,7 +321,7 @@ export class EmailService {
     const spotsLeft = maxParticipants - registeredCount;
 
     const mailOptions = {
-      from: '"Platforma Events" <platformaapp@platformaapp.ru>',
+      fromName: 'Platforma Events',
       to: email,
       subject: `🎯 Новый участник на событии "${eventTitle}"`,
       html: `
@@ -379,7 +435,7 @@ export class EmailService {
     };
 
     try {
-      await this.transporter.sendMail(mailOptions);
+      await this.sendViaUnisender(mailOptions);
       console.log(`New registration email sent to mentor ${email}`);
     } catch (err) {
       console.error(
@@ -410,7 +466,7 @@ export class EmailService {
     });
 
     const mailOptions = {
-      from: '"Platforma Events" <platformaapp@platformaapp.ru>',
+      fromName: 'Platforma Events',
       to: email,
       subject: `❌ Событие "${eventTitle}" отменено`,
       html: `
@@ -506,7 +562,7 @@ export class EmailService {
     };
 
     try {
-      await this.transporter.sendMail(mailOptions);
+      await this.sendViaUnisender(mailOptions);
       console.log(`Event cancelled email sent to ${email}`);
     } catch (err) {
       console.error(
@@ -525,7 +581,7 @@ export class EmailService {
     previousStatus: string
   ): Promise<void> {
     const mailOptions = {
-      from: '"Platforma Events" <platformaapp@platformaapp.ru>',
+      fromName: 'Platforma Events',
       to: email,
       subject: `❌ Студент отменил запись на "${eventTitle}"`,
       html: `
@@ -614,7 +670,7 @@ export class EmailService {
     };
 
     try {
-      await this.transporter.sendMail(mailOptions);
+      await this.sendViaUnisender(mailOptions);
       console.log(`Mentor cancellation notification sent to ${email}`);
     } catch (err) {
       console.error(
@@ -638,7 +694,7 @@ export class EmailService {
       : 'Так как оплата еще не была произведена, плата с вас не будет взиматься.';
 
     const mailOptions = {
-      from: '"Platforma Events" <platformaapp@platformaapp.ru>',
+      fromName: 'Platforma Events',
       to: email,
       subject: `✅ Запись на "${eventTitle}" отменена`,
       html: `
@@ -731,7 +787,7 @@ export class EmailService {
     };
 
     try {
-      await this.transporter.sendMail(mailOptions);
+      await this.sendViaUnisender(mailOptions);
       console.log(`Student cancellation confirmation sent to ${email}`);
     } catch (err) {
       console.error(
@@ -745,7 +801,7 @@ export class EmailService {
     const resetUrl = `https://platformaapp.ru/reset-password?token=${resetToken}`;
 
     const mailOptions = {
-      from: '"Platforma" <platformaapp@platformaapp.ru>',
+      fromName: 'Platforma',
       to: email,
       subject: 'Сброс пароля',
       html: `
@@ -786,13 +842,8 @@ export class EmailService {
       `,
     };
 
-    const info = (await this.transporter.sendMail(mailOptions)) as {
-      messageId?: string;
-      response?: string;
-    };
-    console.log(
-      `Password reset email sent to ${email}, messageId: ${info.messageId}, response: ${info.response}`
-    );
+    const info = await this.sendViaUnisender(mailOptions);
+    console.log(`Password reset email sent to ${email}, job_id: ${info.job_id}`);
   }
 
   async sendAccountDeletionEmail(
@@ -803,7 +854,7 @@ export class EmailService {
     const deleteUrl = `https://platformaapp.ru/delete-account?token=${deletionToken}`;
 
     const mailOptions = {
-      from: '"Platforma" <platformaapp@platformaapp.ru>',
+      fromName: 'Platforma',
       to: email,
       subject: 'Подтверждение удаления аккаунта',
       html: `
@@ -844,13 +895,8 @@ export class EmailService {
       `,
     };
 
-    const info = (await this.transporter.sendMail(mailOptions)) as {
-      messageId?: string;
-      response?: string;
-    };
-    console.log(
-      `Account deletion email sent to ${email}, messageId: ${info.messageId}, response: ${info.response}`
-    );
+    const info = await this.sendViaUnisender(mailOptions);
+    console.log(`Account deletion email sent to ${email}, job_id: ${info.job_id}`);
   }
 
   async sendTutorApplicationNotification(applicant: {
@@ -871,7 +917,7 @@ export class EmailService {
     const adminUrl = `${frontendUrl}/admin/tutor-applications`;
 
     const mailOptions = {
-      from: 'Platforma <platformaapp@platformaapp.ru>',
+      fromName: 'Platforma',
       to: adminEmail,
       subject: '📋 Новая заявка на роль наставника',
       html: `
@@ -929,7 +975,7 @@ export class EmailService {
     };
 
     try {
-      await this.transporter.sendMail(mailOptions);
+      await this.sendViaUnisender(mailOptions);
       console.log(`Tutor application notification sent to ${adminEmail}`);
     } catch (err) {
       console.error(
@@ -971,7 +1017,7 @@ export class EmailService {
       : '';
 
     const mailOptions = {
-      from: '"Platforma" <platformaapp@platformaapp.ru>',
+      fromName: 'Platforma',
       to: email,
       subject: `Небольшие правки в вашем событии «${eventTitle}»`,
       html: `
@@ -1008,7 +1054,7 @@ export class EmailService {
     };
 
     try {
-      await this.transporter.sendMail(mailOptions);
+      await this.sendViaUnisender(mailOptions);
       console.log(`Event moderation email sent to ${email} for event "${eventTitle}"`);
     } catch (err) {
       console.error(
@@ -1061,7 +1107,7 @@ export class EmailService {
          </div>`;
 
     const mailOptions = {
-      from: '"Platforma" <platformaapp@platformaapp.ru>',
+      fromName: 'Platforma',
       to: email,
       subject: `Вы записаны на событие «${eventTitle}»`,
       html: `
@@ -1121,7 +1167,7 @@ export class EmailService {
     };
 
     try {
-      await this.transporter.sendMail(mailOptions);
+      await this.sendViaUnisender(mailOptions);
       console.log(`Registration confirmation sent to student ${email} for event "${eventTitle}"`);
     } catch (err) {
       console.error(
