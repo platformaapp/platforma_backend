@@ -42,6 +42,25 @@ export class PartnerDto {
   linkUrl?: string;
 }
 
+/** Страница "О нас" (ссылка p(34) в шапке) — большое фото, заголовок,
+ *  текст (референс: vladyakunin.ru/projects/kontent-kak-sistema-rosta) —
+ *  полностью редактируется из админки. */
+export class AboutUsDto {
+  @IsOptional()
+  @IsUrl({ require_tld: false, require_protocol: false })
+  photoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 300)
+  heading?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 5000)
+  text?: string;
+}
+
 /**
  * Единая настройка сайта, управляемая из админки — навигация (текст/иконки),
  * баннер (картинка + ссылка), партнёры (лого + ссылки) и рубрикатор
@@ -74,4 +93,9 @@ export class SiteSettingsDto {
   @ArrayMaxSize(30)
   @IsString({ each: true })
   topics?: string[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AboutUsDto)
+  aboutUs?: AboutUsDto;
 }

@@ -146,7 +146,7 @@ export class AdminService {
   // и захардкоженные NAV_ITEMS/FRIENDS на фронте).
   async getSiteSettings(): Promise<SiteSettingsDto> {
     const row = await this.settingsRepository.findOne({ where: { key: SITE_SETTINGS_KEY } });
-    if (!row) return { navItems: [], banner: {}, partners: [], topics: [] };
+    if (!row) return { navItems: [], banner: {}, partners: [], topics: [], aboutUs: {} };
     try {
       const parsed = JSON.parse(row.value) as SiteSettingsDto;
       return {
@@ -154,9 +154,10 @@ export class AdminService {
         banner: parsed.banner ?? {},
         partners: parsed.partners ?? [],
         topics: parsed.topics ?? [],
+        aboutUs: parsed.aboutUs ?? {},
       };
     } catch {
-      return { navItems: [], banner: {}, partners: [], topics: [] };
+      return { navItems: [], banner: {}, partners: [], topics: [], aboutUs: {} };
     }
   }
 
@@ -167,6 +168,7 @@ export class AdminService {
       banner: dto.banner ?? current.banner,
       partners: dto.partners ?? current.partners,
       topics: dto.topics ?? current.topics,
+      aboutUs: dto.aboutUs ?? current.aboutUs,
     };
     await this.settingsRepository.upsert(
       { key: SITE_SETTINGS_KEY, value: JSON.stringify(merged) },
