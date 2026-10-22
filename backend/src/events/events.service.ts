@@ -1447,6 +1447,7 @@ export class EventsService {
           title: event.title,
           type: event.type,
           category: event.category,
+          cover_url: event.coverUrl,
           teacher,
           ...(student && { student }),
           start_at: event.datetimeStart.toISOString(),

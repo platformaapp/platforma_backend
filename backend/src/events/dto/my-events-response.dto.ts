@@ -16,6 +16,7 @@ export class MyEventItemDto {
   title: string;
   type: 'standalone' | 'session_based';
   category: string | null;
+  cover_url: string | null;
   teacher: UserInfoDto;
   student?: UserInfoDto;
   start_at: string;
