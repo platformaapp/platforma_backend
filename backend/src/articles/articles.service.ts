@@ -25,7 +25,8 @@ export class ArticlesService {
     page = 1,
     per_page = 20,
     category?: string,
-    search?: string
+    search?: string,
+    authorId?: string
   ): Promise<ArticlesListResponseDto> {
     const qb = this.articlesRepository
       .createQueryBuilder('article')
@@ -37,6 +38,9 @@ export class ArticlesService {
     }
     if (search) {
       qb.andWhere('article.title ILIKE :search', { search: `%${search}%` });
+    }
+    if (authorId) {
+      qb.andWhere('article.authorId = :authorId', { authorId });
     }
 
     const total = await qb.getCount();

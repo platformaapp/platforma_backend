@@ -29,8 +29,9 @@ export class ArticlesController {
     @Query('page') page = 1,
     @Query('per_page') per_page = 20,
     @Query('category') category?: string,
+    @Query('author_id') authorId?: string,
   ): Promise<ArticlesListResponseDto> {
-    return this.articlesService.findAll(Number(page), Number(per_page), category);
+    return this.articlesService.findAll(Number(page), Number(per_page), category, undefined, authorId);
   }
 
   @Get(':id')
