@@ -178,6 +178,7 @@ export class EventsService {
       coverUrl: createEventDto.coverUrl || null,
       category: createEventDto.category ?? null,
       topic: createEventDto.topic ?? null,
+      tags: createEventDto.tags ?? [],
     });
 
     const savedEvent = await this.eventsRepository.save(event);
@@ -618,6 +619,7 @@ export class EventsService {
       datetime_start: event.datetimeStart?.toISOString() || null,
       datetime_end: event.datetimeEnd?.toISOString() || null,
       topic: event.topic,
+      tags: event.tags ?? [],
     };
   }
 
@@ -1248,6 +1250,7 @@ export class EventsService {
         coverUrl: event.coverUrl,
         category: event.category,
         topic: event.topic,
+        tags: event.tags ?? [],
         price: Number(event.price),
         mentor,
         status: event.status,

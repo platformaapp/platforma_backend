@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsDateString,
   IsOptional,
+  IsArray,
   IsUrl,
   Min,
   Max,
@@ -11,8 +12,9 @@ import {
   IsUUID,
   Length,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { EventCategory, EventType } from '../entities/event.entity';
+import { normalizeTags } from '../../utils/tags';
 
 export class CreateEventDto {
   @IsString()
@@ -63,4 +65,11 @@ export class CreateEventDto {
   @IsString()
   @Length(1, 100)
   topic?: string;
+
+  /** Хэштеги (без "#", см. utils/tags.ts) — рядом с названием на сайте. */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @Transform(({ value }) => normalizeTags(value))
+  tags?: string[];
 }

@@ -9,6 +9,8 @@ import {
   MaxLength,
   ArrayMaxSize,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { normalizeTags } from '../../utils/tags';
 
 export class CreateArticleDto {
   @IsString()
@@ -52,4 +54,11 @@ export class CreateArticleDto {
   @IsOptional()
   @IsBoolean()
   show_banner?: boolean;
+
+  /** Хэштеги (без "#", см. utils/tags.ts) — рядом с именем автора на сайте. */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @Transform(({ value }) => normalizeTags(value))
+  tags?: string[];
 }

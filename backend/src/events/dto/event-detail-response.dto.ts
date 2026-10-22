@@ -26,4 +26,5 @@ export class EventDetailResponseDto {
   duration_minutes?: number;
   datetime_end?: string;
   topic?: string | null;
+  tags?: string[];
 }

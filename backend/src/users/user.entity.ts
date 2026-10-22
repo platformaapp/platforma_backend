@@ -61,6 +61,11 @@ export class User {
   @Column({ type: 'boolean', name: 'is_blocked', default: false })
   isBlocked: boolean;
 
+  /** Хэштеги наставника (без "#") — показываются на сайте рядом с именем
+   *  на странице наставника. Задаются из админки. */
+  @Column({ type: 'text', array: true, name: 'tags', default: '{}' })
+  tags: string[];
+
   @Column({ type: 'timestamptz', name: 'deleted_at', nullable: true })
   deletedAt: Date | null;
 

@@ -1,5 +1,7 @@
-import { IsOptional, IsString, IsUrl } from 'class-validator';
+import { IsArray, IsOptional, IsString, IsUrl } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
+import { normalizeTags } from '../../utils/tags';
 
 export class AdminModerateEventDto {
   @ApiPropertyOptional({ description: 'New cover image URL' })
@@ -21,4 +23,11 @@ export class AdminModerateEventDto {
   @IsOptional()
   @IsString()
   comment?: string;
+
+  @ApiPropertyOptional({ description: 'Event hashtags (without "#")', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @Transform(({ value }) => normalizeTags(value))
+  tags?: string[];
 }

@@ -48,6 +48,9 @@ export class ArticleResponseDto {
   /** Показывать ли баннер рядом со вторым подзаголовком — настраивается в
    *  админке, по умолчанию true. */
   show_banner: boolean;
+  /** Хэштеги статьи (без "#") — показываются на странице статьи рядом с
+   *  именем автора. */
+  tags: string[];
   author: ArticleAuthorDto;
   created_at: string;
   updated_at: string;
@@ -94,6 +97,7 @@ export function toArticleResponseDto(
         }
       : undefined,
     show_banner: article.showBanner,
+    tags: article.tags ?? [],
     author: {
       id: article.author.id,
       name: article.author.fullName || article.author.email.split('@')[0],

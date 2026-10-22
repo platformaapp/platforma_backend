@@ -9,6 +9,8 @@ import {
   MaxLength,
   ArrayMaxSize,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { normalizeTags } from '../../utils/tags';
 
 export class AdminCreateArticleDto {
   @IsString()
@@ -53,6 +55,12 @@ export class AdminCreateArticleDto {
   @IsOptional()
   @IsBoolean()
   show_banner?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @Transform(({ value }) => normalizeTags(value))
+  tags?: string[];
 
   @IsUUID()
   author_id: string;
@@ -100,6 +108,12 @@ export class AdminUpdateArticleDto {
   @IsOptional()
   @IsBoolean()
   show_banner?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @Transform(({ value }) => normalizeTags(value))
+  tags?: string[];
 
   @IsOptional()
   @IsUUID()

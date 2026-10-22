@@ -3,13 +3,15 @@ import {
   IsNumber,
   IsDateString,
   IsOptional,
+  IsArray,
   IsUrl,
   Min,
   Max,
   IsEnum,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { EventCategory } from '../entities/event.entity';
+import { normalizeTags } from '../../utils/tags';
 
 export class UpdateEventDto {
   @IsString()
@@ -48,4 +50,10 @@ export class UpdateEventDto {
   @IsOptional()
   @IsEnum(EventCategory)
   category?: EventCategory;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @Transform(({ value }) => normalizeTags(value))
+  tags?: string[];
 }

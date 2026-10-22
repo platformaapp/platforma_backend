@@ -20,6 +20,7 @@ export class EventFeedItemDto {
   coverUrl: string | null;
   category: string | null;
   topic: string | null;
+  tags: string[];
   price: number;
   mentor: MentorDto;
   isRegistered?: boolean;

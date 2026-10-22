@@ -12,9 +12,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { IsNumber, IsOptional, Max, Min } from 'class-validator';
+import { IsArray, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { AdminService } from './admin.service';
 import { AdminJwtGuard } from './guards/admin-jwt.guard';
+import { normalizeTags } from '../utils/tags';
 
 class SetTutorCommissionDto {
   @IsOptional()
@@ -22,6 +24,13 @@ class SetTutorCommissionDto {
   @Min(0)
   @Max(100)
   commissionRate: number | null;
+}
+
+class SetUserTagsDto {
+  @IsArray()
+  @IsString({ each: true })
+  @Transform(({ value }) => normalizeTags(value))
+  tags: string[];
 }
 
 @ApiTags('Admin Users')
@@ -77,5 +86,16 @@ export class AdminUsersController {
   ) {
     await this.adminService.setTutorCommission(id, dto.commissionRate);
     return { message: 'Комиссия наставника обновлена' };
+  }
+
+  @Patch(':id/tags')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Set hashtags for a user (shown on their mentor page)' })
+  async setUserTags(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetUserTagsDto
+  ) {
+    await this.adminService.setUserTags(id, dto.tags);
+    return { message: 'Теги обновлены' };
   }
 }

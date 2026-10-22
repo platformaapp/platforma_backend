@@ -19,6 +19,7 @@ import { JWT_SECRET } from 'src/utils/constants';
 import { EmailService } from 'src/notifications/email.service';
 import { AdminModerateEventDto } from './dto/moderate-event.dto';
 import { SiteSettingsDto } from './dto/site-settings.dto';
+import { normalizeTags } from 'src/utils/tags';
 
 const COMMISSION_KEY = 'commission_rate';
 const SITE_SETTINGS_KEY = 'site_settings';
@@ -186,6 +187,15 @@ export class AdminService {
     await this.usersRepository.save(user);
   }
 
+  // ── Tutor hashtags (см. utils/tags.ts) ──────────────────────────────────
+
+  async setUserTags(userId: string, tags: string[]): Promise<void> {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Пользователь не найден');
+    user.tags = normalizeTags(tags);
+    await this.usersRepository.save(user);
+  }
+
   // ── Block / unblock users ────────────────────────────────────────────────
 
   async getUsers(page: number, perPage: number, role?: string, search?: string) {    const skip = (page - 1) * perPage;
@@ -308,6 +318,7 @@ export class AdminService {
       datetimeStart: event.datetimeStart,
       datetimeEnd: event.datetimeEnd,
       coverUrl: event.coverUrl,
+      tags: event.tags ?? [],
       recordingUrl: event.recordingUrl,
       sessionId: event.sessionId,
       createdAt: event.createdAt,
@@ -367,6 +378,7 @@ export class AdminService {
     if (dto.coverUrl !== undefined) event.coverUrl = dto.coverUrl;
     if (dto.title !== undefined) event.title = dto.title;
     if (dto.description !== undefined) event.description = dto.description;
+    if (dto.tags !== undefined) event.tags = dto.tags;
 
     event.adminModerationComment = dto.comment ?? null;
 

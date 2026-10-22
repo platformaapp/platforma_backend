@@ -8,6 +8,8 @@ import {
   MaxLength,
   ArrayMaxSize,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { normalizeTags } from '../../utils/tags';
 
 export class UpdateArticleDto {
   @IsOptional()
@@ -51,4 +53,10 @@ export class UpdateArticleDto {
   @IsOptional()
   @IsBoolean()
   show_banner?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @Transform(({ value }) => normalizeTags(value))
+  tags?: string[];
 }

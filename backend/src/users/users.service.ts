@@ -49,6 +49,7 @@ export class UsersService {
         'user.roles',
         'user.hourlyRate',
         'user.specialization',
+        'user.tags',
       ])
       .where('user.isBlocked = :isBlocked', { isBlocked: false })
       .orderBy('user.createdAt', 'DESC')

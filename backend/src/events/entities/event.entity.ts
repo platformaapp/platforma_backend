@@ -152,6 +152,10 @@ export class Event {
   @Column({ type: 'boolean', name: 'is_blocked', default: false })
   isBlocked: boolean;
 
+  /** Хэштеги события (без "#") — показываются на сайте рядом с названием. */
+  @Column({ type: 'text', array: true, name: 'tags', default: '{}' })
+  tags: string[];
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
