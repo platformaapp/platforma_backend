@@ -21,6 +21,10 @@ export class ArticleEventSummaryDto {
   cover_url: string | null;
   datetime_start: string | null;
   price: number;
+  /** Категория привязанного события (enum EventCategory) — для блока
+   *  "Окей, что ещё" на странице статьи: ближайшие события той же
+   *  категории, см. journal/[id].web.tsx. */
+  category: string | null;
 }
 
 export class ArticleResponseDto {
@@ -86,6 +90,7 @@ export function toArticleResponseDto(
           cover_url: event.coverUrl,
           datetime_start: event.datetimeStart ? event.datetimeStart.toISOString() : null,
           price: event.price,
+          category: event.category,
         }
       : undefined,
     show_banner: article.showBanner,
