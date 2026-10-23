@@ -95,6 +95,9 @@ export class ArticlesService {
       eventId: dto.event_id ?? null,
       showBanner: dto.show_banner ?? true,
       tags: dto.tags ?? [],
+      seoTitle: dto.seo_title ?? null,
+      h1: dto.h1 ?? null,
+      metaDescription: dto.meta_description ?? null,
       authorId,
     });
     const saved = await this.articlesRepository.save(article);
@@ -126,6 +129,9 @@ export class ArticlesService {
     if (dto.event_id !== undefined) article.eventId = dto.event_id;
     if (dto.show_banner !== undefined) article.showBanner = dto.show_banner;
     if (dto.tags !== undefined) article.tags = dto.tags;
+    if (dto.seo_title !== undefined) article.seoTitle = dto.seo_title;
+    if (dto.h1 !== undefined) article.h1 = dto.h1;
+    if (dto.meta_description !== undefined) article.metaDescription = dto.meta_description;
     if (authorId !== undefined) {
       // article был загружен с relations: ['author'] — на нём уже висит
       // СТАРЫЙ author как объект. Если поменять только article.authorId

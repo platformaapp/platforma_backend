@@ -51,6 +51,11 @@ export class ArticleResponseDto {
   /** Хэштеги статьи (без "#") — показываются на странице статьи рядом с
    *  именем автора. */
   tags: string[];
+  /** SEO-поля (см. комментарий у Article entity) — все опциональные,
+   *  фронтенд применяет фолбэк на title/content, если не заданы. */
+  seo_title: string | null;
+  h1: string | null;
+  meta_description: string | null;
   author: ArticleAuthorDto;
   created_at: string;
   updated_at: string;
@@ -98,6 +103,9 @@ export function toArticleResponseDto(
       : undefined,
     show_banner: article.showBanner,
     tags: article.tags ?? [],
+    seo_title: article.seoTitle ?? null,
+    h1: article.h1 ?? null,
+    meta_description: article.metaDescription ?? null,
     author: {
       id: article.author.id,
       name: article.author.fullName || article.author.email.split('@')[0],

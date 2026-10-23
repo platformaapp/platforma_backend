@@ -62,6 +62,21 @@ export class AdminCreateArticleDto {
   @Transform(({ value }) => normalizeTags(value))
   tags?: string[];
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  seo_title?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  h1?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  meta_description?: string;
+
   @IsUUID()
   author_id: string;
 }
@@ -114,6 +129,21 @@ export class AdminUpdateArticleDto {
   @IsString({ each: true })
   @Transform(({ value }) => normalizeTags(value))
   tags?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  seo_title?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  h1?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  meta_description?: string;
 
   @IsOptional()
   @IsUUID()

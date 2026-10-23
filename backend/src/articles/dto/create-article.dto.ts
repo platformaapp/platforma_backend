@@ -61,4 +61,19 @@ export class CreateArticleDto {
   @IsString({ each: true })
   @Transform(({ value }) => normalizeTags(value))
   tags?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  seo_title?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  h1?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  meta_description?: string;
 }

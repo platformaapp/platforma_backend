@@ -52,6 +52,20 @@ export class Article {
   @Column({ type: 'text', array: true, name: 'tags', default: '{}' })
   tags: string[];
 
+  /** SEO-поля — задаются в админке отдельно от обычных title/content,
+   *  ничего не меняют на сайте сами по себе, кроме следующего:
+   *  seoTitle → <title>, metaDescription → <meta name="description">
+   *  (оба — только если заданы, иначе фолбэк на title/content), h1 →
+   *  видимый заголовок на странице статьи ВМЕСТО title (если задан). */
+  @Column({ type: 'varchar', length: 255, name: 'seo_title', nullable: true })
+  seoTitle: string | null;
+
+  @Column({ type: 'varchar', length: 255, name: 'h1', nullable: true })
+  h1: string | null;
+
+  @Column({ type: 'varchar', length: 500, name: 'meta_description', nullable: true })
+  metaDescription: string | null;
+
   @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'author_id' })
   author: User;
