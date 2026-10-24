@@ -29,14 +29,25 @@ export class ArticlesController {
     @Query('page') page = 1,
     @Query('per_page') per_page = 20,
     @Query('category') category?: string,
-    @Query('author_id') authorId?: string,
+    @Query('author_id') authorId?: string
   ): Promise<ArticlesListResponseDto> {
-    return this.articlesService.findAll(Number(page), Number(per_page), category, undefined, authorId);
+    return this.articlesService.findAll(
+      Number(page),
+      Number(per_page),
+      category,
+      undefined,
+      authorId
+    );
   }
 
-  @Get(':id')
-  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<ArticleResponseDto> {
-    return this.articlesService.findOne(id);
+  /** Публичный маршрут резолвит по slug, не по id — slug это ЕДИНСТВЕННЫЙ
+   *  публичный URL статьи (/journal/<slug> на фронтенде), осознанное
+   *  решение: /journal/<uuid> нигде не поддерживается, старые такие ссылки
+   *  (если были расшарены до введения slug) отвечают 404. Админский
+   *  маршрут (admin/articles/:id) по-прежнему резолвит по UUID. */
+  @Get(':slug')
+  async findOne(@Param('slug') slug: string): Promise<ArticleResponseDto> {
+    return this.articlesService.findBySlug(slug);
   }
 
   @Post()
@@ -44,7 +55,7 @@ export class ArticlesController {
   @HttpCode(HttpStatus.CREATED)
   async create(
     @Body() dto: CreateArticleDto,
-    @Req() req: AuthenticatedRequest,
+    @Req() req: AuthenticatedRequest
   ): Promise<ArticleResponseDto> {
     return this.articlesService.create(dto, req.user.sub);
   }
@@ -53,7 +64,7 @@ export class ArticlesController {
   @UseGuards(JwtAuthGuard)
   async update(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateArticleDto,
+    @Body() dto: UpdateArticleDto
   ): Promise<ArticleResponseDto> {
     return this.articlesService.update(id, dto);
   }

@@ -6,6 +6,10 @@ export class ArticleAuthorDto {
   name: string;
   avatar_url: string | null;
   role_title: string | null;
+  /** Короткое био автора — сигнал E-E-A-T (экспертность/авторитетность) для
+   *  поисковика у "советовательного" контента; показывается на странице
+   *  статьи рядом с именем автора. */
+  short_bio: string | null;
 }
 
 export class RelatedArticleSummaryDto {
@@ -13,6 +17,8 @@ export class RelatedArticleSummaryDto {
   title: string;
   category: string | null;
   cover_url: string | null;
+  /** Для ссылки на связанную статью с текущей (/journal/<slug>). */
+  slug: string;
 }
 
 export class ArticleEventSummaryDto {
@@ -56,6 +62,19 @@ export class ArticleResponseDto {
   seo_title: string | null;
   h1: string | null;
   meta_description: string | null;
+  /** Человекочитаемый URL — единственный публичный путь к статье
+   *  (/journal/<slug>), см. комментарий у Article.slug. */
+  slug: string;
+  canonical_url: string | null;
+  noindex: boolean;
+  nofollow: boolean;
+  published_at: string;
+  excerpt: string | null;
+  og_title: string | null;
+  og_description: string | null;
+  cover_alt: string | null;
+  /** gallery_alt[i] ↔ gallery[i], см. комментарий у Article.galleryAlt. */
+  gallery_alt: string[];
   author: ArticleAuthorDto;
   created_at: string;
   updated_at: string;
@@ -89,6 +108,7 @@ export function toArticleResponseDto(
       title: a.title,
       category: a.category,
       cover_url: a.coverUrl,
+      slug: a.slug,
     })),
     event_id: article.eventId ?? null,
     event: event
@@ -106,11 +126,22 @@ export function toArticleResponseDto(
     seo_title: article.seoTitle ?? null,
     h1: article.h1 ?? null,
     meta_description: article.metaDescription ?? null,
+    slug: article.slug,
+    canonical_url: article.canonicalUrl ?? null,
+    noindex: article.noindex,
+    nofollow: article.nofollow,
+    published_at: article.publishedAt.toISOString(),
+    excerpt: article.excerpt ?? null,
+    og_title: article.ogTitle ?? null,
+    og_description: article.ogDescription ?? null,
+    cover_alt: article.coverAlt ?? null,
+    gallery_alt: article.galleryAlt ?? [],
     author: {
       id: article.author.id,
       name: article.author.fullName || article.author.email.split('@')[0],
       avatar_url: article.author.avatarUrl ?? null,
       role_title: article.author.specialization ?? null,
+      short_bio: article.author.shortBio ?? null,
     },
     created_at: article.createdAt.toISOString(),
     updated_at: article.updatedAt.toISOString(),

@@ -11,6 +11,7 @@ import {
   ArticlesListResponseDto,
   toArticleResponseDto,
 } from './dto/article-response.dto';
+import { slugify } from '../utils/slug';
 
 @Injectable()
 export class ArticlesService {
@@ -68,6 +69,41 @@ export class ArticlesService {
     return toArticleResponseDto(article, relatedArticles, event);
   }
 
+  /** Публичный маршрут резолвит статью по slug, не по id (см. ArticlesController
+   *  — "slug — единственный публичный URL" это осознанное решение, не
+   *  временная мера: /journal/<uuid> нигде не поддерживается). */
+  async findBySlug(slug: string): Promise<ArticleResponseDto> {
+    const article = await this.articlesRepository.findOne({
+      where: { slug },
+      relations: ['author'],
+    });
+    if (!article) {
+      throw new NotFoundException(`Article with slug "${slug}" not found`);
+    }
+    const relatedArticles = await this.findRelatedArticles(article.relatedArticleIds);
+    const event = await this.findEvent(article.eventId);
+    return toArticleResponseDto(article, relatedArticles, event);
+  }
+
+  /** base — исходный текст (title или slug, присланный админом явно).
+   *  excludeId — исключить саму статью из проверки уникальности (update
+   *  своего же текущего slug не должен считаться коллизией). При коллизии
+   *  добавляет "-2", "-3" и т.д. — та же логика, что и в бэкфилле
+   *  (миграция AddSeoExtraFieldsToArticles). */
+  private async generateUniqueSlug(base: string, excludeId?: string): Promise<string> {
+    const normalized = slugify(base) || 'article';
+    let candidate = normalized;
+    for (let suffix = 2; ; suffix++) {
+      const qb = this.articlesRepository
+        .createQueryBuilder('article')
+        .where('article.slug = :slug', { slug: candidate });
+      if (excludeId) qb.andWhere('article.id != :excludeId', { excludeId });
+      const exists = await qb.getExists();
+      if (!exists) return candidate;
+      candidate = `${normalized}-${suffix}`;
+    }
+  }
+
   /** Подтягивает связанные статьи по id, в исходном порядке (In() порядок
    *  не гарантирует) — и тихо отбрасывает уже удалённые. */
   private async findRelatedArticles(ids: string[]): Promise<Article[]> {
@@ -84,6 +120,10 @@ export class ArticlesService {
   }
 
   async create(dto: CreateArticleDto, authorId: string): Promise<ArticleResponseDto> {
+    // slug — из явно заданного (если есть) или из title, с гарантией
+    // уникальности (см. generateUniqueSlug); published_at — явно заданная
+    // дата или "сейчас" (большинство статей публикуются сразу при создании).
+    const slug = await this.generateUniqueSlug(dto.slug || dto.title);
     const article = this.articlesRepository.create({
       title: dto.title,
       content: dto.content ?? null,
@@ -98,6 +138,16 @@ export class ArticlesService {
       seoTitle: dto.seo_title ?? null,
       h1: dto.h1 ?? null,
       metaDescription: dto.meta_description ?? null,
+      slug,
+      canonicalUrl: dto.canonical_url ?? null,
+      noindex: dto.noindex ?? false,
+      nofollow: dto.nofollow ?? false,
+      publishedAt: dto.published_at ? new Date(dto.published_at) : new Date(),
+      excerpt: dto.excerpt ?? null,
+      ogTitle: dto.og_title ?? null,
+      ogDescription: dto.og_description ?? null,
+      coverAlt: dto.cover_alt ?? null,
+      galleryAlt: dto.gallery_alt ?? [],
       authorId,
     });
     const saved = await this.articlesRepository.save(article);
@@ -132,6 +182,19 @@ export class ArticlesService {
     if (dto.seo_title !== undefined) article.seoTitle = dto.seo_title;
     if (dto.h1 !== undefined) article.h1 = dto.h1;
     if (dto.meta_description !== undefined) article.metaDescription = dto.meta_description;
+    // slug НЕ пересчитывается из title автоматически при редактировании —
+    // только если админ сам явно прислал новое значение (иначе правка
+    // заголовка молча ломала бы уже расшаренные ссылки на статью).
+    if (dto.slug !== undefined) article.slug = await this.generateUniqueSlug(dto.slug, id);
+    if (dto.canonical_url !== undefined) article.canonicalUrl = dto.canonical_url;
+    if (dto.noindex !== undefined) article.noindex = dto.noindex;
+    if (dto.nofollow !== undefined) article.nofollow = dto.nofollow;
+    if (dto.published_at !== undefined) article.publishedAt = new Date(dto.published_at);
+    if (dto.excerpt !== undefined) article.excerpt = dto.excerpt;
+    if (dto.og_title !== undefined) article.ogTitle = dto.og_title;
+    if (dto.og_description !== undefined) article.ogDescription = dto.og_description;
+    if (dto.cover_alt !== undefined) article.coverAlt = dto.cover_alt;
+    if (dto.gallery_alt !== undefined) article.galleryAlt = dto.gallery_alt;
     if (authorId !== undefined) {
       // article был загружен с relations: ['author'] — на нём уже висит
       // СТАРЫЙ author как объект. Если поменять только article.authorId
