@@ -138,6 +138,15 @@ export class Article {
   @Column({ name: 'author_id' })
   authorId: string;
 
+  /** 'published' — видна публично (/journal, /journal/<slug>); 'pending_review' —
+   *  заявка наставника на статью (см. TutorController.createArticle), ждёт
+   *  проверки и доработки админом в /admin/journal-detail — публично не
+   *  показывается (ArticlesService.findAll/findBySlug фильтруют по этому
+   *  полю), но видна и редактируема в админке как обычно. Админские статьи
+   *  по умолчанию сразу 'published' — старое поведение, без изменений. */
+  @Column({ type: 'varchar', length: 20, default: 'published' })
+  status: string;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

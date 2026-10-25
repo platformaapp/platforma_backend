@@ -51,7 +51,16 @@ export class AdminArticlesController {
     @Query('category') category?: string,
     @Query('search') search?: string
   ) {
-    return this.articlesService.findAll(Number(page ?? 1), Number(perPage ?? 20), category, search);
+    // onlyPublished=false — админка должна видеть и заявки наставников
+    // (status='pending_review'), не только уже опубликованные статьи.
+    return this.articlesService.findAll(
+      Number(page ?? 1),
+      Number(perPage ?? 20),
+      category,
+      search,
+      undefined,
+      false
+    );
   }
 
   @Get(':id')

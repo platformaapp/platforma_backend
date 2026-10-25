@@ -27,7 +27,8 @@ export class ArticlesService {
     per_page = 20,
     category?: string,
     search?: string,
-    authorId?: string
+    authorId?: string,
+    onlyPublished = true
   ): Promise<ArticlesListResponseDto> {
     const qb = this.articlesRepository
       .createQueryBuilder('article')
@@ -42,6 +43,13 @@ export class ArticlesService {
     }
     if (authorId) {
       qb.andWhere('article.authorId = :authorId', { authorId });
+    }
+    // Заявки наставников (status='pending_review', см. Article.status) не
+    // должны светиться на публичном /journal, пока админ их не проверил —
+    // AdminArticlesController вызывает findAll с onlyPublished=false, чтобы
+    // видеть и их тоже.
+    if (onlyPublished) {
+      qb.andWhere("article.status = 'published'");
     }
 
     const total = await qb.getCount();
@@ -77,7 +85,10 @@ export class ArticlesService {
       where: { slug },
       relations: ['author'],
     });
-    if (!article) {
+    // status !== 'published' — заявка наставника, ещё не прошедшая проверку
+    // (см. Article.status): отвечаем 404, как для несуществующей статьи, а
+    // не отдаём её публично до того, как админ закончит с ней работать.
+    if (!article || article.status !== 'published') {
       throw new NotFoundException(`Article with slug "${slug}" not found`);
     }
     const relatedArticles = await this.findRelatedArticles(article.relatedArticleIds);
@@ -119,13 +130,18 @@ export class ArticlesService {
     return this.eventsRepository.findOne({ where: { id: eventId } });
   }
 
-  async create(dto: CreateArticleDto, authorId: string): Promise<ArticleResponseDto> {
+  async create(
+    dto: CreateArticleDto,
+    authorId: string,
+    status = 'published'
+  ): Promise<ArticleResponseDto> {
     // slug — из явно заданного (если есть) или из title, с гарантией
     // уникальности (см. generateUniqueSlug); published_at — явно заданная
     // дата или "сейчас" (большинство статей публикуются сразу при создании).
     const slug = await this.generateUniqueSlug(dto.slug || dto.title);
     const article = this.articlesRepository.create({
       title: dto.title,
+      status,
       content: dto.content ?? null,
       category: dto.category ?? null,
       coverUrl: dto.cover_url ?? null,
@@ -170,6 +186,7 @@ export class ArticlesService {
     }
 
     if (dto.title !== undefined) article.title = dto.title;
+    if (dto.status !== undefined) article.status = dto.status;
     if (dto.content !== undefined) article.content = dto.content;
     if (dto.category !== undefined) article.category = dto.category;
     if (dto.cover_url !== undefined) article.coverUrl = dto.cover_url;

@@ -18,6 +18,8 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { GetSlotsFilterDto } from './dto/get-slots-filter.dto';
 import { CreateSlotDto } from './dto/create-slot.dto';
 import { UpdateSlotDto } from './dto/update-slot.dto';
+import { CreateTutorArticleDto } from './dto/create-tutor-article.dto';
+import { ArticlesService } from 'src/articles/articles.service';
 import type { AuthenticatedRequest, BookingDetails } from 'src/utils/types';
 import {
   ApiTags,
@@ -32,7 +34,10 @@ import {
 @ApiBearerAuth('JWT-auth')
 @Controller('tutor')
 export class TutorController {
-  constructor(private readonly tutorService: TutorService) {}
+  constructor(
+    private readonly tutorService: TutorService,
+    private readonly articlesService: ArticlesService
+  ) {}
 
   @Get('profile')
   @UseGuards(TutorGuard)
@@ -158,6 +163,28 @@ export class TutorController {
       message: 'Slots deleted successfully',
       deletedCount: result.deletedCount,
     };
+  }
+
+  // Заявка на статью — облегчённая форма (см. CreateTutorArticleDto), без
+  // текста: наставник только предлагает тему, редактор дооформляет и
+  // публикует материал в админке (/admin/journal-detail). Создаётся сразу
+  // со status='pending_review' (см. Article.status) — не видна на /journal,
+  // пока админ не проверит и не опубликует.
+  @Post('articles')
+  @UseGuards(TutorGuard)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Submit an article pitch for admin review' })
+  @ApiBody({ type: CreateTutorArticleDto })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Article submitted for review',
+  })
+  createArticle(@Req() req: AuthenticatedRequest, @Body() dto: CreateTutorArticleDto) {
+    return this.articlesService.create(
+      { title: dto.title, cover_url: dto.cover_url, excerpt: dto.excerpt, event_id: dto.event_id },
+      req.user.sub,
+      'pending_review'
+    );
   }
 
   //Events

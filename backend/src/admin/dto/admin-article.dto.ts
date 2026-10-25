@@ -7,6 +7,7 @@ import {
   IsUUID,
   IsBoolean,
   IsDateString,
+  IsIn,
   Matches,
   MaxLength,
   ArrayMaxSize,
@@ -139,6 +140,12 @@ export class AdminUpdateArticleDto {
   @IsString()
   @MaxLength(255)
   title?: string;
+
+  /** 'published' | 'pending_review' — публикует заявку наставника или,
+   *  наоборот, снимает статью с публичного показа. См. Article.status. */
+  @IsOptional()
+  @IsIn(['published', 'pending_review'])
+  status?: string;
 
   @IsOptional()
   @IsString()

@@ -76,6 +76,10 @@ export class ArticleResponseDto {
   /** gallery_alt[i] ↔ gallery[i], см. комментарий у Article.galleryAlt. */
   gallery_alt: string[];
   author: ArticleAuthorDto;
+  /** 'published' | 'pending_review' — см. комментарий у Article.status.
+   *  Публичные маршруты (findAll/findBySlug) отдают только published, это
+   *  поле тут в первую очередь для админки. */
+  status: string;
   created_at: string;
   updated_at: string;
 }
@@ -143,6 +147,7 @@ export function toArticleResponseDto(
       role_title: article.author.specialization ?? null,
       short_bio: article.author.shortBio ?? null,
     },
+    status: article.status,
     created_at: article.createdAt.toISOString(),
     updated_at: article.updatedAt.toISOString(),
   };

@@ -11,12 +11,14 @@ import { Booking } from 'src/student/entities/booking.entity';
 import { StudentModule } from 'src/student/student.module';
 import { TutorApplication } from 'src/admin/entities/tutor-application.entity';
 import { UserEvent } from 'src/events/entities/user-event.entity';
+import { ArticlesModule } from 'src/articles/articles.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Slot, Event, Payment, Booking, TutorApplication, UserEvent]),
     AuthModule,
     StudentModule,
+    ArticlesModule,
   ],
   controllers: [TutorController],
   providers: [TutorService],
