@@ -30,10 +30,13 @@ export class ArticlesService {
     authorId?: string,
     onlyPublished = true
   ): Promise<ArticlesListResponseDto> {
+    // Сортировка по publishedAt (не createdAt) — иначе статья,
+    // опубликованная задним числом (published_at в прошлом), встаёт в
+    // начало списка как "новая", а не в своё хронологическое место.
     const qb = this.articlesRepository
       .createQueryBuilder('article')
       .leftJoinAndSelect('article.author', 'author')
-      .orderBy('article.createdAt', 'DESC');
+      .orderBy('article.publishedAt', 'DESC');
 
     if (category) {
       qb.andWhere('article.category = :category', { category });
