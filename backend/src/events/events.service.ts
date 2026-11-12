@@ -1570,6 +1570,8 @@ export class EventsService {
       hasPaidRegistrations: paidRegistrationsCount > 0,
       paidRegistrationsCount,
       status: event.status,
+      category: event.category,
+      tags: event.tags ?? [],
       cover_url: event.coverUrl,
       recording_url: event.recordingUrl,
       admin_moderation_comment: event.adminModerationComment ?? null,

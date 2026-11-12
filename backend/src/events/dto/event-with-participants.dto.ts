@@ -41,6 +41,8 @@ export class EventWithParticipantsDto {
   hasPaidRegistrations: boolean;
   paidRegistrationsCount: number;
   status: string;
+  category: string | null;
+  tags: string[];
   cover_url: string | null;
   recording_url: string | null;
   admin_moderation_comment: string | null;
