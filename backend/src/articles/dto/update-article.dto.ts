@@ -66,6 +66,16 @@ export class UpdateArticleDto {
   show_banner?: boolean;
 
   @IsOptional()
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true, require_valid_protocol: true })
+  @MaxLength(2048)
+  banner_image_url?: string | null;
+
+  @IsOptional()
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true, require_valid_protocol: true })
+  @MaxLength(2048)
+  banner_link_url?: string | null;
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   @Transform(({ value }) => normalizeTags(value))

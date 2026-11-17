@@ -47,6 +47,12 @@ export class Article {
   @Column({ type: 'boolean', name: 'show_banner', default: true })
   showBanner: boolean;
 
+  @Column({ type: 'text', name: 'banner_image_url', nullable: true })
+  bannerImageUrl: string | null;
+
+  @Column({ type: 'text', name: 'banner_link_url', nullable: true })
+  bannerLinkUrl: string | null;
+
   /** Хэштеги статьи (без "#") — рубрикатор по темам, не путать с category
    *  (формат контента). Показываются на сайте рядом с именем автора. */
   @Column({ type: 'text', array: true, name: 'tags', default: '{}' })

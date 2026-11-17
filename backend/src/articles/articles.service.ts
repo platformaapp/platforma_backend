@@ -153,6 +153,8 @@ export class ArticlesService {
       relatedArticleIds: dto.related_article_ids ?? [],
       eventId: dto.event_id ?? null,
       showBanner: dto.show_banner ?? true,
+      bannerImageUrl: dto.banner_image_url ?? null,
+      bannerLinkUrl: dto.banner_link_url ?? null,
       tags: dto.tags ?? [],
       seoTitle: dto.seo_title ?? null,
       h1: dto.h1 ?? null,
@@ -198,6 +200,8 @@ export class ArticlesService {
     if (dto.related_article_ids !== undefined) article.relatedArticleIds = dto.related_article_ids;
     if (dto.event_id !== undefined) article.eventId = dto.event_id;
     if (dto.show_banner !== undefined) article.showBanner = dto.show_banner;
+    if (dto.banner_image_url !== undefined) article.bannerImageUrl = dto.banner_image_url;
+    if (dto.banner_link_url !== undefined) article.bannerLinkUrl = dto.banner_link_url;
     if (dto.tags !== undefined) article.tags = dto.tags;
     if (dto.seo_title !== undefined) article.seoTitle = dto.seo_title;
     if (dto.h1 !== undefined) article.h1 = dto.h1;

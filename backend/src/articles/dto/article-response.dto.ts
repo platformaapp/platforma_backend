@@ -54,6 +54,8 @@ export class ArticleResponseDto {
   /** Показывать ли баннер рядом со вторым подзаголовком — настраивается в
    *  админке, по умолчанию true. */
   show_banner: boolean;
+  banner_image_url: string | null;
+  banner_link_url: string | null;
   /** Хэштеги статьи (без "#") — показываются на странице статьи рядом с
    *  именем автора. */
   tags: string[];
@@ -126,6 +128,8 @@ export function toArticleResponseDto(
         }
       : undefined,
     show_banner: article.showBanner,
+    banner_image_url: article.bannerImageUrl ?? null,
+    banner_link_url: article.bannerLinkUrl ?? null,
     tags: article.tags ?? [],
     seo_title: article.seoTitle ?? null,
     h1: article.h1 ?? null,

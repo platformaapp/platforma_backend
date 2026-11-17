@@ -58,6 +58,16 @@ export class CreateArticleDto {
   @IsBoolean()
   show_banner?: boolean;
 
+  @IsOptional()
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true, require_valid_protocol: true })
+  @MaxLength(2048)
+  banner_image_url?: string | null;
+
+  @IsOptional()
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true, require_valid_protocol: true })
+  @MaxLength(2048)
+  banner_link_url?: string | null;
+
   /** Хэштеги (без "#", см. utils/tags.ts) — рядом с именем автора на сайте. */
   @IsOptional()
   @IsArray()
