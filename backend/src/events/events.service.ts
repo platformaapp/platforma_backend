@@ -1169,7 +1169,7 @@ export class EventsService {
   }
 
   async getEventsFeed(query: EventsFeedQueryDto, userId?: string): Promise<EventsFeedResponseDto> {
-    const { page, limit, type } = query;
+    const { page, limit, type, mentor_id, include_past } = query;
     const skip = (page - 1) * limit;
 
     if (page < 1) {
@@ -1187,11 +1187,15 @@ export class EventsService {
       .leftJoinAndSelect('event.mentor', 'mentor')
       .leftJoinAndSelect('event.userEvents', 'userEvents')
       .where('event.status IN (:...statuses)', {
-        statuses: [EventStatus.SCHEDULED, EventStatus.ACTIVE],
+        statuses: include_past
+          ? [EventStatus.SCHEDULED, EventStatus.ACTIVE, EventStatus.ENDED]
+          : [EventStatus.SCHEDULED, EventStatus.ACTIVE],
       })
-      .andWhere('event.datetimeStart > :now', { now })
       .andWhere('event.isBlocked = false')
       .andWhere('mentor.isBlocked = false');
+
+    if (!include_past) qb = qb.andWhere('event.datetimeStart > :now', { now });
+    if (mentor_id) qb = qb.andWhere('event.mentorId = :mentor_id', { mentor_id });
 
     if (type) {
       qb = qb.andWhere('event.type = :type', { type });
@@ -1200,7 +1204,7 @@ export class EventsService {
       qb = qb.andWhere('event.type = :type', { type: EventType.STANDALONE });
     }
 
-    if (userId) {
+    if (userId && !mentor_id) {
       qb = qb.andWhere('event.mentorId != :userId', { userId });
     }
 

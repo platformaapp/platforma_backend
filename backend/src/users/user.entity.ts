@@ -52,7 +52,7 @@ export class User {
   @Column({ type: 'decimal', name: 'hourly_rate', nullable: true, precision: 10, scale: 2 })
   hourlyRate: number | null;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Column({ type: 'text', nullable: true })
   specialization: string | null;
 
   @Column({ type: 'text', name: 'group_meetings', nullable: true })

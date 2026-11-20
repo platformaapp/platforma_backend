@@ -72,9 +72,8 @@ export class UpdateProfileDto {
   // Не IsIn(TOPICS) — список тем теперь редактируется из админки
   // (platform_settings), это больше не статичный enum на билд-тайме.
   @ApiProperty({ required: false, description: 'Рубрикатор — тема специализации наставника' })
-  @Transform(emptyToUndefined)
   @IsOptional()
   @IsString()
-  @Length(1, 100, { message: 'Специализация должна быть от 1 до 100 символов' })
+  @Length(0, 1000, { message: 'Специализация не должна превышать 1000 символов' })
   specialization?: string;
 }
