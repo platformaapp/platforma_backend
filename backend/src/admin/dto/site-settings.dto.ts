@@ -22,6 +22,10 @@ export class NavItemDto {
 export class BannerDto {
   @IsOptional()
   @IsUrl({ require_tld: false, require_protocol: false })
+  mobileImageUrl?: string;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false, require_protocol: false })
   imageUrl?: string;
 
   @IsOptional()
