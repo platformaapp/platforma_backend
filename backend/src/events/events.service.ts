@@ -1169,7 +1169,7 @@ export class EventsService {
   }
 
   async getEventsFeed(query: EventsFeedQueryDto, userId?: string): Promise<EventsFeedResponseDto> {
-    const { page, limit, type, mentor_id, include_past } = query;
+    const { page, limit, type, mentor_id, include_past, tag, category } = query;
     const skip = (page - 1) * limit;
 
     if (page < 1) {
@@ -1196,6 +1196,8 @@ export class EventsService {
 
     if (!include_past) qb = qb.andWhere('event.datetimeStart > :now', { now });
     if (mentor_id) qb = qb.andWhere('event.mentorId = :mentor_id', { mentor_id });
+    if (tag) qb = qb.andWhere(':tag = ANY(event.tags)', { tag });
+    if (category) qb = qb.andWhere('event.category = :category', { category });
 
     if (type) {
       qb = qb.andWhere('event.type = :type', { type });
