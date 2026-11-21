@@ -146,18 +146,19 @@ export class AdminService {
   // и захардкоженные NAV_ITEMS/FRIENDS на фронте).
   async getSiteSettings(): Promise<SiteSettingsDto> {
     const row = await this.settingsRepository.findOne({ where: { key: SITE_SETTINGS_KEY } });
-    if (!row) return { navItems: [], banner: {}, partners: [], topics: [], aboutUs: {} };
+    if (!row) return { navItems: [], banner: {}, articleBanner: {}, partners: [], topics: [], aboutUs: {} };
     try {
       const parsed = JSON.parse(row.value) as SiteSettingsDto;
       return {
         navItems: parsed.navItems ?? [],
         banner: parsed.banner ?? {},
+        articleBanner: parsed.articleBanner ?? {},
         partners: parsed.partners ?? [],
         topics: parsed.topics ?? [],
         aboutUs: parsed.aboutUs ?? {},
       };
     } catch {
-      return { navItems: [], banner: {}, partners: [], topics: [], aboutUs: {} };
+      return { navItems: [], banner: {}, articleBanner: {}, partners: [], topics: [], aboutUs: {} };
     }
   }
 
@@ -166,6 +167,7 @@ export class AdminService {
     const merged: SiteSettingsDto = {
       navItems: dto.navItems ?? current.navItems,
       banner: dto.banner ?? current.banner,
+      articleBanner: dto.articleBanner ?? current.articleBanner,
       partners: dto.partners ?? current.partners,
       topics: dto.topics ?? current.topics,
       aboutUs: dto.aboutUs ?? current.aboutUs,

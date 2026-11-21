@@ -82,6 +82,11 @@ export class SiteSettingsDto {
   banner?: BannerDto;
 
   @IsOptional()
+  @ValidateNested()
+  @Type(() => BannerDto)
+  articleBanner?: BannerDto;
+
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(50)
   @ValidateNested({ each: true })
