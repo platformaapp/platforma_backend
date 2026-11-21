@@ -1,3 +1,5 @@
+import { Raw } from 'typeorm';
+import { eventSeo, uniqueEventSlug } from './event-seo';
 import {
   BadRequestException,
   ConflictException,
@@ -161,6 +163,7 @@ export class EventsService {
     const mentorRevenue = Number((createEventDto.price * 0.9).toFixed(2));
 
     const event = this.eventsRepository.create({
+      slug: await uniqueEventSlug(this.eventsRepository, createEventDto.title),
       title: createEventDto.title,
       description: createEventDto.description || '',
       datetimeStart: startDate,
@@ -1244,9 +1247,11 @@ export class EventsService {
         id: event.mentor.id,
         name: event.mentor.fullName,
         avatarUrl: event.mentor.avatarUrl,
+        bio: event.mentor.bio,
       };
 
       const baseItem: EventFeedItemDto = {
+        ...eventSeo(event),
         id: event.id,
         title: event.title,
         description: event.description,
@@ -1487,7 +1492,7 @@ export class EventsService {
     userId?: string
   ): Promise<EventWithParticipantsDto> {
     const event = await this.eventsRepository.findOne({
-      where: { id: eventId },
+      where: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId) ? { id: eventId } : [{ slug: eventId }, { slugAliases: Raw(alias => `:slug = ANY(${alias})`, { slug: eventId }) }],
       relations: [
         'mentor',
         'session',
@@ -1501,6 +1506,8 @@ export class EventsService {
     if (!event) {
       throw new NotFoundException('Событие не найдено');
     }
+
+    eventId = event.id;
 
     const participantsData = await this.getEventParticipants(eventId);
 
@@ -1541,6 +1548,8 @@ export class EventsService {
     });
 
     return {
+      ...eventSeo(event),
+      noindex: event.noindex || event.isBlocked || event.type === EventType.SESSION_BASED || [EventStatus.DRAFT, EventStatus.CANCELLED].includes(event.status),
       id: event.id,
       title: event.title,
       description: event.description || '',

@@ -1,3 +1,4 @@
+import { EventSeoResponseDto } from './event-seo-response.dto';
 export class TimeToEventDto {
   days: number;
   hours: number;
@@ -5,12 +6,13 @@ export class TimeToEventDto {
 }
 
 export class MentorDto {
+  bio?: string | null;
   id: string;
   name: string;
   avatarUrl: string | null;
 }
 
-export class EventFeedItemDto {
+export class EventFeedItemDto extends EventSeoResponseDto {
   id: string;
   title: string;
   description: string;

@@ -22,6 +22,7 @@ export class RelatedArticleSummaryDto {
 }
 
 export class ArticleEventSummaryDto {
+  slug: string;
   id: string;
   title: string;
   cover_url: string | null;
@@ -120,6 +121,7 @@ export function toArticleResponseDto(
     event: event
       ? {
           id: event.id,
+          slug: event.slug,
           title: event.title,
           cover_url: event.coverUrl,
           datetime_start: event.datetimeStart ? event.datetimeStart.toISOString() : null,

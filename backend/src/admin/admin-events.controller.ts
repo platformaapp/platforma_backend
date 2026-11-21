@@ -23,6 +23,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiConsumes } from '@ne
 import { AdminService } from './admin.service';
 import { AdminJwtGuard } from './guards/admin-jwt.guard';
 import { AdminModerateEventDto } from './dto/moderate-event.dto';
+import { UpdateEventSeoDto } from './dto/update-event-seo.dto';
 import { ConfigService } from '@nestjs/config';
 
 const UPLOADS_DIR = '/app/uploads';
@@ -100,6 +101,12 @@ export class AdminEventsController {
     if (!file) throw new BadRequestException('Файл не загружен');
     const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://platformaapp.ru');
     return { url: `${frontendUrl}/api/uploads/${file.filename}` };
+  }
+
+  @Patch(':id/seo')
+  @HttpCode(HttpStatus.OK)
+  updateSeo(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateEventSeoDto) {
+    return this.adminService.updateEventSeo(id, dto);
   }
 
   @Patch(':id/moderate')

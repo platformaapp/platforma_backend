@@ -31,8 +31,9 @@ export class SitemapService {
     const [articles, events, mentors] = await Promise.all([
       this.articles.find({ where: { status: 'published', noindex: false }, select: ['id', 'slug', 'canonicalUrl', 'updatedAt'] }),
       this.events.createQueryBuilder('event').innerJoin('event.mentor', 'mentor')
-        .select(['event.id', 'event.title', 'event.updatedAt'])
+        .select(['event.id', 'event.title', 'event.slug', 'event.canonicalUrl', 'event.updatedAt'])
         .where('event.status IN (:...statuses)', { statuses: [EventStatus.SCHEDULED, EventStatus.ACTIVE, EventStatus.ENDED] })
+        .andWhere('event.noindex = false')
         .andWhere('event.type = :type', { type: EventType.STANDALONE })
         .andWhere('event.isBlocked = false').andWhere('mentor.isBlocked = false').andWhere('mentor.deletedAt IS NULL').getMany(),
       this.users.createQueryBuilder('user')
@@ -45,7 +46,10 @@ export class SitemapService {
       const url = `${site}/journal/${article.slug}`;
       if (article.slug && (!article.canonicalUrl || article.canonicalUrl === url)) urls.set(url, article.updatedAt);
     }
-    for (const event of events) urls.set(`${site}/events/${readableId(event.title, event.id)}`, event.updatedAt);
+    for (const event of events) {
+      const url = `${site}/events/${event.slug || readableId(event.title, event.id)}`;
+      if (!event.canonicalUrl || event.canonicalUrl === url) urls.set(url, event.updatedAt);
+    }
     for (const mentor of mentors) urls.set(`${site}/explore/${readableId(mentor.fullName, mentor.id)}`, mentor.updatedAt);
     if (urls.size > 50000) throw new ServiceUnavailableException('Sitemap requires splitting into multiple files');
     const entries = [...urls].map(([url, date]) => `<url><loc>${escapeXml(url)}</loc>${date ? `<lastmod>${date.toISOString()}</lastmod>` : ''}</url>`);

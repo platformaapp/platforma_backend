@@ -1,3 +1,4 @@
+import { EventSeoResponseDto } from './event-seo-response.dto';
 export class ParticipantDto {
   id: string;
   name: string;
@@ -8,7 +9,7 @@ export class ParticipantDto {
   registered_at: string;
 }
 
-export class EventWithParticipantsDto {
+export class EventWithParticipantsDto extends EventSeoResponseDto {
   id: string;
   title: string;
   description: string;

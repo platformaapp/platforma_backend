@@ -156,6 +156,45 @@ export class Event {
   @Column({ type: 'text', array: true, name: 'tags', default: '{}' })
   tags: string[];
 
+  @Column({ type: 'varchar', name: 'slug', unique: true })
+  slug: string;
+
+  @Column({ type: 'varchar', name: 'meta_title', nullable: true })
+  metaTitle: string | null;
+
+  @Column({ type: 'text', name: 'meta_description', nullable: true })
+  metaDescription: string | null;
+
+  @Column({ type: 'text', name: 'og_image', nullable: true })
+  ogImage: string | null;
+
+  @Column({ type: 'varchar', name: 'og_title', nullable: true })
+  ogTitle: string | null;
+
+  @Column({ type: 'text', name: 'og_description', nullable: true })
+  ogDescription: string | null;
+
+  @Column({ type: 'text', name: 'canonical_url', nullable: true })
+  canonicalUrl: string | null;
+
+  @Column({ type: 'text', name: 'excerpt', nullable: true })
+  excerpt: string | null;
+
+  @Column({ type: 'text', name: 'cover_alt', nullable: true })
+  coverAlt: string | null;
+
+  @Column({ type: 'text', array: true, name: 'slug_aliases', default: '{}' })
+  slugAliases: string[];
+
+  @Column({ type: 'boolean', default: false })
+  noindex: boolean;
+
+  @Column({ type: 'boolean', default: false })
+  nofollow: boolean;
+
+  @Column({ type: 'timestamptz', name: 'published_at', default: () => 'CURRENT_TIMESTAMP' })
+  publishedAt: Date;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

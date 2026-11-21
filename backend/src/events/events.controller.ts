@@ -69,7 +69,7 @@ export class EventsController {
   @Get(':id')
   @UseGuards(OptionalJwtAuthGuard)
   async getEventWithParticipants(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Req() req: AuthenticatedRequest
   ): Promise<EventWithParticipantsDto> {
     return await this.eventsService.getEventWithParticipants(id, req.user?.sub);

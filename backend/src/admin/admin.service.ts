@@ -1,3 +1,6 @@
+import { EVENT_UUID_SUFFIX } from '../utils/event-slug';
+import { UpdateEventSeoDto } from './dto/update-event-seo.dto';
+import { eventSeo } from '../events/event-seo';
 import {
   BadRequestException,
   Injectable,
@@ -308,6 +311,7 @@ export class AdminService {
     ).length ?? 0;
 
     return {
+      ...eventSeo(event),
       id: event.id,
       title: event.title,
       description: event.description,
@@ -364,6 +368,36 @@ export class AdminService {
     if (!event) throw new NotFoundException('Событие не найдено');
     event.isBlocked = false;
     await this.eventsRepository.save(event);
+  }
+
+  async updateEventSeo(id: string, dto: UpdateEventSeoDto) {
+    const event = await this.eventsRepository.findOne({ where: { id } });
+    if (!event) throw new NotFoundException('Событие не найдено');
+    if (dto.slug && EVENT_UUID_SUFFIX.test(dto.slug)) throw new BadRequestException('UUID-адреса зарезервированы для старых ссылок');
+    if (dto.slug && dto.slug !== event.slug) {
+      const conflict = await this.eventsRepository.createQueryBuilder('event')
+        .where('(event.slug = :slug OR :slug = ANY(event.slugAliases)) AND event.id != :id', { slug: dto.slug, id }).getExists();
+      if (conflict) throw new BadRequestException('Этот slug уже используется другим событием');
+      event.slugAliases = [...new Set([...(event.slugAliases ?? []), event.slug])].filter(slug => slug !== dto.slug);
+      event.slug = dto.slug;
+    }
+    if (dto.meta_title !== undefined) event.metaTitle = dto.meta_title?.trim() || null;
+    if (dto.meta_description !== undefined) event.metaDescription = dto.meta_description?.trim() || null;
+    if (dto.og_image !== undefined) event.ogImage = dto.og_image?.trim() || null;
+    if (dto.og_title !== undefined) event.ogTitle = dto.og_title?.trim() || null;
+    if (dto.og_description !== undefined) event.ogDescription = dto.og_description?.trim() || null;
+    if (dto.canonical_url !== undefined) event.canonicalUrl = dto.canonical_url?.trim() || null;
+    if (dto.excerpt !== undefined) event.excerpt = dto.excerpt?.trim() || null;
+    if (dto.cover_alt !== undefined) event.coverAlt = dto.cover_alt?.trim() || null;
+    if (dto.noindex !== undefined) event.noindex = dto.noindex;
+    if (dto.nofollow !== undefined) event.nofollow = dto.nofollow;
+    if (dto.published_at) event.publishedAt = new Date(dto.published_at);
+    try {
+      return eventSeo(await this.eventsRepository.save(event));
+    } catch (error) {
+      if (error.code === '23505') throw new BadRequestException('Этот slug уже используется другим событием');
+      throw error;
+    }
   }
 
   async moderateEvent(eventId: string, dto: AdminModerateEventDto): Promise<Event> {
