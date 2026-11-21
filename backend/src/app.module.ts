@@ -1,3 +1,4 @@
+import { SeoModule } from './seo/seo.module';
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -53,6 +54,7 @@ import { ArticlesModule } from './articles/articles.module';
     AdminModule,
     PayoutsModule,
     ArticlesModule,
+    SeoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

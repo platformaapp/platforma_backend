@@ -7,6 +7,7 @@ import {
   UseGuards,
   Req,
   HttpCode,
+  Header,
   HttpStatus,
   Param,
   Delete,
@@ -34,6 +35,7 @@ export class StudentController {
   constructor(private readonly studentService: StudentService) {}
 
   @Get('profile')
+  @Header('Cache-Control', 'private, no-store')
   @ApiOperation({ summary: 'Get student profile' })
   @ApiResponse({ status: 200, description: 'Student profile retrieved successfully' })
   async getProfile(@Req() req: AuthenticatedRequest) {
@@ -41,6 +43,7 @@ export class StudentController {
   }
 
   @Put('profile')
+  @Header('Cache-Control', 'private, no-store')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update student profile' })
   @ApiBody({ type: UpdateStudentProfileDto })

@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  Header,
   HttpStatus,
   Param,
   Post,
@@ -40,6 +41,7 @@ export class TutorController {
   ) {}
 
   @Get('profile')
+  @Header('Cache-Control', 'private, no-store')
   @UseGuards(TutorGuard)
   @ApiOperation({ summary: 'Get tutor profile' })
   @ApiResponse({
@@ -52,6 +54,7 @@ export class TutorController {
   }
 
   @Put('profile')
+  @Header('Cache-Control', 'private, no-store')
   @HttpCode(HttpStatus.OK)
   @UseGuards(TutorGuard)
   @ApiOperation({ summary: 'Update tutor profile' })
