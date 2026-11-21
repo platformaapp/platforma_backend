@@ -8,6 +8,7 @@ import {
   Res,
   Req,
   UnauthorizedException,
+  ServiceUnavailableException,
   UseGuards,
 } from '@nestjs/common';
 import express from 'express';
@@ -153,6 +154,7 @@ export class AuthController {
   @Post('forgot')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request password reset' })
+  @ApiResponse({ status: HttpStatus.SERVICE_UNAVAILABLE, description: 'Email service is not configured' })
   @ApiBody({ type: ForgotPasswordDto })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -169,6 +171,7 @@ export class AuthController {
       await this.authService.requestPasswordChange({ email });
       return { message: 'Password reset link sent to your email' };
     } catch (error) {
+      if (error instanceof ServiceUnavailableException) throw error;
       console.error('Error message: ', (error as Error).message);
       return { message: 'If the email exists, password reset link has been sent' };
     }

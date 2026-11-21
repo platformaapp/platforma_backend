@@ -292,6 +292,9 @@ export class AuthService {
   }
 
   async requestPasswordChange({ email }: { email: string }): Promise<void> {
+    // Check infrastructure before looking up the account: a global configuration
+    // error should never depend on whether this email is registered.
+    this.emailService.assertConfigured();
     const user = await this.usersRepository.findOne({
       where: { email },
     });
@@ -303,7 +306,7 @@ export class AuthService {
 
     const resetToken = this.generatePasswordResetToken(user.id, user.email);
 
-    // Fire-and-forget: do not block HTTP response while SMTP is connecting
+    // The process continues sending via the HTTPS provider after responding.
     setImmediate(() => {
       this.emailService
         .sendPasswordResetEmail(user.email, resetToken, user.fullName)
@@ -346,6 +349,7 @@ export class AuthService {
     user.passwordHash = await bcrypt.hash(password, 12);
     await this.usersRepository.save(user);
     console.log(`[resetPassword] Password updated for user ${user.id}`);
+    this.notifyPasswordChanged(user);
 
     try {
       await this.authSessionRepository.update(
@@ -373,6 +377,18 @@ export class AuthService {
 
     user.passwordHash = await bcrypt.hash(newPassword, 12);
     await this.usersRepository.save(user);
+    this.notifyPasswordChanged(user);
+  }
+
+  private notifyPasswordChanged(user: User): void {
+    // A delivery outage must not undo a password that was successfully changed.
+    setImmediate(() => {
+      this.emailService.sendPasswordChangedEmail(user.email, user.fullName)
+        .catch((error: unknown) => console.error(
+          `[AuthService] Password changed email failed for user ${user.id}:`,
+          error instanceof Error ? error.message : 'Unknown error'
+        ));
+    });
   }
 
   /** Запрос на удаление аккаунта без входа в приложение (публичная веб-страница) — присылает ссылку-подтверждение на почту. */

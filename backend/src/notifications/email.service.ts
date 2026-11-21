@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 // Unisender Go — транзакционные письма по HTTPS API, не по SMTP. Раньше
@@ -15,6 +15,8 @@ const UNISENDER_API_URL = 'https://goapi.unisender.ru/ru/transactional/api/v1/em
 // письма ниже), from_email — всегда этот.
 const SENDER_EMAIL = 'platformaapp@platformaapp.ru';
 
+const escapeEmailHtml = (value: string) => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
 type UnisenderSendResult = { job_id?: string };
 type UnisenderApiResponse = {
   status?: string;
@@ -27,10 +29,16 @@ type UnisenderApiResponse = {
 @Injectable()
 export class EmailService {
   constructor(private readonly configService: ConfigService) {
-    if (!this.configService.get<string>('UNISENDER_API_KEY')) {
+    if (!this.configService.get<string>('UNISENDER_API_KEY')?.trim()) {
       console.warn(
         '[EmailService] UNISENDER_API_KEY не задан — письма не будут отправляться (см. .env.example)'
       );
+    }
+  }
+
+  assertConfigured(): void {
+    if (!this.configService.get<string>('UNISENDER_API_KEY')?.trim()) {
+      throw new ServiceUnavailableException('Сервис отправки почты не настроен. Попробуйте позже.');
     }
   }
 
@@ -47,13 +55,12 @@ export class EmailService {
     html: string;
     fromName: string;
   }): Promise<UnisenderSendResult> {
-    const apiKey = this.configService.get<string>('UNISENDER_API_KEY');
-    if (!apiKey) {
-      throw new Error('UNISENDER_API_KEY не задан');
-    }
+    this.assertConfigured();
+    const apiKey = this.configService.get<string>('UNISENDER_API_KEY')!.trim();
 
     const res = await fetch(UNISENDER_API_URL, {
       method: 'POST',
+      signal: AbortSignal.timeout(10_000),
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
@@ -797,6 +804,24 @@ export class EmailService {
     }
   }
 
+  async sendPasswordChangedEmail(email: string, fullName: string): Promise<void> {
+    const name = escapeEmailHtml(fullName || 'пользователь');
+    const info = await this.sendViaUnisender({
+      fromName: 'Platforma',
+      to: email,
+      subject: 'Пароль изменён',
+      html: `<div style="max-width:600px;margin:0 auto;font-family:Arial,sans-serif;line-height:1.6">
+        <h1>Пароль изменён</h1>
+        <p>Здравствуйте, ${name}!</p>
+        <p>Пароль вашего аккаунта Platforma успешно изменён.</p>
+        <p>Если вы не меняли пароль, восстановите доступ к аккаунту:
+          <a href="https://platformaapp.ru/forgot-password">сбросить пароль</a>.</p>
+        <p>Ваш пароль не передаётся в письмах.</p>
+      </div>`,
+    });
+    console.log(`Password changed notification accepted by Unisender Go, job_id: ${info.job_id}`);
+  }
+
   async sendPasswordResetEmail(email: string, resetToken: string, fullName: string): Promise<void> {
     const resetUrl = `https://platformaapp.ru/reset-password?token=${resetToken}`;
 
@@ -810,7 +835,7 @@ export class EmailService {
             <h1 style="color:#fff;margin:0;">🔐 Сброс пароля</h1>
           </div>
           <div style="padding:30px;">
-            <h2 style="color:#333;margin-top:0;">Здравствуйте, ${fullName || 'пользователь'}!</h2>
+            <h2 style="color:#333;margin-top:0;">Здравствуйте, ${escapeEmailHtml(fullName || 'пользователь')}!</h2>
             <p style="color:#666;line-height:1.6;">
               Вы запросили сброс пароля. Нажмите кнопку ниже, чтобы установить новый пароль:
             </p>
@@ -863,7 +888,7 @@ export class EmailService {
             <h1 style="color:#fff;margin:0;">🗑 Удаление аккаунта</h1>
           </div>
           <div style="padding:30px;">
-            <h2 style="color:#333;margin-top:0;">Здравствуйте, ${fullName || 'пользователь'}!</h2>
+            <h2 style="color:#333;margin-top:0;">Здравствуйте, ${escapeEmailHtml(fullName || 'пользователь')}!</h2>
             <p style="color:#666;line-height:1.6;">
               Вы запросили удаление аккаунта Platforma. Нажмите кнопку ниже, чтобы подтвердить удаление:
             </p>

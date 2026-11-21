@@ -1,0 +1,4 @@
+# Runtime secrets used for Docker Compose substitution.
+.env
+.env.*
+!.env.example
